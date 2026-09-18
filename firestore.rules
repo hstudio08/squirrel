@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthorizedUser() {
+      return request.auth != null && 
+             request.auth.token.email_verified == true && (
+               request.auth.token.email == "officialhaadi81@gmail.com" || 
+               request.auth.token.email == "sadiyaayoub22019@gmail.com"
+             );
+    }
+
+    match /conversations/private-chat {
+      allow read: if isAuthorizedUser();
+      
+      match /messages/{messageId} {
+        allow read: if isAuthorizedUser();
+        
+        allow create: if isAuthorizedUser()
+                      && request.resource.data.keys().hasAll(['text', 'senderId', 'createdAt', 'seen'])
+                      && request.resource.data.keys().hasOnly(['text', 'senderId', 'createdAt', 'seen'])
+                      && request.resource.data.senderId == request.auth.uid
+                      && request.resource.data.createdAt == request.time
+                      && request.resource.data.seen == false
+                      && request.resource.data.text is string
+                      && request.resource.data.text.size() > 0
+                      && request.resource.data.text.size() <= 2000;
+                      
+        allow update: if isAuthorizedUser() && (
+          // Case 1: Recipient marks as seen
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen'])
+            && request.resource.data.seen == true
+            && resource.data.senderId != request.auth.uid
+          ) ||
+          // Case 2: Sender edits text
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'isEdited', 'editedAt'])
+            && resource.data.senderId == request.auth.uid
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 2000
+            && request.resource.data.isEdited == true
+            && request.resource.data.editedAt == request.time
+          ) ||
+          // Case 3: Any user pins/unpins
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isPinned'])
+          ) ||
+          // Case 4: Any user deletes for themselves
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletedFor'])
+          ) ||
+          // Case 5: Sender soft-deletes for everyone
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeletedForEveryone', 'text'])
+            && resource.data.senderId == request.auth.uid
+            && request.resource.data.isDeletedForEveryone == true
+            && request.resource.data.text == ""
+          )
+        );
+        
+        // Sender is allowed to delete their own messages for everyone (hard delete)
+        allow delete: if isAuthorizedUser() && resource.data.senderId == request.auth.uid;
+      }
+    }
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
