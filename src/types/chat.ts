@@ -11,4 +11,7 @@ export interface Message {
   isPinned?: boolean;
   deletedFor?: string[];
   isDeletedForEveryone?: boolean;
+  replyToId?: string;
+  replyToText?: string;
+  replyToSenderId?: string;
 }

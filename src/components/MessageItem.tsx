@@ -12,6 +12,7 @@ interface MessageItemProps {
   isMine: boolean;
   user: User;
   isFirstUnreplied?: boolean;
+  onReply?: () => void;
 }
 
 const formatTime = (timestamp: any) => {
@@ -24,7 +25,7 @@ const formatTime = (timestamp: any) => {
   }).format(date);
 };
 
-export default function MessageItem({ message, isMine, user, isFirstUnreplied }: MessageItemProps) {
+export default function MessageItem({ message, isMine, user, isFirstUnreplied, onReply }: MessageItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   
@@ -178,6 +179,51 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied }:
     }
   };
 
+  // Swipe to reply logic
+  const [translateX, setTranslateX] = useState(0);
+  const dragStartX = useRef<number | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Only capture primary pointer (prevents multi-touch issues)
+    if (!e.isPrimary) return;
+    dragStartX.current = e.clientX;
+    startPress();
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!e.isPrimary || dragStartX.current === null) return;
+    
+    const diffX = e.clientX - dragStartX.current;
+    
+    // If moving horizontally more than vertically, cancel long press
+    if (Math.abs(diffX) > 10) {
+      cancelPress();
+    }
+    
+    // Only swipe right to reply
+    if (diffX > 0 && !message.isDeletedForEveryone && !isEditing) {
+      // Damping effect past 60px
+      const visualX = diffX < 60 ? diffX : 60 + (diffX - 60) * 0.2;
+      setTranslateX(Math.min(visualX, 80));
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!e.isPrimary) return;
+    cancelPress();
+    
+    if (translateX > 50 && onReply && !message.isDeletedForEveryone && !isEditing) {
+      onReply();
+      if (window.navigator.vibrate) {
+        window.navigator.vibrate(50);
+      }
+    }
+    
+    setTranslateX(0);
+    dragStartX.current = null;
+  };
+
+
   if (message.deletedFor && message.deletedFor.includes(user.uid)) {
     return null; // Don't render if deleted for me
   }
@@ -188,10 +234,11 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied }:
       className={`flex w-full ${isMine ? 'justify-end' : 'justify-start'} mb-2.5 animate-pop-in relative`}
     >
       <div
-        onPointerDown={startPress}
-        onPointerUp={cancelPress}
-        onPointerLeave={cancelPress}
-        onPointerCancel={cancelPress}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         onContextMenu={(e) => {
           if (!isEditing) {
             e.preventDefault(); 
@@ -201,7 +248,12 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied }:
             setShowOptions(true);
           }
         }}
-        className={`relative max-w-[85%] sm:max-w-[70%] rounded-2xl px-3 pt-2 pb-1.5 shadow-sm border transition-all ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
+        style={{
+          transform: `translateX(${translateX}px)`,
+          transition: translateX === 0 ? 'transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28)' : 'none',
+          touchAction: 'pan-y'
+        }}
+        className={`relative max-w-[85%] sm:max-w-[70%] rounded-2xl px-3 pt-2 pb-1.5 shadow-sm border ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
           isMine
             ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-sm border-[#c8eed4] cursor-pointer'
             : 'bg-white text-[#111b21] rounded-tl-sm border-white cursor-pointer'
@@ -268,6 +320,17 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied }:
                 </button>
               </>
             )}
+          </div>
+        )}
+
+        {message.replyToId && !message.isDeletedForEveryone && (
+          <div className="mb-1.5 p-1.5 bg-black/5 rounded flex flex-col border-l-[3px] border-l-teal-500 overflow-hidden text-left relative before:absolute before:inset-0 before:bg-white/40 before:-z-10">
+            <span className="text-[11px] font-semibold text-teal-600 truncate leading-tight">
+              {message.replyToSenderId === user.uid ? 'You' : 'They'}
+            </span>
+            <span className="text-[13px] text-black/70 truncate leading-tight mt-0.5">
+              {message.replyToText}
+            </span>
           </div>
         )}
 

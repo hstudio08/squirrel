@@ -16,7 +16,7 @@ import { ref, onValue, set, onDisconnect } from 'firebase/database';
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Send, Smile } from 'lucide-react';
+import { Smile, Send, Loader2, Info, X } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
 interface ChatUIProps {
@@ -30,6 +30,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [messageLimit, setMessageLimit] = useState(15);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -196,12 +197,21 @@ export default function ChatUI({ user }: ChatUIProps) {
     }
 
     try {
-      await addDoc(collection(db, 'conversations/private-chat/messages'), {
+      const newMessageData: any = {
         text: messageText,
         senderId: user.uid,
         createdAt: serverTimestamp(),
         seen: false
-      });
+      };
+      
+      if (replyingTo) {
+        newMessageData.replyToId = replyingTo.id;
+        newMessageData.replyToText = replyingTo.text;
+        newMessageData.replyToSenderId = replyingTo.senderId;
+      }
+
+      await addDoc(collection(db, 'conversations/private-chat/messages'), newMessageData);
+      setReplyingTo(null);
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     } catch (error) {
       console.error("Failed to send message", error);
@@ -266,8 +276,9 @@ export default function ChatUI({ user }: ChatUIProps) {
               key={msg.id} 
               message={msg} 
               isMine={msg.senderId === user.uid} 
-              user={user} 
+              user={user}
               isFirstUnreplied={msg.id === firstUnrepliedId}
+              onReply={() => setReplyingTo(msg)}
             />
           ));
         })()}
@@ -304,7 +315,27 @@ export default function ChatUI({ user }: ChatUIProps) {
           </div>
         )}
 
-        <form onSubmit={handleSend} className="flex items-end space-x-2 max-w-4xl mx-auto">
+        {replyingTo && (
+          <div className="max-w-4xl mx-auto mb-2 flex items-center bg-[#e2e8f0] rounded-lg p-2 shadow-sm border-l-4 border-teal-500 animate-slide-up relative z-10">
+            <div className="flex-1 overflow-hidden pr-2">
+              <p className="text-[12px] font-semibold text-teal-600 mb-0.5">
+                {replyingTo.senderId === user.uid ? 'You' : otherEmail}
+              </p>
+              <p className="text-[13px] text-slate-600 truncate">
+                {replyingTo.text}
+              </p>
+            </div>
+            <button
+              onClick={() => setReplyingTo(null)}
+              className="p-1 rounded-full hover:bg-slate-300 text-slate-500 shrink-0"
+              type="button"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={handleSend} className="flex items-end space-x-2 max-w-4xl mx-auto relative z-20">
           <div className="flex-1 flex items-end bg-white rounded-3xl overflow-hidden shadow-sm px-2">
             <button
               type="button"
