@@ -351,12 +351,6 @@ export default function ChatUI({ user }: ChatUIProps) {
               placeholder="Type a message"
               className="flex-1 bg-transparent text-[#111b21] placeholder-[#8696a0] py-[13px] px-2 text-[15px] focus:outline-none resize-none leading-snug max-h-[120px] min-h-[48px]"
               rows={1}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend(e);
-                }
-              }}
             />
           </div>
           

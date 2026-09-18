@@ -342,10 +342,7 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied, o
               className="bg-white/60 text-[#111b21] rounded-xl p-2.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none text-[15px] mb-2 leading-snug w-full"
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleEditSubmit(e as unknown as FormEvent);
-                } else if (e.key === 'Escape') {
+                if (e.key === 'Escape') {
                   setIsEditing(false);
                   setEditText(message.text);
                 }
