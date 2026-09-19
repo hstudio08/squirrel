@@ -1,24 +1,22 @@
 'use client';
 
-import React, { useState, useEffect, useRef, FormEvent } from 'react';
+import React, { useState, useEffect, useRef, FormEvent, Fragment } from 'react';
 import { User } from 'firebase/auth';
 import { db, rtdb } from '@/lib/firebase';
 import { 
   collection, 
   query, 
-  where, 
-  getDocs, 
   orderBy, 
   limit as firestoreLimit, 
   onSnapshot, 
   addDoc, 
   serverTimestamp 
 } from 'firebase/firestore';
-import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
+import { ref, onValue, set, onDisconnect } from 'firebase/database';
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X } from 'lucide-react';
+import { Smile, Send, Loader2, Info, X } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
 interface ChatUIProps {
@@ -33,129 +31,44 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [messageLimit, setMessageLimit] = useState(25);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   
+  // New state for multi-user testing
+  const [selectedTarget, setSelectedTarget] = useState<'sadiya' | 'lonehaadi' | 'officialhaadi'>(
+    user.email === 'officialhaadi81@gmail.com' ? 'lonehaadi' : 'officialhaadi'
+  );
 
-  const chatId = 'private-chat';
-  const otherEmail = user.email === 'sadiyaayoub22019@gmail.com' ? 'officialhaadi81@gmail.com' : 'sadiyaayoub22019@gmail.com';
+  let chatId = 'private-chat';
+  let otherEmail = 'sadiyaayoub22019@gmail.com';
+
+  if (user.email === 'sadiyaayoub22019@gmail.com') {
+    chatId = 'private-chat';
+    otherEmail = 'officialhaadi81@gmail.com';
+  } else if (user.email === 'officialhaadi81@gmail.com') {
+    if (selectedTarget === 'sadiya') {
+      chatId = 'private-chat';
+      otherEmail = 'sadiyaayoub22019@gmail.com';
+    } else {
+      chatId = 'test-chat';
+      otherEmail = 'lonehaadi81@gmail.com';
+    }
+  } else if (user.email === 'lonehaadi81@gmail.com') {
+    if (selectedTarget === 'sadiya') {
+      chatId = 'test-chat-2';
+      otherEmail = 'sadiyaayoub22019@gmail.com';
+    } else {
+      chatId = 'test-chat';
+      otherEmail = 'officialhaadi81@gmail.com';
+    }
+  }
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
-  
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-
-  
-  const [otherUserName, setOtherUserName] = useState<string>('');
-  const [otherUserStatus, setOtherUserStatus] = useState<{state: string, last_changed: number} | null>(null);
-  const [otherUid, setOtherUid] = useState<string | null>(null);
-
-  const isTypingRef = useRef(false);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   const { signOut } = useAuth();
 
-  const playNotificationSound = () => {
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
-      oscillator.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1); // A5
-      
-      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-      
-      oscillator.start();
-      oscillator.stop(audioCtx.currentTime + 0.15);
-    } catch (e) {
-      console.error("Audio playback failed", e);
-    }
-  };
-
-
-  // Fetch other user profile and listen to their presence
-  useEffect(() => {
-    if (!user) return;
-    const fetchOtherUser = async () => {
-      try {
-        const q = query(collection(db, 'users'), where('email', '==', otherEmail));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          const data = snapshot.docs[0].data();
-          setOtherUserName(data.displayName || otherEmail.split('@')[0]);
-          setOtherUid(data.uid);
-        } else {
-          setOtherUserName(otherEmail.split('@')[0]);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchOtherUser();
-  }, [user, otherEmail]);
-
-  // Manage My Presence
-  useEffect(() => {
-    if (!user) return;
-    const myStatusRef = ref(rtdb, `/status/${user.uid}`);
-    const connectedRef = ref(rtdb, '.info/connected');
-    
-    const unsubscribe = onValue(connectedRef, (snap) => {
-      if (snap.val() === true) {
-        onDisconnect(myStatusRef).set({ state: 'offline', last_changed: rtdbServerTimestamp() }).then(() => {
-          set(myStatusRef, { state: 'online', last_changed: rtdbServerTimestamp() });
-        });
-      }
-    });
-
-    const handleVis = () => {
-      if (document.visibilityState === 'hidden') {
-        set(myStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
-      } else {
-        set(myStatusRef, { state: 'online', last_changed: rtdbServerTimestamp() });
-      }
-    };
-    document.addEventListener("visibilitychange", handleVis);
-
-    return () => {
-      unsubscribe();
-      document.removeEventListener("visibilitychange", handleVis);
-      set(myStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
-    };
-  }, [user]);
-
-  // Listen to Other User Presence
-  useEffect(() => {
-    if (!otherUid) return;
-    const otherStatusRef = ref(rtdb, `/status/${otherUid}`);
-    const unsubscribe = onValue(otherStatusRef, (snap) => {
-      setOtherUserStatus(snap.val());
-    });
-    return () => unsubscribe();
-  }, [otherUid]);
-
-  const formatLastSeen = (timestamp: number | null) => {
-    if (!timestamp) return 'Offline';
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    if (diff < 60000) return 'Last seen just now';
-    if (date.toDateString() === now.toDateString()) {
-      return `Last seen today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    }
-    return `Last seen on ${date.toLocaleDateString()}`;
-  };
-
-  const statusText = isOtherTyping 
-    ? 'typing...' 
-    : otherUserStatus?.state === 'online' 
-      ? 'Online' 
-      : formatLastSeen(otherUserStatus?.last_changed || null);
+  // Close emoji picker on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
@@ -166,38 +79,35 @@ export default function ChatUI({ user }: ChatUIProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Update typing status
   useEffect(() => {
     const myTypingRef = ref(rtdb, `typingStatus/${chatId}/${user.uid}`);
-    onDisconnect(myTypingRef).set(false);
-
+    if (text.trim()) {
+      set(myTypingRef, true);
+    } else {
+      set(myTypingRef, false);
+    }
+    
+    // We listen to the whole chat node and check if anyone EXCEPT us is typing
     const chatTypingRef = ref(rtdb, `typingStatus/${chatId}`);
-    const unsubscribeTyping = onValue(chatTypingRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        let someoneElseIsTyping = false;
-        for (const [uid, isTyping] of Object.entries(data)) {
-          if (uid !== user.uid && isTyping === true) {
-            someoneElseIsTyping = true;
-            break;
-          }
-        }
-        setIsOtherTyping(someoneElseIsTyping);
+    const unsubscribe = onValue(chatTypingRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        // If there's any key in data that is not our uid and is true, someone is typing
+        const someoneElseTyping = Object.keys(data).some(key => key !== user.uid && data[key] === true);
+        setIsOtherTyping(someoneElseTyping);
       } else {
         setIsOtherTyping(false);
       }
     });
 
     return () => {
-      set(myTypingRef, false);
-      unsubscribeTyping();
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    };
-  }, [user.uid, chatId]);
+  }, [user.uid]);
 
   const updateTypingStatus = (typing: boolean) => {
     if (isTypingRef.current !== typing) {
       isTypingRef.current = typing;
-      const myTypingRef = ref(rtdb, `typingStatus/${chatId}/${user.uid}`);
+      const myTypingRef = ref(rtdb, `typingStatus/test-chat/${user.uid}`);
       set(myTypingRef, typing).catch(err => console.error("Typing status error", err));
     }
   };
@@ -207,8 +117,11 @@ export default function ChatUI({ user }: ChatUIProps) {
     setText(newText);
     adjustTextareaHeight();
 
+    // Typing logic
     if (newText.length > 0) {
       updateTypingStatus(true);
+      
+      // Debounce stop typing
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
         updateTypingStatus(false);
@@ -219,6 +132,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     }
   };
 
+  // Visibility change to stop typing when tab hidden
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -229,9 +143,10 @@ export default function ChatUI({ user }: ChatUIProps) {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
+  // Firestore messages listener
   useEffect(() => {
     const q = query(
-      collection(db, `conversations/${chatId}/messages`),
+      collection(db, 'conversations/test-chat/messages'),
       orderBy('createdAt', 'desc'),
       firestoreLimit(messageLimit)
     );
@@ -250,29 +165,37 @@ export default function ChatUI({ user }: ChatUIProps) {
           setIsInitialLoad(false);
         }, 100);
       } else {
-        let shouldScroll = false;
+        // Check for new messages from the other user to trigger notification
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
             const newMsg = change.doc.data();
-            shouldScroll = true; // Auto scroll on any new message
-            if (newMsg.senderId !== user.uid) {
-              playNotificationSound();
+            if (newMsg.senderId !== user.uid && document.visibilityState === 'hidden') {
+              const notificationsEnabled = localStorage.getItem('notificationsEnabled') === 'true';
+              if (notificationsEnabled && 'serviceWorker' in navigator) {
+                navigator.serviceWorker.ready.then(registration => {
+                  registration.active?.postMessage({ type: 'SHOW_NOTIFICATION' });
+                });
+              }
             }
           }
         });
-
-        if (shouldScroll) {
-          setTimeout(() => {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-          }, 100);
-        }
       }
     }, (error) => {
       console.error("Error fetching messages:", error);
     });
 
     return () => unsubscribe();
-  }, [messageLimit, isInitialLoad, chatId]);
+  }, [messageLimit, isInitialLoad]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const loadMore = () => {
     setMessageLimit(prev => prev + 15);
@@ -305,6 +228,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     setText('');
     setShowEmojiPicker(false);
     
+    // Stop typing indicator immediately
     updateTypingStatus(false);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     
@@ -326,8 +250,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         newMessageData.replyToSenderId = replyingTo.senderId;
       }
 
-      await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
-      
+      await addDoc(collection(db, 'conversations/test-chat/messages'), newMessageData);
       setReplyingTo(null);
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     } catch (error) {
@@ -339,18 +262,50 @@ export default function ChatUI({ user }: ChatUIProps) {
     }
   };
 
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('notificationsEnabled');
+    if (saved === 'true') setNotificationsEnabled(true);
+  }, []);
+
+  const toggleNotifications = async () => {
+    if (!notificationsEnabled) {
+      if (Notification.permission === 'default') {
+        const perm = await Notification.requestPermission();
+        if (perm === 'granted') {
+          setNotificationsEnabled(true);
+          localStorage.setItem('notificationsEnabled', 'true');
+        } else {
+          alert("Notification permission denied by browser.");
+        }
+      } else if (Notification.permission === 'granted') {
+        setNotificationsEnabled(true);
+        localStorage.setItem('notificationsEnabled', 'true');
+      } else {
+        alert("Notification permission is blocked. Please enable it in browser settings.");
+      }
+    } else {
+      setNotificationsEnabled(false);
+      localStorage.setItem('notificationsEnabled', 'false');
+    }
+  };
 
   return (
     <div className="flex flex-col h-[100dvh] bg-black text-white relative overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between w-full px-4 py-3 bg-[#0a0a0a] border-b border-white/5 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.75rem)] relative">
-        <div className="flex items-center flex-1 overflow-hidden group">
-          <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center mr-3 shrink-0">
+        <button
+          onClick={signOut}
+          className="flex items-center flex-1 overflow-hidden group hover:opacity-80 transition-opacity"
+        >
+          <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center mr-3 shrink-0 group-active:scale-95 transition-transform">
             <span className="text-white/70 font-bold text-lg">
               {otherEmail[0].toUpperCase()}
             </span>
           </div>
-          <div className="flex flex-col items-start overflow-hidden w-full">
+          <div className="flex flex-col items-start overflow-hidden">
             <h1 className="text-[16px] font-semibold text-white/90 truncate w-full text-left">
               30xCam
             </h1>
@@ -358,15 +313,33 @@ export default function ChatUI({ user }: ChatUIProps) {
               {otherEmail}
             </p>
           </div>
-        </div>
-
-        <button 
-          onClick={signOut}
-          className="px-3 py-1.5 ml-2 text-[12px] font-medium text-red-400 border border-red-400/30 rounded-full hover:bg-red-400/10 transition-colors whitespace-nowrap"
-        >
-          Sign Out
         </button>
 
+        <button 
+          onClick={() => setShowSettings(!showSettings)}
+          className="p-2 ml-2 text-white/50 hover:text-white/90 rounded-full hover:bg-white/5 transition-colors"
+        >
+          <Info size={20} />
+        </button>
+
+        {showSettings && (
+          <div className="absolute top-full right-4 mt-2 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl p-4 w-64 z-30 animate-pop-in">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-white/90">Notifications</span>
+              <button 
+                onClick={toggleNotifications}
+                className={`w-12 h-6 rounded-full p-1 transition-colors ${notificationsEnabled ? 'bg-teal-500' : 'bg-white/20'}`}
+              >
+                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform ${notificationsEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+            <p className="text-[11px] text-white/40 mt-2">
+              {Notification.permission === 'denied' 
+                ? 'Blocked by browser. Allow in site settings.' 
+                : 'Receive a generic alert when you get a new message in the background.'}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Messages */}
@@ -400,7 +373,6 @@ export default function ChatUI({ user }: ChatUIProps) {
               message={msg} 
               isMine={msg.senderId === user.uid} 
               user={user}
-              chatId={chatId}
               isFirstUnreplied={msg.id === firstUnrepliedId}
               onReply={() => setReplyingTo(msg)}
             />

@@ -4,17 +4,26 @@ const isDev = process.env.NODE_ENV !== 'production';
 
 const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ""} https://apis.google.com https://*.firebaseio.com;
+    script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ""} https://apis.google.com https://*.firebaseio.com https://www.gstatic.com;
     style-src 'self' 'unsafe-inline';
-    img-src 'self' blob: data: https://www.google.com https://www.gstatic.com https://cdn.jsdelivr.net;
+    img-src 'self' blob: data: https://www.google.com https://www.gstatic.com https://cdn.jsdelivr.net https://images.unsplash.com;
     connect-src 'self' https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firestore.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com;
     frame-src 'self' https://squirrel-4f5a6.firebaseapp.com https://*.firebaseapp.com;
     object-src 'none';
+    worker-src 'self' https://www.gstatic.com blob:;
     base-uri 'self';
     form-action 'self';
 `.replace(/\s{2,}/g, ' ').trim();
 
 const nextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+    ],
+  },
   async headers() {
     return [
       {

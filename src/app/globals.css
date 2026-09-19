@@ -6,8 +6,8 @@
 }
 
 :root {
-  --background: #000000;
-  --foreground: #ffffff;
+  --background: #efeae2;
+  --foreground: #111b21;
 }
 
 body {
@@ -48,7 +48,7 @@ body {
 .typing-dot {
   width: 4px;
   height: 4px;
-  background-color: #00ffaa;
+  background-color: #00a884;
   border-radius: 50%;
   animation: bounceDot 1.2s infinite ease-in-out;
 }
@@ -57,9 +57,9 @@ body {
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-/* 30xCam style faint grid */
+/* WhatsApp style dotted pattern + huge faint center squirrel */
 .chat-bg {
-  background-color: #000000;
+  background-color: #efeae2;
   position: relative;
 }
 
@@ -68,22 +68,20 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 30px 30px;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
   z-index: 0;
 }
 
 .chat-bg::after {
-  content: "30xCam";
+  content: "Squirrel";
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 15vw;
-  font-weight: 200;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.02);
+  font-weight: 900;
+  color: rgba(0, 0, 0, 0.02);
   pointer-events: none;
   z-index: 0;
   user-select: none;
