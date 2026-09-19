@@ -239,15 +239,24 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
       }
     
     const now = Date.now();
-    const DOUBLE_TAP_DELAY = 300;
     
+    // If the pointer landed on an interactive element inside the popup (button, a, etc.)
+    // do NOT close anything — let the button's own onClick handle it
+    const target = e.target as HTMLElement;
+    const isInsidePopup = target.closest('[data-popup]') !== null;
+    if (isInsidePopup) {
+      setTranslateX(0);
+      dragStartX.current = null;
+      return;
+    }
+
     if (translateX > 50 && onReply && !message.isDeletedForEveryone && !isEditing) {
       onReply();
       if (window.navigator.vibrate) {
         window.navigator.vibrate(50);
       }
     } else if (Math.abs(translateX) < 10) {
-      // Single tap
+      // Single tap on the bubble itself (not on a popup)
       if (!isActiveReaction && !showOptions && !showDeleteConfirm) {
         if (selectionMode && onToggleSelect) {
             onToggleSelect();
@@ -255,6 +264,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
             onReveal();
           }
       } else {
+        // Tapped outside popup — close everything
         if (onReactClose) onReactClose();
         setShowOptions(false);
         setShowDeleteConfirm(false);
@@ -361,7 +371,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
 
         {/* Stacked Container */}
         {(showOptions || showDeleteConfirm || isActiveReaction) && (
-          <div className={`absolute ${isMine ? 'right-0 items-end origin-bottom-right' : 'left-0 items-start origin-bottom-left'} bottom-full mb-1 flex flex-col gap-1.5 z-40 animate-pop-in`}>
+          <div data-popup className={`absolute ${isMine ? 'right-0 items-end origin-bottom-right' : 'left-0 items-start origin-bottom-left'} bottom-full mb-1 flex flex-col gap-1.5 z-40 animate-pop-in`}>
             
             {/* Reaction Selector Popup */}
             {isActiveReaction && !showFullEmojiPicker && (
@@ -400,79 +410,81 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
 
             {/* Options Menu */}
             {(showOptions || showDeleteConfirm) && (
-              <div ref={menuRef} className="bg-white shadow-xl rounded-xl border border-slate-100 py-1 min-w-[160px] flex flex-col overflow-hidden w-max">
-            
-            {!showDeleteConfirm ? (
-              <>
-                {isMine && !message.isDeletedForEveryone && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setIsEditing(true); setShowOptions(false); }}
-                    className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full"
-                  >
-                    <Edit2 size={16} className="mr-3 text-slate-500" /> Edit
-                  </button>
-                )}
-                
-                {!message.isDeletedForEveryone && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setShowOptions(false); if (onToggleSelect) { onToggleSelect(); } }}
-                      className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full border-t border-slate-50"
+              <div
+                ref={menuRef}
+                className="bg-white shadow-xl rounded-xl border border-slate-100 py-1 min-w-[160px] flex flex-col overflow-hidden w-max"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {!showDeleteConfirm ? (
+                  <>
+                    {isMine && !message.isDeletedForEveryone && (
+                      <button
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setIsEditing(true);
+                          setShowOptions(false);
+                        }}
+                        className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors w-full"
+                      >
+                        <Edit2 size={16} className="mr-3 text-slate-500" /> Edit
+                      </button>
+                    )}
+                    <button
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowDeleteConfirm(true);
+                        setShowOptions(false);
+                      }}
+                      className={`flex items-center px-4 py-3 text-sm text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors w-full ${isMine && !message.isDeletedForEveryone ? 'border-t border-slate-100' : ''}`}
                     >
-                      <CheckCircle2 size={16} className="mr-3 text-slate-500" /> Select
+                      <Trash2 size={16} className="mr-3 text-red-500" /> Delete
                     </button>
-                  )}
-                  {!message.isDeletedForEveryone && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(message.text); setShowOptions(false); }}
-                      className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full border-t border-slate-50"
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDeleteForMe();
+                      }}
+                      className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors w-full"
                     >
-                      <Copy size={16} className="mr-3 text-slate-500" /> Copy
+                      Delete for me
                     </button>
-                  )}
-                  {!message.isDeletedForEveryone && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleTogglePin(); }}
-                    className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full border-t border-slate-50"
-                  >
-                    <Pin size={16} className="mr-3 text-slate-500" /> {message.isPinned ? 'Unpin' : 'Pin'}
-                  </button>
+                    {isMine && (
+                      <button
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDeleteForEveryone();
+                        }}
+                        className="flex items-center px-4 py-3 text-sm text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors w-full border-t border-slate-100"
+                      >
+                        Delete for everyone
+                      </button>
+                    )}
+                    <button
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowDeleteConfirm(false);
+                        setShowOptions(true);
+                      }}
+                      className="flex items-center justify-center px-4 py-2 text-sm text-slate-500 hover:bg-slate-50 active:bg-slate-100 transition-colors w-full border-t border-slate-100 font-medium"
+                    >
+                      Cancel
+                    </button>
+                  </>
                 )}
-                
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); setShowOptions(false); }}
-                  className="flex items-center px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors w-full border-t border-slate-50"
-                >
-                  <Trash2 size={16} className="mr-3 text-red-500" /> Delete
-                </button>
-              </>
-            ) : (
-              <>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleDeleteForMe(); }}
-                  className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full"
-                >
-                  Delete for me
-                </button>
-                {isMine && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleDeleteForEveryone(); }}
-                    className="flex items-center px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors w-full border-t border-slate-50"
-                  >
-                    Delete for everyone
-                  </button>
-                )}
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); setShowOptions(true); }}
-                  className="flex items-center justify-center px-4 py-2 text-sm text-slate-500 hover:bg-slate-50 transition-colors w-full border-t border-slate-50 font-medium"
-                >
-                  Cancel
-                </button>
-              </>
+              </div>
             )}
           </div>
         )}
-      </div>
-    )}
+
 
         {message.replyToId && !message.isDeletedForEveryone && (
           <div onClick={(e) => { e.stopPropagation(); scrollToMessage(message.replyToId!); }} className={`mb-1.5 p-1.5 bg-black/5 rounded flex flex-col border-l-[3px] border-l-teal-500 overflow-hidden text-left relative before:absolute before:inset-0 before:bg-white/40 before:-z-10 cursor-pointer hover:bg-black/10 transition-colors ${shouldMask ? 'blur-[3.5px] opacity-60 select-none' : ''}`}>
