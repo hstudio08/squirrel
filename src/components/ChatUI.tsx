@@ -14,7 +14,8 @@ import {
   addDoc, 
   serverTimestamp,
   writeBatch,
-  doc
+  doc,
+  updateDoc,
 } from 'firebase/firestore';
 import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
 import { Message } from '@/types/chat';
@@ -497,7 +498,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
   const daysCount = new Set(visibleMessages.map(m => {
     if (!m.createdAt) return '';
-    const date = m.createdAt.toDate ? m.createdAt.toDate() : new Date(m.createdAt);
+    const date = m.createdAt.toDate ? m.createdAt.toDate() : new Date(typeof m.createdAt === 'number' ? m.createdAt : (m.createdAt as any).seconds ? (m.createdAt as any).seconds * 1000 : m.createdAt as any);
     return date.toDateString();
   }).filter(Boolean)).size;
 
