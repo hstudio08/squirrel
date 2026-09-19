@@ -141,7 +141,7 @@ export default function AIPlusLandingPage() {
       {/* Header */}
       <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? 'bg-white/80 backdrop-blur-xl border-b border-slate-200 py-3 shadow-sm' : 'bg-transparent py-6'}`}>
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <div className="flex items-center space-x-3 cursor-pointer group" onClick={handleSecretClick} title="Click 5 times to authenticate">
+          <div className="flex items-center space-x-3 group">
             <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-xl shadow-md group-hover:shadow-lg transition-all duration-500">
               <Bot className="w-6 h-6 text-white" />
             </div>
@@ -180,7 +180,11 @@ export default function AIPlusLandingPage() {
           <span>Agentic Swarm Protocol v4.0 is now live</span>
         </div>
         
-        <h2 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter mb-8 max-w-5xl leading-[1.1] text-slate-900">
+        <h2 
+          className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter mb-8 max-w-5xl leading-[1.1] text-slate-900 cursor-pointer select-none"
+          onClick={handleSecretClick}
+          title="Click 5 times to authenticate"
+        >
           Autonomous AI.<br/>
           <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
             No Human Required.
@@ -397,7 +401,7 @@ export default function AIPlusLandingPage() {
       <footer className="bg-slate-900 py-16 px-6">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
           <div className="col-span-1 md:col-span-2">
-            <div className="flex items-center space-x-2 mb-6 cursor-pointer" onClick={handleSecretClick} title="Click 5 times to authenticate">
+            <div className="flex items-center space-x-2 mb-6">
               <Bot className="w-6 h-6 text-white" />
               <span className="text-xl font-black tracking-tight text-white">AI <span className="text-blue-600">Plus</span></span>
             </div>
