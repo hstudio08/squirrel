@@ -303,7 +303,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
           isMine
             ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] cursor-pointer'
             : 'bg-white text-[#111b21] rounded-tl-[4px] border-white cursor-pointer'
-        } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''} ${shouldMask ? 'filter blur-[5px] select-none' : ''}`}
+        } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''} ${shouldMask ? 'blur-sm opacity-40 select-none' : ''}`}
         onClick={() => { if (shouldMask) setIsRevealed(true); }}
       >
         {/* Pinned Indicator */}

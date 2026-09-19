@@ -422,7 +422,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           </div>
           <div className="flex flex-col items-start overflow-hidden w-full">
             <h1 className="text-[15px] font-semibold text-white/90 truncate w-full text-left tracking-wide leading-tight">
-              {otherUserName || getMaskedEmail(otherEmail)}
+              {getMaskedEmail(otherEmail)}
             </h1>
             <p className={`text-[11px] truncate w-full text-left font-light leading-tight ${otherUserStatus?.state === 'online' ? 'text-emerald-400' : 'text-white/60'}`}>
               {statusText}
@@ -463,7 +463,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             firstUnrepliedId = messages[i].id;
           }
 
-          return messages.map((msg) => (
+          return messages.map((msg, index) => (
             <MessageItem 
               key={msg.id} 
               message={msg} 
@@ -472,6 +472,8 @@ export default function ChatUI({ user }: ChatUIProps) {
               chatId={chatId}
               isFirstUnreplied={msg.id === firstUnrepliedId}
               onReply={() => setReplyingTo(msg)}
+              isAnonymousMode={isAnonymousMode}
+              isLastMessage={index === messages.length - 1}
             />
           ));
         })()}
@@ -541,9 +543,23 @@ export default function ChatUI({ user }: ChatUIProps) {
               value={text}
               onChange={handleTextChange}
               placeholder="Type a message"
-              className="flex-1 bg-transparent text-[#111b21] placeholder-[#8696a0] py-[13px] px-2 text-[15px] focus:outline-none resize-none leading-snug max-h-[120px] min-h-[48px]"
+              className="flex-1 bg-transparent text-[#111b21] placeholder-[#8696a0] py-[10px] px-2 text-[14.5px] focus:outline-none resize-none leading-snug max-h-[100px] min-h-[40px]"
               rows={1}
             />
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              id="image-upload"
+              onChange={handleImageUpload}
+              disabled={isSending}
+            />
+            <label
+              htmlFor="image-upload"
+              className={`shrink-0 p-3 transition-colors self-end cursor-pointer ${isSending ? 'text-slate-300 pointer-events-none' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              {isSending ? <Loader2 size={24} className="animate-spin" strokeWidth={1.5} /> : <ImageIcon size={24} strokeWidth={1.5} />}
+            </label>
           </div>
           
           <button
