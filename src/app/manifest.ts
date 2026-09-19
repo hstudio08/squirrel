@@ -2,26 +2,26 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: '30xCam',
-    short_name: '30xCam',
-    description: '30xCam',
+    name: 'AI Plus',
+    short_name: 'AI Plus',
+    description: 'Advanced AI System',
     start_url: '/',
     display: 'standalone',
-    background_color: '#000000',
-    theme_color: '#000000',
+    background_color: '#ffffff',
+    theme_color: '#ffffff',
     icons: [
       {
-        src: '/icon?size=192',
+        src: '/iconii.png',
         sizes: '192x192',
         type: 'image/png',
       },
       {
-        src: '/icon?size=512',
+        src: '/iconii.png',
         sizes: '512x512',
         type: 'image/png',
       },
       {
-        src: '/icon?size=512',
+        src: '/iconii.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable',

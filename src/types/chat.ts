@@ -15,4 +15,5 @@ export interface Message {
   replyToText?: string;
   replyToSenderId?: string;
   reactions?: Record<string, string>;
+  imageUrl?: string;
 }

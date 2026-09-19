@@ -13,14 +13,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "30xCam",
-  description: "Secure private camera and messaging experience.",
+  title: "AI Plus",
+  description: "Advanced AI System",
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: '30xCam'
+    title: 'AI Plus'
   },
-  applicationName: '30xCam',
+  applicationName: 'AI Plus',
 };
 
 export const viewport: Viewport = {

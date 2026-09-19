@@ -462,6 +462,19 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
           </form>
         ) : (
           <div className="flex flex-col relative pointer-events-none select-none">
+        {/* Image Message */}
+            {message.imageUrl && !message.isDeletedForEveryone && (
+              <div className="mb-1.5 relative rounded-xl overflow-hidden animate-pop-in bg-black/5" style={{ minWidth: '150px', minHeight: '150px' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img 
+                  src={message.imageUrl} 
+                  alt="Photo" 
+                  className="w-full h-auto object-cover rounded-xl border border-black/5"
+                  loading="lazy"
+                />
+              </div>
+            )}
+            
             <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''}`}>
               {message.isDeletedForEveryone ? (
                 <>

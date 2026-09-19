@@ -18,7 +18,7 @@ import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2 } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
 interface ChatUIProps {
@@ -32,6 +32,8 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [messageLimit, setMessageLimit] = useState(25);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   
 
@@ -56,22 +58,10 @@ export default function ChatUI({ user }: ChatUIProps) {
 
   const playNotificationSound = () => {
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
-      oscillator.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1); // A5
-      
-      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-      
-      oscillator.start();
-      oscillator.stop(audioCtx.currentTime + 0.15);
+      if (document.visibilityState === 'visible') {
+        const audio = new Audio('/notification.mp3');
+        audio.play().catch(e => console.error("Audio play failed:", e));
+      }
     } catch (e) {
       console.error("Audio playback failed", e);
     }
@@ -294,6 +284,53 @@ export default function ChatUI({ user }: ChatUIProps) {
     typingTimeoutRef.current = setTimeout(() => {
       updateTypingStatus(false);
     }, 1000);
+  };
+
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'Obsidian');
+    formData.append('cloud_name', 'dislib3k');
+
+    try {
+      const res = await fetch('https://api.cloudinary.com/v1_1/dislib3k/image/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.secure_url) {
+        // Send message with image
+        const newMessageData: any = {
+          text: '',
+          imageUrl: data.secure_url,
+          senderId: user.uid,
+          createdAt: serverTimestamp(),
+          seen: false
+        };
+
+        if (replyingTo) {
+          newMessageData.replyToId = replyingTo.id;
+          newMessageData.replyToText = replyingTo.text || 'Photo';
+          newMessageData.replyToSenderId = replyingTo.senderId;
+        }
+
+        await addDoc(collection(db, 'chats', chatId, 'messages'), newMessageData);
+        setReplyingTo(null);
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    } catch (err) {
+      console.error('Image upload failed', err);
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleSend = async (e: FormEvent) => {
