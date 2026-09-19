@@ -30,7 +30,7 @@ export default function DecoyPage() {
     let currentCount = clickCount;
     
     // Reset if more than 1 second between clicks
-    if (now - lastClickRef.current > 1000) {
+    if (now - lastClickRef.current > 2000) {
       currentCount = 0;
     }
     
@@ -44,7 +44,7 @@ export default function DecoyPage() {
     
     clickTimerRef.current = setTimeout(() => {
       setClickCount(0);
-    }, 1000);
+    }, 2000);
 
     if (currentCount >= 5) {
       setClickCount(0);
@@ -83,7 +83,6 @@ export default function DecoyPage() {
               <Bot className="w-6 h-6 text-white" />
             </div>
             <h1 
-              onClick={handleSecretClick}
               className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent select-none"
             >
               AI Plus
@@ -105,7 +104,10 @@ export default function DecoyPage() {
           <span>Introducing AI Plus Version 4.0</span>
         </div>
         
-        <h2 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 max-w-4xl leading-tight">
+        <h2 
+          onClick={handleSecretClick}
+          className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 max-w-4xl leading-tight select-none cursor-default"
+        >
           The future of <span className="text-blue-600">intelligence</span> is here.
         </h2>
         

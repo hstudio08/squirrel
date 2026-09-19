@@ -20,7 +20,7 @@ import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
 interface ChatUIProps {
@@ -52,6 +52,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [otherUserName, setOtherUserName] = useState<string>('');
   const [otherUserStatus, setOtherUserStatus] = useState<{state: string, last_changed: number} | null>(null);
   const [otherUid, setOtherUid] = useState<string | null>(null);
+  const [isAnonymousMode, setIsAnonymousMode] = useState(false);
 
   const isTypingRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -149,11 +150,15 @@ export default function ChatUI({ user }: ChatUIProps) {
     return `Last seen on ${date.toLocaleDateString()}`;
   };
 
-  const statusText = isOtherTyping 
-    ? 'typing...' 
-    : otherUserStatus?.state === 'online' 
-      ? 'Online' 
-      : formatLastSeen(otherUserStatus?.last_changed || null);
+  const statusText = otherUserStatus?.state === 'online' ? 'Online' : formatLastSeen(otherUserStatus?.last_changed || null);
+  
+  const getMaskedEmail = (email: string) => {
+    if (!email) return '';
+    const prefix = email.split('@')[0];
+    if (prefix.length <= 4) return email;
+    return prefix.substring(0, 2) + '*****' + prefix.substring(prefix.length - 2) + '@gmail.com';
+  };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
@@ -402,18 +407,24 @@ export default function ChatUI({ user }: ChatUIProps) {
   return (
     <div className="flex flex-col h-[100dvh] bg-black text-white relative overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between w-full px-4 py-3 bg-[#0a0a0a] border-b border-white/5 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.75rem)] relative">
-        <div className="flex items-center flex-1 overflow-hidden group">
-          <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center mr-3 shrink-0">
-            <span className="text-white/70 font-bold text-lg">
+      <div className="flex items-center justify-between w-full px-4 py-2 bg-[#111b21]/95 backdrop-blur-md rounded-b-[24px] shadow-md border-b border-white/5 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.5rem)] relative mx-1 mt-1">
+        <div className="flex items-center flex-1 min-w-0">
+          <button 
+            onClick={() => setIsAnonymousMode(!isAnonymousMode)}
+            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mr-2 transition-colors ${isAnonymousMode ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+          >
+            <Ghost size={16} />
+          </button>
+          <div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center mr-2 shrink-0">
+            <span className="text-[14px] font-bold text-white">
               {otherEmail[0].toUpperCase()}
             </span>
           </div>
           <div className="flex flex-col items-start overflow-hidden w-full">
-            <h1 className="text-[17px] font-semibold text-white truncate w-full text-left tracking-wide">
-              {otherUserName || (otherEmail ? (otherEmail.split('@')[0].substring(0, 2) + '***' + otherEmail.split('@')[0].substring(otherEmail.split('@')[0].length - 2) + '@gmail.com') : '')}
+            <h1 className="text-[15px] font-semibold text-white/90 truncate w-full text-left tracking-wide leading-tight">
+              {otherUserName || getMaskedEmail(otherEmail)}
             </h1>
-            <p className={`text-[12px] truncate w-full text-left font-light ${otherUserStatus?.state === 'online' ? 'text-emerald-400' : 'text-white/60'}`}>
+            <p className={`text-[11px] truncate w-full text-left font-light leading-tight ${otherUserStatus?.state === 'online' ? 'text-emerald-400' : 'text-white/60'}`}>
               {statusText}
             </p>
           </div>
@@ -421,11 +432,10 @@ export default function ChatUI({ user }: ChatUIProps) {
 
         <button 
           onClick={signOut}
-          className="px-4 py-2 ml-2 text-[14px] font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-md transition-all whitespace-nowrap tracking-wide"
+          className="px-3 py-1.5 ml-2 text-[12px] font-bold text-white bg-red-500/90 hover:bg-red-500 rounded-full shadow-sm transition-all whitespace-nowrap"
         >
           Sign Out
         </button>
-
       </div>
 
       {/* Messages */}

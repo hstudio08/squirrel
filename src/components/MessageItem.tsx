@@ -15,6 +15,8 @@ interface MessageItemProps {
   chatId: string;
   isFirstUnreplied?: boolean;
   onReply?: () => void;
+  isAnonymousMode?: boolean;
+  isLastMessage?: boolean;
 }
 
 const formatTime = (timestamp: any) => {
@@ -27,7 +29,7 @@ const formatTime = (timestamp: any) => {
   }).format(date);
 };
 
-export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply }: MessageItemProps) {
+export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false }: MessageItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   
@@ -37,6 +39,8 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
   const [showOptions, setShowOptions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFullEmojiPicker, setShowFullEmojiPicker] = useState(false);
+  const [isRevealed, setIsRevealed] = useState(false);
+  const shouldMask = isAnonymousMode && !isLastMessage && !isRevealed;
   
   // Long press logic
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -295,11 +299,12 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
           transition: translateX === 0 ? 'transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28)' : 'none',
           touchAction: 'pan-y'
         }}
-        className={`relative max-w-[85%] sm:max-w-[70%] rounded-[22px] px-3 pt-2 pb-1.5 shadow-sm border ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
+        className={`relative max-w-[85%] sm:max-w-[70%] rounded-[22px] px-2.5 pt-1.5 pb-1 shadow-sm border ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
           isMine
             ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] cursor-pointer'
             : 'bg-white text-[#111b21] rounded-tl-[4px] border-white cursor-pointer'
-        } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''}`}
+        } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''} ${shouldMask ? 'filter blur-[5px] select-none' : ''}`}
+        onClick={() => { if (shouldMask) setIsRevealed(true); }}
       >
         {/* Pinned Indicator */}
         {message.isPinned && (
@@ -491,12 +496,18 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
                 </span>
               )}
               <span className="text-[10.5px] text-black/45 font-medium tracking-tight">
-                {message.seen && message.seenAt ? formatTime(message.seenAt) : (message.editedAt ? formatTime(message.editedAt) : formatTime(message.createdAt))}
+                {message.editedAt ? formatTime(message.editedAt) : formatTime(message.createdAt)}
               </span>
               {isMine && (
-                <div className="flex items-center ml-1 opacity-90">
-                  <CheckCheck size={14} className={`${message.seen ? 'text-[#34B7F1]' : 'text-black/30'}`} strokeWidth={2.5} />
+                <div className="flex items-center ml-1.5 space-x-0.5">
+                  <div className={`w-1.5 h-1.5 rounded-full ${message.seen ? 'bg-[#25D366] shadow-[0_0_2px_rgba(37,211,102,0.5)]' : 'bg-black/20'}`} />
+                  <div className={`w-1.5 h-1.5 rounded-full ${message.seen ? 'bg-[#25D366] shadow-[0_0_2px_rgba(37,211,102,0.5)]' : 'bg-black/20'}`} />
                 </div>
+              )}
+              {isMine && message.seen && message.seenAt && (
+                <span className="text-[10.5px] text-[#25D366] font-medium tracking-tight ml-1.5">
+                  {formatTime(message.seenAt)}
+                </span>
               )}
             </div>
             
