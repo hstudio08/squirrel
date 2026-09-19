@@ -304,7 +304,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
           isMine
             ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] cursor-pointer'
             : 'bg-white text-[#111b21] rounded-tl-[4px] border-white cursor-pointer'
-        } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''} ${shouldMask ? 'blur-sm opacity-40 select-none' : ''}`}
+        } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''} `}
         onClick={() => { if (shouldMask && onReveal) onReveal(); }}
       >
         {/* Pinned Indicator */}
@@ -422,10 +422,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     )}
 
         {message.replyToId && !message.isDeletedForEveryone && (
-          <div 
-            onClick={(e) => { e.stopPropagation(); scrollToMessage(message.replyToId!); }}
-            className="mb-1.5 p-1.5 bg-black/5 rounded flex flex-col border-l-[3px] border-l-teal-500 overflow-hidden text-left relative before:absolute before:inset-0 before:bg-white/40 before:-z-10 cursor-pointer hover:bg-black/10 transition-colors"
-          >
+          <div onClick={(e) => { e.stopPropagation(); scrollToMessage(message.replyToId!); }} className={`mb-1.5 p-1.5 bg-black/5 rounded flex flex-col border-l-[3px] border-l-teal-500 overflow-hidden text-left relative before:absolute before:inset-0 before:bg-white/40 before:-z-10 cursor-pointer hover:bg-black/10 transition-colors ${shouldMask ? 'blur-[3.5px] opacity-60 select-none' : ''}`}>
             <span className="text-[11px] font-semibold text-teal-600 truncate leading-tight">
               {message.replyToSenderId === user.uid ? 'You' : 'They'}
             </span>
@@ -470,7 +467,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
           <div className="flex flex-col relative pointer-events-none select-none">
         {/* Image Message */}
             {message.imageUrl && !message.isDeletedForEveryone && (
-              <div className="mb-1.5 relative rounded-xl overflow-hidden animate-pop-in bg-black/5" style={{ minWidth: '150px', minHeight: '150px' }}>
+              <div className={`mb-1.5 relative rounded-xl overflow-hidden animate-pop-in bg-black/5 ${shouldMask ? 'blur-[8px] opacity-60 select-none' : ''}`} style={{ minWidth: '150px', minHeight: '150px' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img 
                   src={message.imageUrl} 
@@ -481,7 +478,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
               </div>
             )}
             
-            <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''}`}>
+            <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''} ${shouldMask ? 'blur-[3.5px] opacity-60 select-none' : ''}`}>
               {message.isDeletedForEveryone ? (
                 <>
                   <span className="italic font-light text-[14px] text-black/50 tracking-wide">This message was deleted</span>

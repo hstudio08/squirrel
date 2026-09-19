@@ -417,7 +417,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   return (
     <div className="flex flex-col h-[100dvh] bg-black text-white relative overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between w-full px-4 py-2 bg-[#111b21]/95 backdrop-blur-md rounded-b-[24px] shadow-md border-b border-white/5 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.5rem)] relative mx-1 mt-1">
+      <div className="flex items-center justify-between px-4 py-2 bg-[#111b21]/40 backdrop-blur-xl rounded-[32px] shadow-lg border border-white/10 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.5rem)] relative mx-2 mt-2 self-stretch mb-1">
         <div className="flex items-center flex-1 min-w-0">
           <button 
             onClick={() => setIsAnonymousMode(!isAnonymousMode)}
