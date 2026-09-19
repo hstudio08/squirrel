@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, FormEvent } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, FormEvent } from 'react';
 import { User } from 'firebase/auth';
 import { db, rtdb } from '@/lib/firebase';
 import { 
@@ -21,12 +21,33 @@ import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, Settings, ArrowLeft, Copy, Trash2 } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, Settings, ArrowLeft, Copy, Trash2, ChevronDown } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
 interface ChatUIProps {
   user: User;
 }
+
+const OnlineIndicator = () => {
+  const [showText, setShowText] = useState(true);
+  useEffect(() => {
+    const interval = setInterval(() => setShowText(prev => !prev), 2000);
+    return () => clearInterval(interval);
+  }, []);
+  return (
+    <div className="flex items-center justify-end h-[14px]">
+      {showText ? (
+        <span className="text-[11px] font-bold text-blue-500 animate-fade-in">Online</span>
+      ) : (
+        <div className="flex space-x-1 animate-fade-in items-center h-full">
+          <div className="w-1.5 h-1.5 bg-blue-500 rounded-sm animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]" style={{animationDelay: '0ms'}}></div>
+          <div className="w-1.5 h-1.5 bg-blue-500 rounded-sm animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]" style={{animationDelay: '300ms'}}></div>
+          <div className="w-1.5 h-1.5 bg-blue-500 rounded-sm animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]" style={{animationDelay: '600ms'}}></div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function ChatUI({ user }: ChatUIProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -48,7 +69,20 @@ export default function ChatUI({ user }: ChatUIProps) {
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   
   const initialLoadDone = useRef(false);
-    const newestMsgTimeRef = useRef<number>(0);
+  const newestMsgTimeRef = useRef<number>(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prevScrollHeightRef = useRef<number>(0);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  
+  useLayoutEffect(() => {
+    if (prevScrollHeightRef.current > 0 && scrollContainerRef.current) {
+      const diff = scrollContainerRef.current.scrollHeight - prevScrollHeightRef.current;
+      if (diff > 0) {
+        scrollContainerRef.current.scrollTop += diff;
+      }
+      prevScrollHeightRef.current = 0;
+    }
+  }, [messages]);
 
   
   const [otherUserName, setOtherUserName] = useState<string>('');
@@ -383,7 +417,10 @@ export default function ChatUI({ user }: ChatUIProps) {
   };
 
   const loadMore = () => {
-    setMessageLimit(prev => prev + 15);
+    if (scrollContainerRef.current) {
+      prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
+    }
+    setMessageLimit(prev => prev + 25);
   };
 
   const adjustTextareaHeight = () => {
@@ -661,9 +698,13 @@ export default function ChatUI({ user }: ChatUIProps) {
                   <h1 className="text-[14px] font-bold text-slate-800 truncate w-full text-right tracking-wide leading-tight">
                     {getMaskedEmail(otherEmail)}
                   </h1>
-                  <p className={`text-[11px] truncate w-full text-right font-semibold leading-tight ${otherUserStatus?.state === 'online' ? 'text-emerald-600' : 'text-slate-500'}`}>
-                    {statusText}
-                  </p>
+                  {otherUserStatus?.state === 'online' ? (
+                    <OnlineIndicator />
+                  ) : (
+                    <p className="text-[11px] truncate w-full text-right font-semibold leading-tight text-slate-500">
+                      {formatLastSeen(otherUserStatus?.last_changed || null)}
+                    </p>
+                  )}
                 </div>
                 <button 
                   onClick={signOut}
@@ -676,7 +717,26 @@ export default function ChatUI({ user }: ChatUIProps) {
           )}
         </div>
         {/* Messages */}
-      <div onScroll={() => setActiveReactionMessageId(null)} className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto">
+      <div 
+        ref={scrollContainerRef}
+        onScroll={(e) => {
+          setActiveReactionMessageId(null);
+          const target = e.target as HTMLDivElement;
+          const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 150;
+          setShowScrollBottom(!isNearBottom);
+        }} 
+        className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto"
+      >
+        {showScrollBottom && (
+          <button 
+            onClick={() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="fixed bottom-[80px] right-6 sm:right-10 z-[100] p-3 bg-white/90 backdrop-blur-md rounded-full shadow-[0_4px_15px_rgba(0,0,0,0.1)] border border-slate-200 text-slate-700 hover:text-blue-500 hover:scale-105 transition-all cursor-pointer animate-pop-in"
+          >
+            <ChevronDown size={22} strokeWidth={2.5} />
+          </button>
+        )}
         {messages.length >= messageLimit && (
           <div className="flex justify-center mb-6 z-10">
             <button 
