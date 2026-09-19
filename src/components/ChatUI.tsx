@@ -88,6 +88,15 @@ export default function ChatUI({ user }: ChatUIProps) {
 
   // Fetch other user profile and listen to their presence
   useEffect(() => {
+    if (user?.uid && chatId) {
+      const stored = localStorage.getItem(`clearedAt_${user.uid}_${chatId}`);
+      if (stored) {
+        setClearedAt(parseInt(stored, 10));
+      }
+    }
+  }, [user?.uid, chatId]);
+
+  useEffect(() => {
     if (!user) return;
     const fetchOtherUser = async () => {
       try {
@@ -314,6 +323,14 @@ export default function ChatUI({ user }: ChatUIProps) {
     });
   };
 
+  const handleClearHistory = () => {
+    const now = Date.now();
+    setClearedAt(now);
+    localStorage.setItem(`clearedAt_${user.uid}_${chatId}`, now.toString());
+    setShowClearConfirm(false);
+    setShowSettings(false);
+  };
+
   const handleCopySelected = () => {
     const texts = messages.filter(m => selectedMessages.has(m.id)).map(m => m.text).join('\n\n');
     navigator.clipboard.writeText(texts);
@@ -409,8 +426,8 @@ export default function ChatUI({ user }: ChatUIProps) {
 
   const isSameDay = (d1: any, d2: any) => {
     if (!d1 || !d2) return false;
-    const date1 = d1.toDate ? d1.toDate() : new Date(d1);
-    const date2 = d2.toDate ? d2.toDate() : new Date(d2);
+    const date1 = d1.toDate ? d1.toDate() : new Date(typeof d1 === 'number' ? d1 : d1.seconds ? d1.seconds * 1000 : d1);
+      const date2 = d2.toDate ? d2.toDate() : new Date(typeof d2 === 'number' ? d2 : d2.seconds ? d2.seconds * 1000 : d2);
     return date1.getFullYear() === date2.getFullYear() &&
            date1.getMonth() === date2.getMonth() &&
            date1.getDate() === date2.getDate();
@@ -541,8 +558,95 @@ export default function ChatUI({ user }: ChatUIProps) {
               className="w-full py-3.5 px-4 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors"
             >
               Clear Chat History
-            </button>
+              </button>
+            </div>
           </div>
+          
+          {/* Clear History Confirmation Modal */}
+          {showClearConfirm && (
+            <div className="absolute inset-0 z-[60] flex items-center justify-center p-4 bg-white/10 backdrop-blur-md">
+              <div className="bg-white/70 backdrop-blur-xl rounded-[32px] p-6 w-full max-w-sm shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/40 animate-pop-in flex flex-col items-center text-center">
+                <Trash2 size={32} className="text-red-500 mb-4" />
+                <h3 className="text-xl font-bold text-slate-800 mb-2 tracking-tight">Clear History</h3>
+                <p className="text-[14.5px] text-slate-600 mb-6 leading-relaxed">
+                  Are you sure you want to clear your chat history? This only clears it on your side.
+                </p>
+                <div className="flex w-full space-x-3">
+                  <button 
+                    onClick={() => setShowClearConfirm(false)}
+                    className="flex-1 py-3 px-4 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-xl transition-colors border border-slate-200"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleClearHistory}
+                    className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-colors shadow-sm"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+  return (
+    <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-2 bg-white/40 backdrop-blur-xl rounded-[32px] shadow-[0_4px_30px_rgba(0,0,0,0.1)] border border-white/30 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.5rem)] relative mx-2 mt-2 max-w-5xl mx-auto w-[calc(100%-1rem)] mb-1">
+          {selectionMode ? (
+            <div className="flex items-center justify-between w-full h-10">
+              <div className="flex items-center">
+                <button onClick={() => { setSelectionMode(false); setSelectedMessages(new Set()); }} className="p-2 mr-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm">
+                  <X size={20} />
+                </button>
+                <span className="font-bold text-slate-800 text-lg">{selectedMessages.size} selected</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button onClick={handleCopySelected} className="p-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm">
+                  <Copy size={20} />
+                </button>
+                <button onClick={handleDeleteSelected} className="p-2 bg-red-500/90 rounded-full hover:bg-red-500 text-white transition-colors shadow-sm">
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Left Side: Ghost & Settings */}
+              <div className="flex items-center">
+                <button 
+                  onClick={() => setIsAnonymousMode(!isAnonymousMode)}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mr-2 transition-colors ${isAnonymousMode ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 shadow-sm'}`}
+                >
+                  <Ghost size={18} />
+                </button>
+                <button onClick={() => setShowSettings(true)} className="w-10 h-10 flex items-center justify-center text-slate-700 hover:text-slate-900 transition-colors bg-white/60 hover:bg-white rounded-full shadow-sm">
+                  <Settings size={20} />
+                </button>
+              </div>
+
+              {/* Right Side: Profile & SignOut */}
+              <div className="flex items-center justify-end flex-1 min-w-0 ml-4 space-x-3">
+                <div className="flex flex-col items-end overflow-hidden">
+                  <h1 className="text-[14px] font-bold text-slate-800 truncate w-full text-right tracking-wide leading-tight">
+                    {getMaskedEmail(otherEmail)}
+                  </h1>
+                  <p className={`text-[11px] truncate w-full text-right font-semibold leading-tight ${otherUserStatus?.state === 'online' ? 'text-emerald-600' : 'text-slate-500'}`}>
+                    {statusText}
+                  </p>
+                </div>
+                <button 
+                  onClick={signOut}
+                  className="px-4 py-1.5 text-[13px] font-bold text-white bg-red-500/90 hover:bg-red-500 rounded-full shadow-sm transition-all whitespace-nowrap shrink-0"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </>
+          )}
         </div>
         {/* Messages */}
       <div onScroll={() => setActiveReactionMessageId(null)} className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto">
@@ -710,5 +814,4 @@ export default function ChatUI({ user }: ChatUIProps) {
       </div>
     </div>
   );
-}
 }
