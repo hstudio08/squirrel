@@ -47,7 +47,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const initialLoadDone = useRef(false);
 
   
   const [otherUserName, setOtherUserName] = useState<string>('');
@@ -257,6 +257,8 @@ export default function ChatUI({ user }: ChatUIProps) {
       firestoreLimit(messageLimit)
     );
 
+    let isFirstSnapshot = true;
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedMessages: Message[] = [];
       const batch = writeBatch(db);
@@ -279,35 +281,37 @@ export default function ChatUI({ user }: ChatUIProps) {
       const reversed = fetchedMessages.reverse();
       setMessages(reversed);
       
-      if (isInitialLoad) {
+      if (!initialLoadDone.current) {
+          initialLoadDone.current = true;
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-          setIsInitialLoad(false);
+          
         }, 100);
       } else {
-        let shouldScroll = false;
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const newMsg = change.doc.data();
-            shouldScroll = true; // Auto scroll on any new message
-            if (newMsg.senderId !== user.uid) {
-              playNotificationSound();
+          let shouldScroll = false;
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              const newMsg = change.doc.data();
+              shouldScroll = true;
+              if (newMsg.senderId !== user.uid && !isFirstSnapshot) {
+                playNotificationSound();
+              }
             }
+          });
+  
+          if (shouldScroll) {
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
           }
-        });
-
-        if (shouldScroll) {
-          setTimeout(() => {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-          }, 100);
         }
-      }
+        isFirstSnapshot = false;
     }, (error) => {
       console.error("Error fetching messages:", error);
     });
 
     return () => unsubscribe();
-  }, [messageLimit, isInitialLoad, chatId]);
+  }, [messageLimit, chatId]);
 
   const handleToggleSelect = (id: string) => {
     setSelectedMessages(prev => {

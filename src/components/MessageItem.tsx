@@ -575,20 +575,20 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
 
       {showReactionDetails && message.reactions && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" onClick={(e) => { e.stopPropagation(); setShowReactionDetails(false); }}>
-          <div className="bg-white rounded-[24px] p-5 w-full max-w-[280px] shadow-2xl animate-pop-in flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-[15px] font-bold text-slate-800">Reactions</h3>
-              <button onClick={() => setShowReactionDetails(false)} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors">
-                <X size={16} />
+          <div className="bg-white rounded-[16px] p-3 w-full max-w-[200px] shadow-xl border border-slate-100 animate-pop-in flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-[13px] font-bold text-slate-800 tracking-tight">Reactions</h3>
+              <button onClick={() => setShowReactionDetails(false)} className="p-1 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors">
+                <X size={12} />
               </button>
             </div>
-            <div className="flex flex-col space-y-3">
+            <div className="flex flex-col space-y-1.5">
               {Object.entries(message.reactions).map(([uid, emoji]) => (
-                <div key={uid} className="flex items-center space-x-3 p-2 bg-slate-50 rounded-xl">
-                  <div className="w-10 h-10 bg-white shadow-sm rounded-full flex items-center justify-center text-[22px]">
+                <div key={uid} className="flex items-center space-x-2 p-1.5 bg-slate-50 rounded-lg">
+                  <div className="w-7 h-7 bg-white shadow-sm rounded-full flex items-center justify-center text-[15px]">
                     {emoji}
                   </div>
-                  <span className="text-[14px] font-semibold text-slate-700 truncate">
+                  <span className="text-[12px] font-semibold text-slate-700 truncate">
                     {uid === user.uid ? 'You' : (otherEmail ? getMaskedEmail(otherEmail) : 'Other')}
                   </span>
                 </div>
