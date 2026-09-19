@@ -8,6 +8,10 @@
           ".validate": "newData.isBoolean()"
         }
       }
+    },
+    "status": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com')",
+      ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com')"
     }
   }
 }

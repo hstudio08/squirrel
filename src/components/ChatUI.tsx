@@ -16,13 +16,16 @@ import {
   writeBatch,
   doc,
   updateDoc,
+  arrayUnion,
+  getCountFromServer
 } from 'firebase/firestore';
 import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, Settings, ArrowLeft, Copy, Trash2, ChevronDown } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, Search, Pin } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
+import ImageEditor from './ImageEditor';
 
 interface ChatUIProps {
   user: User;
@@ -45,19 +48,52 @@ const OnlineIndicator = () => {
           <div className="w-1.5 h-1.5 bg-blue-500 rounded-sm animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]" style={{animationDelay: '600ms'}}></div>
         </div>
       )}
+
     </div>
   );
 };
 
+
+// Secure LocalStorage Cache
+const secureCache = {
+  set: (key: string, data: any, secret: string) => {
+    try {
+      const text = JSON.stringify(data);
+      const encoded = encodeURIComponent(text);
+      let xored = '';
+      for(let i=0; i<encoded.length; i++) {
+        xored += String.fromCharCode(encoded.charCodeAt(i) ^ secret.charCodeAt(i % secret.length));
+      }
+      localStorage.setItem(key, btoa(xored));
+    } catch (e) { console.error('Cache set error'); }
+  },
+  get: (key: string, secret: string) => {
+    try {
+      const cached = localStorage.getItem(key);
+      if(!cached) return null;
+      const xored = atob(cached);
+      let decoded = '';
+      for(let i=0; i<xored.length; i++) {
+        decoded += String.fromCharCode(xored.charCodeAt(i) ^ secret.charCodeAt(i % secret.length));
+      }
+      return JSON.parse(decodeURIComponent(decoded));
+    } catch(e) {
+      return null;
+    }
+  }
+};
+
 export default function ChatUI({ user }: ChatUIProps) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
-  const [messageLimit, setMessageLimit] = useState(25);
+  const [messageLimit, setMessageLimit] = useState(10);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   
 
@@ -91,15 +127,19 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [isAnonymousMode, setIsAnonymousMode] = useState(false);
   const [revealedMessages, setRevealedMessages] = useState<string[]>([]);
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [enterToSend, setEnterToSend] = useState(false);
+    const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [enterToSend, setEnterToSend] = useState(true);
   const [clearedAt, setClearedAt] = useState<number>(0);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
+  const [expandedMessageId, setExpandedMessageId] = useState<string | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
 
   const isTypingRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTypingWriteRef = useRef<number>(0); // throttle RTDB writes
 
   const { signOut } = useAuth();
 
@@ -120,6 +160,16 @@ export default function ChatUI({ user }: ChatUIProps) {
     }
   };
 
+
+  // Bulletproof fallback for otherUid from messages
+  useEffect(() => {
+    if (!otherUid && messages.length > 0) {
+      const otherMsg = messages.find(m => m.senderId !== user?.uid);
+      if (otherMsg) {
+        setOtherUid(otherMsg.senderId);
+      }
+    }
+  }, [messages, otherUid, user?.uid]);
 
   // Fetch other user profile and listen to their presence
   useEffect(() => {
@@ -196,11 +246,11 @@ export default function ChatUI({ user }: ChatUIProps) {
     const date = new Date(timestamp);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
-    if (diff < 60000) return 'Last seen just now';
+    if (diff < 60000) return 'Offline ? Last seen just now';
     if (date.toDateString() === now.toDateString()) {
-      return `Last seen today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      return `Offline ? Last seen today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     }
-    return `Last seen on ${date.toLocaleDateString()}`;
+    return `Offline ? Last seen on ${date.toLocaleDateString()}`;
   };
 
   const statusText = otherUserStatus?.state === 'online' ? 'Online' : formatLastSeen(otherUserStatus?.last_changed || null);
@@ -215,6 +265,8 @@ export default function ChatUI({ user }: ChatUIProps) {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        const target = event.target as Element;
+        if (target.closest('#emoji-toggle-btn')) return;
         setShowEmojiPicker(false);
       }
     };
@@ -251,11 +303,18 @@ export default function ChatUI({ user }: ChatUIProps) {
   }, [user.uid, chatId]);
 
   const updateTypingStatus = (typing: boolean) => {
-    if (isTypingRef.current !== typing) {
-      isTypingRef.current = typing;
-      const myTypingRef = ref(rtdb, `typingStatus/${chatId}/${user.uid}`);
-      set(myTypingRef, typing).catch(err => console.error("Typing status error", err));
+    if (isTypingRef.current === typing) return; // no change, skip
+
+    const now = Date.now();
+    if (typing) {
+      // Throttle: only write "typing=true" to RTDB at most once per 400ms
+      if (now - lastTypingWriteRef.current < 400) return;
+      lastTypingWriteRef.current = now;
     }
+
+    isTypingRef.current = typing;
+    const myTypingRef = ref(rtdb, `typingStatus/${chatId}/${user.uid}`);
+    set(myTypingRef, typing).catch(err => console.error("Typing status error", err));
   };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -265,13 +324,14 @@ export default function ChatUI({ user }: ChatUIProps) {
 
     if (newText.length > 0) {
       updateTypingStatus(true);
+      // Reset the stop-typing timer
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
         updateTypingStatus(false);
-      }, 1000);
+      }, 2000); // stop indicator after 2s of silence
     } else {
-      updateTypingStatus(false);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      updateTypingStatus(false);
     }
   };
 
@@ -286,6 +346,20 @@ export default function ChatUI({ user }: ChatUIProps) {
   }, []);
 
     useEffect(() => {
+      if (!user?.uid) return;
+      const cacheKey = `sq_c_${chatId}_${user.uid}`;
+
+      // ── STEP 1: Paint cached messages INSTANTLY (zero Firestore reads) ──
+      if (!initialLoadDone.current) {
+        const cached = secureCache.get(cacheKey, user.uid);
+        if (cached && Array.isArray(cached) && cached.length > 0) {
+          setMessages(cached);
+          setIsLoadingMessages(false);
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
+        }
+      }
+
+      // ── STEP 2: Live Firestore subscription (only last 10 messages) ──
       const q = query(
         collection(db, `conversations/${chatId}/messages`),
         orderBy('createdAt', 'desc'),
@@ -299,11 +373,9 @@ export default function ChatUI({ user }: ChatUIProps) {
         const batch = writeBatch(db);
         let hasUnseen = false;
 
-        // 1. Process sounds BEFORE updating newestMsgTimeRef
-        // 1. Process sounds BEFORE updating newestMsgTimeRef
+        // Process sound/scroll for truly new incoming messages
         if (initialLoadDone.current && !isFirstSnapshot) {
           let shouldScroll = false;
-          
           let isNearBottom = true;
           if (scrollContainerRef.current) {
             const { scrollHeight, scrollTop, clientHeight } = scrollContainerRef.current;
@@ -313,33 +385,34 @@ export default function ChatUI({ user }: ChatUIProps) {
           snapshot.docChanges().forEach((change) => {
             if (change.type === 'added') {
               const newMsg = change.doc.data();
-              
               let msgTime = 0;
               if (newMsg.createdAt) {
                 if (newMsg.createdAt.toMillis) msgTime = newMsg.createdAt.toMillis();
                 else if (newMsg.createdAt.seconds) msgTime = newMsg.createdAt.seconds * 1000;
                 else if (typeof newMsg.createdAt === 'number') msgTime = newMsg.createdAt;
               }
-
               if (msgTime > newestMsgTimeRef.current) {
-                if (newMsg.senderId === user.uid || isNearBottom) {
-                  shouldScroll = true;
-                }
+                if (newMsg.senderId === user.uid || isNearBottom) shouldScroll = true;
                 if (newMsg.senderId !== user.uid) {
-                  playNotificationSound();
+                  let isTrulyNew = false;
+                  if (!newMsg.createdAt) {
+                    isTrulyNew = true;
+                  } else {
+                    const msgDate = newMsg.createdAt.toDate ? newMsg.createdAt.toDate() : new Date(typeof newMsg.createdAt === 'number' ? newMsg.createdAt : newMsg.createdAt.seconds * 1000);
+                    if (Date.now() - msgDate.getTime() < 10000) isTrulyNew = true;
+                  }
+                  if (isTrulyNew) playNotificationSound();
                 }
               }
             }
           });
           
           if (shouldScroll) {
-            setTimeout(() => {
-              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-            }, 100);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
           }
         }
   
-        // 2. Build list and update newestMsgTimeRef
+        // Build live message list
         snapshot.forEach((msgDoc) => {
           const data = msgDoc.data();
           fetchedMessages.push({ id: msgDoc.id, ...data } as Message);
@@ -350,28 +423,53 @@ export default function ChatUI({ user }: ChatUIProps) {
             else if (data.createdAt.seconds) time = data.createdAt.seconds * 1000;
             else if (typeof data.createdAt === 'number') time = data.createdAt;
           }
-          if (time > newestMsgTimeRef.current) {
-            newestMsgTimeRef.current = time;
-          }
+          if (time > newestMsgTimeRef.current) newestMsgTimeRef.current = time;
 
           if (data.senderId !== user.uid && !data.seen && document.visibilityState === 'visible') {
-            batch.update(doc(db, 'chats', chatId, 'messages', msgDoc.id), { seen: true, seenAt: serverTimestamp() });
+            batch.update(doc(db, 'conversations', chatId, 'messages', msgDoc.id), { seen: true, seenAt: serverTimestamp() });
             hasUnseen = true;
           }
         });
         
-        if (hasUnseen) {
-          batch.commit().catch(e => console.error('Failed to mark seen', e));
-        }
+        if (hasUnseen) batch.commit().catch(e => console.error('Failed to mark seen', e));
   
-        const reversed = fetchedMessages.reverse();
-        setMessages(reversed);
+        const liveMessages = fetchedMessages.reverse();
+
+        // ── STEP 3: Merge live data with cached older messages ──
+        setMessages(prev => {
+          const mergedMap = new Map<string, Message>();
+          // Put cached older messages in first
+          prev.forEach(m => mergedMap.set(m.id, m));
+          // Overwrite/add live messages (handles edits, deletes, reactions)
+          liveMessages.forEach(m => mergedMap.set(m.id, m));
+          
+          const merged = Array.from(mergedMap.values()).sort((a, b) => {
+            const tA = (a.createdAt as any)?.seconds ? (a.createdAt as any).seconds * 1000 : (typeof a.createdAt === 'number' ? a.createdAt : 0);
+            const tB = (b.createdAt as any)?.seconds ? (b.createdAt as any).seconds * 1000 : (typeof b.createdAt === 'number' ? b.createdAt : 0);
+            return tA - tB;
+          });
+
+          // ── STEP 4: Persist merged list to cache (serialise Timestamps → ms) ──
+          setTimeout(() => {
+            try {
+              const toCache = merged.map(m => ({
+                ...m,
+                createdAt: (m.createdAt as any)?.seconds ? (m.createdAt as any).seconds * 1000 : m.createdAt,
+                editedAt: (m.editedAt as any)?.seconds ? (m.editedAt as any).seconds * 1000 : m.editedAt,
+                seenAt: (m.seenAt as any)?.seconds ? (m.seenAt as any).seconds * 1000 : m.seenAt,
+              }));
+              secureCache.set(cacheKey, toCache, user.uid);
+            } catch(_) {}
+          }, 0);
+
+          return merged;
+        });
+
+        setIsLoadingMessages(false);
         
         if (!initialLoadDone.current) {
           initialLoadDone.current = true;
-          setTimeout(() => {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-          }, 100);
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 100);
         }
         
         isFirstSnapshot = false;
@@ -380,7 +478,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       });
   
       return () => unsubscribe();
-    }, [messageLimit, chatId]);
+    }, [messageLimit, chatId, user?.uid]);
 
   const handleToggleSelect = (id: string) => {
     setSelectedMessages(prev => {
@@ -401,8 +499,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     setClearedAt(now);
     localStorage.setItem(`clearedAt_${user.uid}_${chatId}`, now.toString());
     setShowClearConfirm(false);
-    setShowSettings(false);
-  };
+      };
 
   const handleCopySelected = () => {
     const texts = messages.filter(m => selectedMessages.has(m.id)).map(m => m.text).join('\n\n');
@@ -411,21 +508,32 @@ export default function ChatUI({ user }: ChatUIProps) {
     setSelectedMessages(new Set());
   };
 
-  const handleDeleteSelected = async () => {
-    if (!window.confirm(`Delete ${selectedMessages.size} messages for everyone?`)) return;
+  const handleDeleteSelected = () => {
+    setShowBulkDeleteModal(true);
+  };
+
+  const confirmBulkDelete = async (forEveryone: boolean) => {
     try {
       await Promise.all(
-        Array.from(selectedMessages).map(id => updateDoc(doc(db, `conversations/${chatId}/messages`, id), {
-          text: '',
-          isDeletedForEveryone: true,
-          editedAt: rtdbServerTimestamp()
-        }))
+        Array.from(selectedMessages).map(id => {
+          const docRef = doc(db, `conversations/${chatId}/messages`, id);
+          if (forEveryone) {
+            return updateDoc(docRef, { 
+              text: '', 
+              isDeletedForEveryone: true,
+              editedAt: rtdbServerTimestamp()
+            });
+          } else {
+            return updateDoc(docRef, { deletedFor: arrayUnion(user.uid) });
+          }
+        })
       );
     } catch (e) {
       console.error(e);
     }
     setSelectionMode(false);
     setSelectedMessages(new Set());
+    setShowBulkDeleteModal(false);
   };
 
   const loadMore = () => {
@@ -454,28 +562,34 @@ export default function ChatUI({ user }: ChatUIProps) {
   };
 
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setSelectedImageFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
+  const handleSendEditedImage = async (file: File, caption: string) => {
+    setSelectedImageFile(null);
     setIsUploadingImage(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', 'Obsidian');
-    formData.append('cloud_name', 'dislib3k');
-
     try {
-      const res = await fetch('https://api.cloudinary.com/v1_1/dislib3k/image/upload', {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', 'Obsidian');
+      formData.append('cloud_name', 'dislib3k');
+      
+      const res = await fetch(`https://api.cloudinary.com/v1_1/dislib3k/image/upload`, {
         method: 'POST',
-        body: formData,
+        body: formData
       });
+      
       const data = await res.json();
+      
       if (data.secure_url) {
-        // Send message with image
         const newMessageData: any = {
-          text: '',
-          imageUrl: data.secure_url,
           senderId: user.uid,
+          text: caption || '',
+          imageUrl: data.secure_url,
           createdAt: serverTimestamp(),
           seen: false
         };
@@ -486,7 +600,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
-        await addDoc(collection(db, 'chats', chatId, 'messages'), newMessageData);
+        await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
         setReplyingTo(null);
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -496,6 +610,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       console.error('Image upload failed', err);
     } finally {
       setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -575,6 +690,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
 
   const visibleMessages = messages.filter(m => {
+    if (m.deletedFor?.includes(user.uid)) return false;
     if (!m.createdAt) return true;
     let time = 0;
     if (m.createdAt.toDate) {
@@ -595,80 +711,11 @@ export default function ChatUI({ user }: ChatUIProps) {
     return date.toDateString();
   }).filter(Boolean)).size;
 
-  if (showSettings) {
-    return (
-      <div className="flex flex-col h-[100dvh] bg-white relative overflow-hidden w-full max-w-5xl mx-auto">
-        <div className="flex items-center px-4 py-4 bg-white shadow-sm border-b border-slate-100 z-10 pt-[max(env(safe-area-inset-top),1rem)]">
-          <button onClick={() => setShowSettings(false)} className="p-2 mr-3 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-700 transition-colors">
-            <ArrowLeft size={24} />
-          </button>
-          <h1 className="text-xl font-bold text-slate-800 tracking-wide">Settings</h1>
-        </div>
-        <div className="flex-1 overflow-y-auto px-4 py-6 flex flex-col space-y-4">
-          <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
-            <span className="text-slate-600 font-medium">Total Messages</span>
-            <span className="text-slate-900 font-bold text-lg">{visibleMessages.length}</span>
-          </div>
-          <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
-            <span className="text-slate-600 font-medium">My Messages</span>
-            <span className="text-slate-900 font-bold text-lg">{visibleMessages.filter(m => m.senderId === user.uid).length}</span>
-          </div>
-          <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
-            <span className="text-slate-600 font-medium">Days Chatted</span>
-            <span className="text-slate-900 font-bold text-lg">{daysCount}</span>
-          </div>
-          <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
-            <span className="text-slate-600 font-medium">Messages Today</span>
-            <span className="text-slate-900 font-bold text-lg">{visibleMessages.filter((m: any) => isSameDay(m.createdAt, new Date())).length}</span>
-          </div>
-          <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
-            <span className="text-slate-600 font-medium">Enter to Send</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" checked={enterToSend} onChange={(e) => setEnterToSend(e.target.checked)} className="sr-only peer" />
-              <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-            </label>
-          </div>
-          <div className="pt-4 border-t border-slate-100">
-            <button 
-              onClick={() => setShowClearConfirm(true)}
-              className="w-full py-3.5 px-4 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors"
-            >
-              Clear Chat History
-              </button>
-            </div>
-          </div>
-          
-          {/* Clear History Confirmation Modal */}
-          {showClearConfirm && (
-            <div className="absolute inset-0 z-[60] flex items-center justify-center p-4 bg-white/10 backdrop-blur-md">
-              <div className="bg-white/70 backdrop-blur-xl rounded-[32px] p-6 w-full max-w-sm shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/40 animate-pop-in flex flex-col items-center text-center">
-                <Trash2 size={32} className="text-red-500 mb-4" />
-                <h3 className="text-xl font-bold text-slate-800 mb-2 tracking-tight">Clear History</h3>
-                <p className="text-[14.5px] text-slate-600 mb-6 leading-relaxed">
-                  Are you sure you want to clear your chat history? This only clears it on your side.
-                </p>
-                <div className="flex w-full space-x-3">
-                  <button 
-                    onClick={() => setShowClearConfirm(false)}
-                    className="flex-1 py-3 px-4 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-xl transition-colors border border-slate-200"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={handleClearHistory}
-                    className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-colors shadow-sm"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      );
+  if (selectedImageFile) {
+      return <ImageEditor file={selectedImageFile} onCancel={() => setSelectedImageFile(null)} onSend={handleSendEditedImage} />;
     }
 
-  return (
+    return (
     <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-2 bg-white/40 backdrop-blur-xl rounded-[32px] shadow-[0_4px_30px_rgba(0,0,0,0.1)] border border-white/30 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.5rem)] relative mx-2 mt-2 max-w-5xl mx-auto w-[calc(100%-1rem)] mb-1">
@@ -699,9 +746,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                 >
                   <Ghost size={18} />
                 </button>
-                <button onClick={() => setShowSettings(true)} className="w-10 h-10 flex items-center justify-center text-slate-700 hover:text-slate-900 transition-colors bg-white/60 hover:bg-white rounded-full shadow-sm">
-                  <Settings size={20} />
-                </button>
+                
               </div>
 
               {/* Right Side: Profile & SignOut */}
@@ -761,15 +806,26 @@ export default function ChatUI({ user }: ChatUIProps) {
         )}
         <div className="flex-1" />
         
-        {(() => {
-          let firstUnrepliedId: string | null = null;
-          for (let i = visibleMessages.length - 1; i >= 0; i--) {
-            if (visibleMessages[i].senderId === user.uid) break; 
-            firstUnrepliedId = visibleMessages[i].id;
-          }
-
-          return visibleMessages.map((msg, index) => {
-              const showDate = index === 0 || !isSameDay(visibleMessages[index - 1].createdAt, msg.createdAt);
+          {isLoadingMessages ? (
+            <div className="flex flex-col space-y-4 w-full h-full justify-end pb-4 px-2 mt-auto">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className={`flex w-full ${i % 2 !== 0 ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`skeleton-blue h-[45px] ${i % 2 !== 0 ? 'w-2/3 rounded-2xl rounded-tr-sm' : 'w-1/2 rounded-2xl rounded-tl-sm'}`}></div>
+                </div>
+              ))}
+            </div>
+          ) : (() => {
+            const displayMessages = searchQuery ? visibleMessages.filter(m => m.text?.toLowerCase().includes(searchQuery.toLowerCase())) : visibleMessages;
+            let firstUnrepliedId: string | null = null;
+            for (let i = displayMessages.length - 1; i >= 0; i--) {
+              if (displayMessages[i].senderId === user.uid) break; 
+              firstUnrepliedId = displayMessages[i].id;
+            }
+  
+            return displayMessages.map((msg, index) => {
+              const showDate = index === 0 || !isSameDay(displayMessages[index - 1].createdAt, msg.createdAt);
+              const isNewSenderGroup = index > 0 && !showDate && displayMessages[index - 1].senderId !== msg.senderId;
+              
               return (
                 <React.Fragment key={msg.id}>
                   {showDate && (
@@ -779,7 +835,8 @@ export default function ChatUI({ user }: ChatUIProps) {
                       </div>
                     </div>
                   )}
-                  <MessageItem 
+                  <div className={isNewSenderGroup ? "mt-2" : ""}>
+                    <MessageItem 
                     message={msg} 
                     isMine={msg.senderId === user.uid} 
                     user={user}
@@ -787,7 +844,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                     isFirstUnreplied={msg.id === firstUnrepliedId}
                     onReply={() => setReplyingTo(msg)}
                     isAnonymousMode={isAnonymousMode}
-                    isLastMessage={index === visibleMessages.length - 1}
+                    isLastMessage={index === displayMessages.length - 1}
                     isRevealed={revealedMessages.includes(msg.id)}
                     onReveal={() => handleRevealMessage(msg.id)}
                     isActiveReaction={activeReactionMessageId === msg.id}
@@ -797,7 +854,10 @@ export default function ChatUI({ user }: ChatUIProps) {
                     selectionMode={selectionMode}
                     isSelected={selectedMessages.has(msg.id)}
                     onToggleSelect={() => handleToggleSelect(msg.id)}
+                    isExpanded={expandedMessageId === msg.id}
+                    onToggleExpand={() => setExpandedMessageId(prev => prev === msg.id ? null : msg.id)}
                   />
+                  </div>
                 </React.Fragment>
               );
             });
@@ -911,6 +971,39 @@ export default function ChatUI({ user }: ChatUIProps) {
           </button>
         </form>
       </div>
+
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-scale-up">
+            <div className="p-5 text-center">
+              <h3 className="text-lg font-semibold text-slate-800 mb-2">Delete {selectedMessages.size} message{selectedMessages.size > 1 ? 's' : ''}?</h3>
+              <p className="text-sm text-slate-500">This action cannot be undone.</p>
+            </div>
+            <div className="flex flex-col border-t border-slate-100">
+              {(() => {
+                const selectedMsgs = messages.filter(m => selectedMessages.has(m.id));
+                const canDeleteForEveryone = selectedMsgs.every(m => {
+                  if (m.senderId !== user.uid) return false;
+                  if (m.isDeletedForEveryone) return false;
+                  const msgTime = m.createdAt?.toDate ? m.createdAt.toDate().getTime() : (new Date(m.createdAt as any)).getTime();
+                  return (Date.now() - msgTime) < (12 * 60 * 60 * 1000);
+                });
+                return canDeleteForEveryone ? (
+                  <button onClick={() => confirmBulkDelete(true)} className="p-4 text-red-500 font-semibold hover:bg-slate-50 transition-colors border-b border-slate-100">
+                    Delete for everyone
+                  </button>
+                ) : null;
+              })()}
+              <button onClick={() => confirmBulkDelete(false)} className="p-4 text-red-500 font-semibold hover:bg-slate-50 transition-colors border-b border-slate-100">
+                Delete for me
+              </button>
+              <button onClick={() => setShowBulkDeleteModal(false)} className="p-4 text-slate-600 font-medium hover:bg-slate-50 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -26,13 +26,11 @@ interface MessageItemProps {
   selectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
-  isExpanded?: boolean;
-  onToggleExpand?: () => void;
 }
 
 const formatTime = (timestamp: any) => {
   if (!timestamp) return '';
-  const date = timestamp.toDate ? timestamp.toDate() : (typeof timestamp === 'number' ? new Date(timestamp) : new Date(timestamp.seconds ? timestamp.seconds * 1000 : timestamp));
+  const date = timestamp.toDate ? timestamp.toDate() : new Date();
   return new Intl.DateTimeFormat('en-US', {
     hour: 'numeric',
     minute: '2-digit',
@@ -40,9 +38,7 @@ const formatTime = (timestamp: any) => {
   }).format(date);
 };
 
-export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose, otherEmail, selectionMode = false, isSelected = false, onToggleSelect, isExpanded,
-  onToggleExpand
-}: MessageItemProps) {
+export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose, otherEmail, selectionMode = false, isSelected = false, onToggleSelect }: MessageItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
     
@@ -79,7 +75,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
         if (entry.isIntersecting) {
           timeoutId = setTimeout(() => {
             const messageRef = doc(db, `conversations/${chatId}/messages`, message.id);
-            updateDoc(messageRef, { seen: true, seenAt: serverTimestamp() }).catch((err) => {
+            updateDoc(messageRef, { seen: true }).catch((err) => {
               console.error('Failed to mark message as seen', err);
             });
             observer.disconnect();
@@ -520,59 +516,15 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
           <div className="flex flex-col relative pointer-events-none select-none">
         {/* Image Message */}
             {message.imageUrl && !message.isDeletedForEveryone && (
-              <>
-                {/* Lightbox state is managed inline with a portal-style fixed overlay */}
-                <div className={`mb-1.5 relative rounded-xl overflow-hidden animate-pop-in bg-black/5 pointer-events-auto ${shouldMask ? 'blur-[8px] opacity-60 select-none pointer-events-none' : ''}`} style={{ minWidth: '150px', minHeight: '150px' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={message.imageUrl}
-                    alt="Photo"
-                    className="w-full h-auto object-cover rounded-xl border border-black/5 cursor-zoom-in active:opacity-80 transition-opacity"
-                    loading="lazy"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // Create and show lightbox
-                      const overlay = document.createElement('div');
-                      overlay.id = 'img-lightbox';
-                      overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);animation:fadeIn .15s ease';
-                      
-                      const img = document.createElement('img');
-                      img.src = message.imageUrl!;
-                      img.alt = 'Full image';
-                      img.style.cssText = 'max-width:95vw;max-height:90vh;object-fit:contain;border-radius:12px;box-shadow:0 25px 60px rgba(0,0,0,0.6)';
-                      
-                      // Close button
-                      const closeBtn = document.createElement('button');
-                      closeBtn.innerHTML = '✕';
-                      closeBtn.style.cssText = 'position:absolute;top:16px;right:16px;width:40px;height:40px;background:rgba(255,255,255,0.15);border:none;border-radius:50%;color:white;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:background .2s';
-                      closeBtn.onmouseenter = () => { closeBtn.style.background = 'rgba(255,255,255,0.25)'; };
-                      closeBtn.onmouseleave = () => { closeBtn.style.background = 'rgba(255,255,255,0.15)'; };
-
-                      // Download button
-                      const dlBtn = document.createElement('a');
-                      dlBtn.href = message.imageUrl!;
-                      dlBtn.download = 'image.jpg';
-                      dlBtn.target = '_blank';
-                      dlBtn.innerHTML = '⬇';
-                      dlBtn.style.cssText = 'position:absolute;top:16px;right:64px;width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:50%;color:white;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);text-decoration:none;transition:background .2s';
-                      dlBtn.onmouseenter = () => { dlBtn.style.background = 'rgba(255,255,255,0.25)'; };
-                      dlBtn.onmouseleave = () => { dlBtn.style.background = 'rgba(255,255,255,0.15)'; };
-
-                      const close = () => overlay.remove();
-                      closeBtn.onclick = close;
-                      overlay.onclick = (ev) => { if (ev.target === overlay) close(); };
-                      document.addEventListener('keydown', function handler(ev) {
-                        if (ev.key === 'Escape') { close(); document.removeEventListener('keydown', handler); }
-                      });
-
-                      overlay.appendChild(img);
-                      overlay.appendChild(closeBtn);
-                      overlay.appendChild(dlBtn);
-                      document.body.appendChild(overlay);
-                    }}
-                  />
-                </div>
-              </>
+              <div className={`mb-1.5 relative rounded-xl overflow-hidden animate-pop-in bg-black/5 ${shouldMask ? 'blur-[8px] opacity-60 select-none' : ''}`} style={{ minWidth: '150px', minHeight: '150px' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img 
+                  src={message.imageUrl} 
+                  alt="Photo" 
+                  className="w-full h-auto object-cover rounded-xl border border-black/5"
+                  loading="lazy"
+                />
+              </div>
             )}
             
             <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''} ${shouldMask ? 'blur-[3.5px] opacity-60 select-none' : ''}`}>
