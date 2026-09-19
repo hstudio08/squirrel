@@ -22,6 +22,7 @@ interface MessageItemProps {
   isActiveReaction?: boolean;
   onReactOpen?: () => void;
   onReactClose?: () => void;
+  otherEmail?: string;
 }
 
 const formatTime = (timestamp: any) => {
@@ -34,9 +35,16 @@ const formatTime = (timestamp: any) => {
   }).format(date);
 };
 
-export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose }: MessageItemProps) {
+export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose, otherEmail }: MessageItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+    
+    const getMaskedEmail = (email: string) => {
+      if (!email) return '';
+      const prefix = email.split('@')[0];
+      if (prefix.length <= 4) return prefix;
+      return `${prefix.substring(0, 2)}*****${prefix.substring(prefix.length - 2)}`;
+    };
   
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
@@ -48,6 +56,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
   
   // Long press logic
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const longPressTriggered = useRef(false);
 
   useEffect(() => {
     if (isMine || message.seen) return;
@@ -170,6 +179,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
   const startPress = () => {
     if (isEditing) return;
     timerRef.current = setTimeout(() => {
+        longPressTriggered.current = true;
         setShowOptions(true);
         if (onReactOpen) onReactOpen();
       if (window.navigator.vibrate) {
@@ -210,8 +220,15 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (!e.isPrimary) return;
-    cancelPress();
+      if (!e.isPrimary) return;
+      cancelPress();
+      
+      if (longPressTriggered.current) {
+        longPressTriggered.current = false;
+        setTranslateX(0);
+        dragStartX.current = null;
+        return;
+      }
     
     const now = Date.now();
     const DOUBLE_TAP_DELAY = 300;
@@ -512,7 +529,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
                 </div>
               )}
               {isMine && message.seen && message.seenAt && (
-                <span className="text-[10.5px] text-[#25D366] font-medium tracking-tight ml-1.5">
+                <span className="text-[10.5px] text-blue-600 font-bold tracking-tight ml-1.5">
                   {formatTime(message.seenAt)}
                 </span>
               )}

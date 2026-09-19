@@ -56,6 +56,9 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [revealedMessages, setRevealedMessages] = useState<string[]>([]);
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [enterToSend, setEnterToSend] = useState(false);
+  const [clearedAt, setClearedAt] = useState<number>(0);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const isTypingRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -437,6 +440,21 @@ export default function ChatUI({ user }: ChatUIProps) {
   };
 
 
+  const visibleMessages = messages.filter(m => {
+    if (!m.createdAt) return true;
+    let time = 0;
+    if (m.createdAt.toDate) {
+      time = m.createdAt.toDate().getTime();
+    } else if (typeof m.createdAt === 'number') {
+      time = m.createdAt;
+    } else if (m.createdAt.seconds) {
+      time = m.createdAt.seconds * 1000;
+    } else {
+      time = new Date(m.createdAt as any).getTime();
+    }
+    return time > clearedAt;
+  });
+
   return (
     <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
       {/* Header */}
@@ -482,21 +500,54 @@ export default function ChatUI({ user }: ChatUIProps) {
             <div className="space-y-4">
               <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
                 <span className="text-slate-600 font-medium">Total Messages</span>
-                <span className="text-slate-900 font-bold text-lg">{messages.length}</span>
+                <span className="text-slate-900 font-bold text-lg">{visibleMessages.length}</span>
               </div>
               <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
                 <span className="text-slate-600 font-medium">My Messages</span>
-                <span className="text-slate-900 font-bold text-lg">{messages.filter(m => m.senderId === user.uid).length}</span>
+                <span className="text-slate-900 font-bold text-lg">{visibleMessages.filter(m => m.senderId === user.uid).length}</span>
               </div>
               <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
                 <span className="text-slate-600 font-medium">Messages Today</span>
-                <span className="text-slate-900 font-bold text-lg">{messages.filter(m => isSameDay(m.createdAt, new Date())).length}</span>
+                <span className="text-slate-900 font-bold text-lg">{visibleMessages.filter(m => isSameDay(m.createdAt, new Date())).length}</span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
+                <span className="text-slate-600 font-medium">Enter to Send</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={enterToSend} onChange={(e) => setEnterToSend(e.target.checked)} className="sr-only peer" />
+                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+              <div className="pt-2 border-t border-slate-100">
+                <button 
+                  onClick={() => setShowClearConfirm(true)}
+                  className="w-full py-2.5 px-4 bg-red-50 text-red-600 font-medium rounded-xl hover:bg-red-100 transition-colors"
+                >
+                  Clear Chat History
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
       
+      {/* Clear History Confirmation Modal */}
+      {showClearConfirm && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center p-4 bg-white/10 backdrop-blur-md">
+          <div className="bg-white/70 backdrop-blur-xl rounded-[32px] p-6 w-full max-w-sm shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/40 animate-pop-in flex flex-col items-center text-center">
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Clear Chat History?</h3>
+            <p className="text-sm text-slate-600 mb-6 font-medium">This will remove all messages for you on this device. They will not be deleted for the other person.</p>
+            <div className="flex w-full space-x-3">
+              <button onClick={() => setShowClearConfirm(false)} className="flex-1 py-3 px-4 bg-white/60 hover:bg-white text-slate-700 font-semibold rounded-2xl transition-all shadow-sm border border-slate-100">
+                Cancel
+              </button>
+              <button onClick={() => { setClearedAt(Date.now()); setShowClearConfirm(false); setShowSettings(false); }} className="flex-1 py-3 px-4 bg-red-500/90 hover:bg-red-500 text-white font-semibold rounded-2xl shadow-sm transition-all">
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
       <div onScroll={() => setActiveReactionMessageId(null)} className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto">
         {messages.length >= messageLimit && (
@@ -513,15 +564,13 @@ export default function ChatUI({ user }: ChatUIProps) {
         
         {(() => {
           let firstUnrepliedId: string | null = null;
-          for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i].senderId === user.uid) {
-              break; 
-            }
-            firstUnrepliedId = messages[i].id;
+          for (let i = visibleMessages.length - 1; i >= 0; i--) {
+            if (visibleMessages[i].senderId === user.uid) break; 
+            firstUnrepliedId = visibleMessages[i].id;
           }
 
-          return messages.map((msg, index) => {
-              const showDate = index === 0 || !isSameDay(messages[index - 1].createdAt, msg.createdAt);
+          return visibleMessages.map((msg, index) => {
+              const showDate = index === 0 || !isSameDay(visibleMessages[index - 1].createdAt, msg.createdAt);
               return (
                 <React.Fragment key={msg.id}>
                   {showDate && (
@@ -539,12 +588,13 @@ export default function ChatUI({ user }: ChatUIProps) {
                     isFirstUnreplied={msg.id === firstUnrepliedId}
                     onReply={() => setReplyingTo(msg)}
                     isAnonymousMode={isAnonymousMode}
-                    isLastMessage={index === messages.length - 1}
+                    isLastMessage={index === visibleMessages.length - 1}
                     isRevealed={revealedMessages.includes(msg.id)}
                     onReveal={() => handleRevealMessage(msg.id)}
                     isActiveReaction={activeReactionMessageId === msg.id}
                     onReactOpen={() => setActiveReactionMessageId(msg.id)}
                     onReactClose={() => setActiveReactionMessageId(null)}
+                    otherEmail={otherEmail}
                   />
                 </React.Fragment>
               );
@@ -618,6 +668,17 @@ export default function ChatUI({ user }: ChatUIProps) {
               placeholder="Type a message"
               className="flex-1 bg-transparent text-[#111b21] placeholder-[#8696a0] py-[10px] px-2 text-[14.5px] focus:outline-none resize-none leading-snug max-h-[100px] min-h-[40px]"
               rows={1}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const isMobile = window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent);
+                  if (enterToSend && !e.shiftKey && !isMobile) {
+                    e.preventDefault();
+                    if (text.trim() && !isSending) {
+                      handleSend(e as unknown as React.FormEvent);
+                    }
+                  }
+                }
+              }}
             />
             <input
               type="file"
