@@ -162,7 +162,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     if (!email) return '';
     const prefix = email.split('@')[0];
     if (prefix.length <= 4) return email;
-    return prefix.substring(0, 2) + '*****' + prefix.substring(prefix.length - 2) + '@gmail.com';
+    return prefix.substring(0, 2) + '*****' + prefix.substring(prefix.length - 2);
   };
 
   useEffect(() => {
@@ -481,12 +481,17 @@ export default function ChatUI({ user }: ChatUIProps) {
           </div>
         </div>
 
-        <button 
-          onClick={signOut}
-          className="px-3 py-1.5 ml-2 text-[12px] font-bold text-white bg-red-500/90 hover:bg-red-500 rounded-full shadow-sm transition-all whitespace-nowrap"
-        >
-          Sign Out
-        </button>
+        <div className="flex items-center ml-2 space-x-2 shrink-0">
+          <button onClick={() => setShowSettings(true)} className="p-2 text-slate-700 hover:text-slate-900 transition-colors bg-white/50 rounded-full shadow-sm">
+            <Settings size={20} />
+          </button>
+          <button 
+            onClick={signOut}
+            className="px-3 py-1.5 text-[12px] font-bold text-white bg-red-500/90 hover:bg-red-500 rounded-full shadow-sm transition-all whitespace-nowrap"
+          >
+            Sign Out
+          </button>
+        </div>
       </div>
 
       {/* Settings Modal */}
