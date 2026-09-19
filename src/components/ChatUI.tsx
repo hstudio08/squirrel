@@ -48,6 +48,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   
   const initialLoadDone = useRef(false);
+    const newestMsgTimeRef = useRef<number>(0);
 
   
   const [otherUserName, setOtherUserName] = useState<string>('');
@@ -250,68 +251,90 @@ export default function ChatUI({ user }: ChatUIProps) {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
-  useEffect(() => {
-    const q = query(
-      collection(db, `conversations/${chatId}/messages`),
-      orderBy('createdAt', 'desc'),
-      firestoreLimit(messageLimit)
-    );
+    useEffect(() => {
+      const q = query(
+        collection(db, `conversations/${chatId}/messages`),
+        orderBy('createdAt', 'desc'),
+        firestoreLimit(messageLimit)
+      );
+  
+      let isFirstSnapshot = true;
+  
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const fetchedMessages: Message[] = [];
+        const batch = writeBatch(db);
+        let hasUnseen = false;
 
-    let isFirstSnapshot = true;
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedMessages: Message[] = [];
-      const batch = writeBatch(db);
-      let hasUnseen = false;
-
-      snapshot.forEach((msgDoc) => {
-        const data = msgDoc.data();
-        fetchedMessages.push({ id: msgDoc.id, ...data } as Message);
-        
-        if (data.senderId !== user.uid && !data.seen && document.visibilityState === 'visible') {
-          batch.update(doc(db, 'chats', chatId, 'messages', msgDoc.id), { seen: true, seenAt: serverTimestamp() });
-          hasUnseen = true;
-        }
-      });
-      
-      if (hasUnseen) {
-        batch.commit().catch(e => console.error('Failed to mark seen', e));
-      }
-
-      const reversed = fetchedMessages.reverse();
-      setMessages(reversed);
-      
-      if (!initialLoadDone.current) {
-          initialLoadDone.current = true;
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-          
-        }, 100);
-      } else {
+        // 1. Process sounds BEFORE updating newestMsgTimeRef
+        if (initialLoadDone.current && !isFirstSnapshot) {
           let shouldScroll = false;
           snapshot.docChanges().forEach((change) => {
             if (change.type === 'added') {
               const newMsg = change.doc.data();
               shouldScroll = true;
-              if (newMsg.senderId !== user.uid && !isFirstSnapshot) {
+              
+              let msgTime = 0;
+              if (newMsg.createdAt) {
+                if (newMsg.createdAt.toMillis) msgTime = newMsg.createdAt.toMillis();
+                else if (newMsg.createdAt.seconds) msgTime = newMsg.createdAt.seconds * 1000;
+                else if (typeof newMsg.createdAt === 'number') msgTime = newMsg.createdAt;
+              }
+
+              if (msgTime > newestMsgTimeRef.current && newMsg.senderId !== user.uid) {
                 playNotificationSound();
               }
             }
           });
-  
+          
           if (shouldScroll) {
             setTimeout(() => {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
             }, 100);
           }
         }
-        isFirstSnapshot = false;
-    }, (error) => {
-      console.error("Error fetching messages:", error);
-    });
+  
+        // 2. Build list and update newestMsgTimeRef
+        snapshot.forEach((msgDoc) => {
+          const data = msgDoc.data();
+          fetchedMessages.push({ id: msgDoc.id, ...data } as Message);
+          
+          let time = 0;
+          if (data.createdAt) {
+            if (data.createdAt.toMillis) time = data.createdAt.toMillis();
+            else if (data.createdAt.seconds) time = data.createdAt.seconds * 1000;
+            else if (typeof data.createdAt === 'number') time = data.createdAt;
+          }
+          if (time > newestMsgTimeRef.current) {
+            newestMsgTimeRef.current = time;
+          }
 
-    return () => unsubscribe();
-  }, [messageLimit, chatId]);
+          if (data.senderId !== user.uid && !data.seen && document.visibilityState === 'visible') {
+            batch.update(doc(db, 'chats', chatId, 'messages', msgDoc.id), { seen: true, seenAt: serverTimestamp() });
+            hasUnseen = true;
+          }
+        });
+        
+        if (hasUnseen) {
+          batch.commit().catch(e => console.error('Failed to mark seen', e));
+        }
+  
+        const reversed = fetchedMessages.reverse();
+        setMessages(reversed);
+        
+        if (!initialLoadDone.current) {
+          initialLoadDone.current = true;
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+          }, 100);
+        }
+        
+        isFirstSnapshot = false;
+      }, (error) => {
+        console.error("Error fetching messages:", error);
+      });
+  
+      return () => unsubscribe();
+    }, [messageLimit, chatId]);
 
   const handleToggleSelect = (id: string) => {
     setSelectedMessages(prev => {
