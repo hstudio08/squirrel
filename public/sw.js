@@ -1,4 +1,4 @@
-const CACHE_NAME = 'squirrel-shell-v2';
+const CACHE_NAME = 'squirrel-shell-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/notification.mp3',
@@ -41,10 +41,12 @@ self.addEventListener('fetch', (event) => {
   // Never intercept Firebase / API / Cloudinary requests
   if (
     url.hostname.includes('firebaseio.com') ||
+    url.hostname.includes('firebaseapp.com') ||
     url.hostname.includes('firestore.googleapis.com') ||
     url.hostname.includes('identitytoolkit.googleapis.com') ||
     url.hostname.includes('securetoken.googleapis.com') ||
     url.hostname.includes('googleapis.com') ||
+    url.hostname.includes('apis.google.com') ||
     url.hostname.includes('cloudinary.com')
   ) {
     return;
