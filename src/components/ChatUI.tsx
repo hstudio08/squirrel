@@ -53,6 +53,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [otherUserStatus, setOtherUserStatus] = useState<{state: string, last_changed: number} | null>(null);
   const [otherUid, setOtherUid] = useState<string | null>(null);
   const [isAnonymousMode, setIsAnonymousMode] = useState(false);
+  const [revealedMessages, setRevealedMessages] = useState<string[]>([]);
 
   const isTypingRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -360,6 +361,15 @@ export default function ChatUI({ user }: ChatUIProps) {
     }
   };
 
+  const handleRevealMessage = (msgId: string) => {
+    setRevealedMessages(prev => {
+      if (prev.includes(msgId)) return prev;
+      const newRevealed = [...prev, msgId];
+      if (newRevealed.length > 2) newRevealed.shift();
+      return newRevealed;
+    });
+  };
+
   const handleSend = async (e: FormEvent) => {
     e.preventDefault();
     if (!text.trim() || text.length > 2000 || isSending) return;
@@ -474,6 +484,8 @@ export default function ChatUI({ user }: ChatUIProps) {
               onReply={() => setReplyingTo(msg)}
               isAnonymousMode={isAnonymousMode}
               isLastMessage={index === messages.length - 1}
+              isRevealed={revealedMessages.includes(msg.id)}
+              onReveal={() => handleRevealMessage(msg.id)}
             />
           ));
         })()}

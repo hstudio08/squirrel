@@ -57,9 +57,13 @@ body {
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-/* WhatsApp style dotted pattern + huge faint center squirrel */
+/* Custom vector background + slightly larger dots */
 .chat-bg {
   background-color: #efeae2;
+  background-image: url('/chat-bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   position: relative;
 }
 
@@ -68,21 +72,12 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: radial-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.08) 2px, transparent 2px);
+  background-size: 24px 24px;
   z-index: 0;
 }
 
 .chat-bg::after {
-  content: "Squirrel";
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 15vw;
-  font-weight: 900;
-  color: rgba(0, 0, 0, 0.02);
-  pointer-events: none;
-  z-index: 0;
-  user-select: none;
+  content: "";
+  display: none;
 }

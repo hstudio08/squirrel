@@ -17,6 +17,8 @@ interface MessageItemProps {
   onReply?: () => void;
   isAnonymousMode?: boolean;
   isLastMessage?: boolean;
+  isRevealed?: boolean;
+  onReveal?: () => void;
 }
 
 const formatTime = (timestamp: any) => {
@@ -29,7 +31,7 @@ const formatTime = (timestamp: any) => {
   }).format(date);
 };
 
-export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false }: MessageItemProps) {
+export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal }: MessageItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   
@@ -39,7 +41,6 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
   const [showOptions, setShowOptions] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFullEmojiPicker, setShowFullEmojiPicker] = useState(false);
-  const [isRevealed, setIsRevealed] = useState(false);
   const shouldMask = isAnonymousMode && !isLastMessage && !isRevealed;
   
   // Long press logic
@@ -304,7 +305,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
             ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] cursor-pointer'
             : 'bg-white text-[#111b21] rounded-tl-[4px] border-white cursor-pointer'
         } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''} ${shouldMask ? 'blur-sm opacity-40 select-none' : ''}`}
-        onClick={() => { if (shouldMask) setIsRevealed(true); }}
+        onClick={() => { if (shouldMask && onReveal) onReveal(); }}
       >
         {/* Pinned Indicator */}
         {message.isPinned && (
@@ -328,7 +329,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
             {/* Reaction Selector Popup */}
             {showReactions && !showFullEmojiPicker && (
               <div className="bg-white shadow-xl rounded-full py-1.5 px-3 flex items-center space-x-2 border border-slate-100 w-max">
-                {['??', '??', '??', '??', '??'].map(emoji => (
+                {['\uD83D\uDC4D', '\u2764\uFE0F', '\uD83D\uDE02', '\uD83D\uDE2E', '\uD83D\uDE22'].map(emoji => (
                   <button
                     key={emoji}
                     onClick={(e) => { e.stopPropagation(); handleReaction(emoji); }}
