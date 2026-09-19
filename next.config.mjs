@@ -7,7 +7,7 @@ const cspHeader = [
   `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ""} https://apis.google.com https://*.firebaseio.com https://www.gstatic.com`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data: https://www.google.com https://www.gstatic.com https://cdn.jsdelivr.net https://images.unsplash.com https://res.cloudinary.com https://lh3.googleusercontent.com",
-  "connect-src 'self' https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firestore.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://api.cloudinary.com https://res.cloudinary.com",
+  "connect-src 'self' https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firestore.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://api.cloudinary.com https://res.cloudinary.com https://*.firebaseapp.com",
   "frame-src 'self' https://squirrel-4f5a6.firebaseapp.com https://*.firebaseapp.com",
   "object-src 'none'",
   "worker-src 'self' https://www.gstatic.com blob:",

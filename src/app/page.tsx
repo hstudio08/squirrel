@@ -3,12 +3,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, googleProvider } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Bot, Sparkles, Shield, ArrowRight, BrainCircuit, Cpu, Network, Lock, ChevronDown, Globe, Command, Terminal, Server, Database, Code, Activity, ShieldCheck, Box } from 'lucide-react';
 
-export default function SquirrelLandingPage() {
+export default function AIPlusLandingPage() {
   const [clickCount, setClickCount] = useState(0);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const router = useRouter();
   const lastClickRef = useRef<number>(0);
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -51,10 +52,11 @@ export default function SquirrelLandingPage() {
     clickTimerRef.current = setTimeout(() => setClickCount(0), 2000);
 
     if (currentCount >= 5) {
+      if (isLoggingIn) return;
+      setIsLoggingIn(true);
       setClickCount(0);
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      signInWithPopup(auth, provider)
+      // Using the globally initialized provider to avoid internal-error
+      signInWithPopup(auth, googleProvider)
         .then(async (result) => {
           const email = result.user?.email;
           if (email && allowedEmails.includes(email)) {
@@ -71,7 +73,11 @@ export default function SquirrelLandingPage() {
             alert('Access Denied. This is a private environment.');
           }
         })
-        .catch((error) => console.error('Login failed', error));
+        .catch((error) => {
+          console.error('Login failed:', error.code, error.message);
+          alert(`Login Failed: ${error.message}`);
+        })
+        .finally(() => setIsLoggingIn(false));
     }
   };
 
@@ -140,7 +146,7 @@ export default function SquirrelLandingPage() {
               <Bot className="w-6 h-6 text-white" />
             </div>
             <h1 className="text-2xl font-black bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent tracking-tight select-none">
-              SQUIRREL<span className="text-blue-600">.AI</span>
+              AIPLUS<span className="text-blue-600">.AI</span>
             </h1>
           </div>
           
@@ -182,7 +188,7 @@ export default function SquirrelLandingPage() {
         </h2>
         
         <p className="text-lg md:text-xl text-slate-600 max-w-3xl mb-12 leading-relaxed">
-          Welcome to the private nexus of Agentic AI. Squirrel isn't just a chatbot; it's a swarm of autonomous intelligent agents that plan, code, execute, and iterate. We provide the infrastructure for true AGI emulation.
+          Welcome to the private nexus of Agentic AI. AI Plus isn't just a chatbot; it's a swarm of autonomous intelligent agents that plan, code, execute, and iterate. We provide the infrastructure for true AGI emulation.
         </p>
         
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
@@ -244,7 +250,7 @@ export default function SquirrelLandingPage() {
           <div className="text-center mb-20">
             <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6">Beyond Large Language Models</h2>
             <p className="text-slate-600 max-w-2xl mx-auto text-lg">
-              LLMs just talk. Agentic AI acts. Squirrel connects reasoning engines to read/write tools, allowing AI to independently navigate the internet, write code, and solve complex multi-stage problems.
+              LLMs just talk. Agentic AI acts. AI Plus connects reasoning engines to read/write tools, allowing AI to independently navigate the internet, write code, and solve complex multi-stage problems.
             </p>
           </div>
 
@@ -298,7 +304,7 @@ export default function SquirrelLandingPage() {
           <div className="mb-20 text-center">
             <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6">Massively Parallel Capabilities</h2>
             <p className="text-slate-600 max-w-2xl mx-auto text-lg">
-              Explore the vast array of autonomous features built into the Squirrel core protocol.
+              Explore the vast array of autonomous features built into the AI Plus core protocol.
             </p>
           </div>
 
@@ -393,7 +399,7 @@ export default function SquirrelLandingPage() {
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center space-x-2 mb-6 cursor-pointer" onClick={handleSecretClick} title="Click 5 times to authenticate">
               <Bot className="w-6 h-6 text-white" />
-              <span className="text-xl font-black tracking-tight text-white">SQUIRREL<span className="text-blue-500">.AI</span></span>
+              <span className="text-xl font-black tracking-tight text-white">AI <span className="text-blue-600">Plus</span></span>
             </div>
             <p className="text-slate-400 max-w-sm leading-relaxed mb-6">
               A highly classified, private agentic AI environment. Not intended for public use. Data generated may be hallucinatory or experimental.
@@ -427,7 +433,7 @@ export default function SquirrelLandingPage() {
         </div>
         
         <div className="max-w-7xl mx-auto pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-slate-500">
-          <p>&copy; 2026 SQUIRREL.AI SYNTHETIC INTELLIGENCE. ALL RIGHTS RESERVED.</p>
+          <p>&copy; 2026 AIPLUS.AI SYNTHETIC INTELLIGENCE. ALL RIGHTS RESERVED.</p>
           <div className="flex space-x-6">
             <span>System Status: <span className="text-emerald-500 font-semibold">Online</span></span>
             <span>Active Agents: <span className="text-blue-500 font-semibold">5,032</span></span>
