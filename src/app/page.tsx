@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithRedirect, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Bot, Sparkles, Shield, ArrowRight, BrainCircuit, Cpu, Network, Lock, ChevronDown, Globe, Command, Terminal, Server, Database, Code, Activity, ShieldCheck, Box } from 'lucide-react';
@@ -29,6 +29,25 @@ export default function AIPlusLandingPage() {
   }, []);
 
   useEffect(() => {
+    getRedirectResult(auth).then(async (result) => {
+      if (result?.user) {
+        const email = result.user.email;
+        if (email && allowedEmails.includes(email)) {
+          await setDoc(doc(db, 'users', result.user.uid), {
+            uid: result.user.uid,
+            email: result.user.email,
+            displayName: result.user.displayName,
+            photoURL: result.user.photoURL,
+            lastLogin: serverTimestamp()
+          }, { merge: true });
+          router.push('/chat');
+        } else {
+          auth.signOut();
+          alert('Access Denied. This is a private environment.');
+        }
+      }
+    }).catch(console.error);
+
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user && user.email && allowedEmails.includes(user.email)) {
         router.push('/chat');
@@ -56,28 +75,11 @@ export default function AIPlusLandingPage() {
       setIsLoggingIn(true);
       setClickCount(0);
       // Using the globally initialized provider to avoid internal-error
-      signInWithPopup(auth, googleProvider)
-        .then(async (result) => {
-          const email = result.user?.email;
-          if (email && allowedEmails.includes(email)) {
-            await setDoc(doc(db, 'users', result.user.uid), {
-              uid: result.user.uid,
-              email: result.user.email,
-              displayName: result.user.displayName,
-              photoURL: result.user.photoURL,
-              lastLogin: serverTimestamp()
-            }, { merge: true });
-            router.push('/chat');
-          } else {
-            auth.signOut();
-            alert('Access Denied. This is a private environment.');
-          }
-        })
-        .catch((error) => {
-          console.error('Login failed:', error.code, error.message);
-          alert(`Login Failed: ${error.message}`);
-        })
-        .finally(() => setIsLoggingIn(false));
+      signInWithRedirect(auth, googleProvider).catch((error) => {
+          console.error('Redirect failed:', error);
+          alert('Redirect Failed: ' + error.message);
+          setIsLoggingIn(false);
+        });
     }
   };
 
@@ -181,7 +183,7 @@ export default function AIPlusLandingPage() {
         </div>
         
         <h2 
-          className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter mb-8 max-w-5xl leading-[1.1] text-slate-900 cursor-pointer select-none"
+          className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-black tracking-tighter mb-8 max-w-5xl leading-[1.1] text-slate-900 cursor-pointer select-none"
           onClick={handleSecretClick}
           title="Click 5 times to authenticate"
         >
@@ -205,9 +207,9 @@ export default function AIPlusLandingPage() {
         </div>
 
         {/* Dashboard Preview / Code Window */}
-        <div className="mt-24 w-full max-w-5xl relative">
-          <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 to-purple-500 rounded-2xl blur opacity-20" />
-          <div className="relative bg-white border border-slate-200 rounded-2xl p-4 shadow-2xl">
+        <div className="mt-16 sm:mt-24 w-full max-w-5xl relative px-2 sm:px-0">
+          <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 to-purple-500 rounded-2xl blur opacity-20 mx-2 sm:mx-0" />
+          <div className="relative bg-white border border-slate-200 rounded-2xl p-2 sm:p-4 shadow-2xl">
             <div className="flex items-center gap-2 mb-4 px-2 bg-slate-50 py-2 rounded-lg border border-slate-100">
               <div className="w-3 h-3 rounded-full bg-red-400" />
               <div className="w-3 h-3 rounded-full bg-yellow-400" />
@@ -277,8 +279,8 @@ export default function AIPlusLandingPage() {
               ))}
             </div>
             
-            <div className="lg:w-1/2 w-full">
-              <div className="relative aspect-square max-w-md mx-auto">
+            <div className="lg:w-1/2 w-full mt-12 lg:mt-0">
+              <div className="relative aspect-square w-full max-w-[280px] sm:max-w-md mx-auto">
                 <div className="absolute inset-0 bg-gradient-to-tr from-blue-100 to-purple-100 rounded-full animate-pulse blur-3xl" />
                 <div className="relative h-full w-full border border-slate-200 bg-white/50 backdrop-blur-xl rounded-full flex items-center justify-center shadow-xl">
                   <div className="absolute w-[80%] h-[80%] border border-dashed border-slate-300 rounded-full animate-[spin_20s_linear_infinite]" />
@@ -385,7 +387,7 @@ export default function AIPlusLandingPage() {
         <div className="absolute inset-0 bg-blue-50/50" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl h-64 bg-blue-400/10 blur-[100px] rounded-full" />
         
-        <div className="max-w-4xl mx-auto relative z-10 text-center bg-white/80 backdrop-blur-2xl border border-slate-200 p-12 md:p-20 rounded-3xl shadow-xl">
+        <div className="max-w-4xl mx-auto relative z-10 text-center bg-white/80 backdrop-blur-2xl border border-slate-200 p-8 sm:p-12 md:p-20 rounded-3xl shadow-xl mx-4 sm:mx-0">
           <Bot className="w-16 h-16 text-blue-600 mx-auto mb-8" />
           <h2 className="text-4xl md:text-6xl font-black text-slate-900 mb-6">Ready to initiate the swarm?</h2>
           <p className="text-xl text-slate-600 mb-10 max-w-2xl mx-auto">

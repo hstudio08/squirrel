@@ -53,6 +53,33 @@ const OnlineIndicator = () => {
   );
 };
 
+const OfflineIndicator = ({ timestamp }: { timestamp: number | null }) => {
+  const [showText, setShowText] = useState(true);
+  useEffect(() => {
+    const interval = setInterval(() => setShowText(prev => !prev), 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!timestamp) {
+    return (
+      <div className="flex items-center justify-end h-[14px]">
+        <span className="text-[11px] font-semibold text-slate-500 truncate text-right">Offline</span>
+      </div>
+    );
+  }
+
+  const date = new Date(timestamp);
+  const formattedDate = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} | ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+  return (
+    <div className="flex items-center justify-end h-[14px]">
+      <span className="text-[11px] font-semibold text-slate-500 animate-fade-in truncate text-right">
+        {showText ? 'Offline' : formattedDate}
+      </span>
+    </div>
+  );
+};
+
 
 // Secure LocalStorage Cache
 const secureCache = {
@@ -758,9 +785,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                   {otherUserStatus?.state === 'online' ? (
                     <OnlineIndicator />
                   ) : (
-                    <p className="text-[11px] truncate w-full text-right font-semibold leading-tight text-slate-500">
-                      {formatLastSeen(otherUserStatus?.last_changed || null)}
-                    </p>
+                    <OfflineIndicator timestamp={otherUserStatus?.last_changed || null} />
                   )}
                 </div>
                 <button 
