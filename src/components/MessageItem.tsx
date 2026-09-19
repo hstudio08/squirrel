@@ -53,6 +53,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
   const [editText, setEditText] = useState(message.text);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
+    const [showReactionDetails, setShowReactionDetails] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFullEmojiPicker, setShowFullEmojiPicker] = useState(false);
   const shouldMask = isAnonymousMode && !isLastMessage && !isRevealed;
@@ -559,15 +560,43 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
             
             {/* Render Reactions below the message */}
             {message.reactions && Object.keys(message.reactions).length > 0 && (
-              <div className="flex items-center space-x-1 mt-1 -mb-1 bg-white rounded-full px-1.5 py-0.5 shadow-sm border border-slate-100 w-fit self-end z-10 translate-y-2 relative pointer-events-auto cursor-default">
+              <div 
+                onClick={(e) => { e.stopPropagation(); setShowReactionDetails(true); }}
+                className="flex items-center space-x-1 mt-1 -mb-1 bg-white rounded-full px-1.5 py-0.5 shadow-sm border border-slate-100 w-fit self-end z-10 translate-y-2 relative pointer-events-auto cursor-pointer hover:bg-slate-50 transition-colors"
+              >
                 {Object.values(message.reactions).map((emoji, index) => (
-                  <span key={index} className="text-[11px] leading-none">{emoji}</span>
+                  <span key={index} className="text-[12px] leading-none">{emoji}</span>
                 ))}
               </div>
             )}
           </div>
         )}
       </div>
+
+      {showReactionDetails && message.reactions && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" onClick={(e) => { e.stopPropagation(); setShowReactionDetails(false); }}>
+          <div className="bg-white rounded-[24px] p-5 w-full max-w-[280px] shadow-2xl animate-pop-in flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-[15px] font-bold text-slate-800">Reactions</h3>
+              <button onClick={() => setShowReactionDetails(false)} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex flex-col space-y-3">
+              {Object.entries(message.reactions).map(([uid, emoji]) => (
+                <div key={uid} className="flex items-center space-x-3 p-2 bg-slate-50 rounded-xl">
+                  <div className="w-10 h-10 bg-white shadow-sm rounded-full flex items-center justify-center text-[22px]">
+                    {emoji}
+                  </div>
+                  <span className="text-[14px] font-semibold text-slate-700 truncate">
+                    {uid === user.uid ? 'You' : (otherEmail ? getMaskedEmail(otherEmail) : 'Other')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
