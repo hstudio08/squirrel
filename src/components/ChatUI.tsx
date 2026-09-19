@@ -293,7 +293,12 @@ export default function ChatUI({ user }: ChatUIProps) {
         if (permission === 'granted') {
           const messaging = await getFirebaseMessaging();
           if (messaging) {
-            const token = await getToken(messaging, { vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY });
+            
+            const registration = await navigator.serviceWorker.register('/sw.js');
+            const token = await getToken(messaging, { 
+              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+              serviceWorkerRegistration: registration 
+            });
             if (token) {
               await setDoc(doc(db, 'users', user.uid), { fcmToken: token }, { merge: true });
             }
