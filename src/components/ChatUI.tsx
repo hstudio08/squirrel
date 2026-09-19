@@ -12,7 +12,9 @@ import {
   limit as firestoreLimit, 
   onSnapshot, 
   addDoc, 
-  serverTimestamp 
+  serverTimestamp,
+  writeBatch,
+  doc
 } from 'firebase/firestore';
 import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
 import { Message } from '@/types/chat';
@@ -60,7 +62,13 @@ export default function ChatUI({ user }: ChatUIProps) {
     try {
       if (document.visibilityState === 'visible') {
         const audio = new Audio('/notification.mp3');
-        audio.play().catch(e => console.error("Audio play failed:", e));
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(e => {
+            // Silently catch NotAllowedError (user didn't interact yet)
+            console.warn("Audio auto-play prevented. User needs to interact first.");
+          });
+        }
       }
     } catch (e) {
       console.error("Audio playback failed", e);
@@ -228,9 +236,23 @@ export default function ChatUI({ user }: ChatUIProps) {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedMessages: Message[] = [];
-      snapshot.forEach((doc) => {
-        fetchedMessages.push({ id: doc.id, ...doc.data() } as Message);
+      const batch = writeBatch(db);
+      let hasUnseen = false;
+
+      snapshot.forEach((msgDoc) => {
+        const data = msgDoc.data();
+        fetchedMessages.push({ id: msgDoc.id, ...data } as Message);
+        
+        if (data.senderId !== user.uid && !data.seen && document.visibilityState === 'visible') {
+          batch.update(doc(db, 'chats', chatId, 'messages', msgDoc.id), { seen: true, seenAt: serverTimestamp() });
+          hasUnseen = true;
+        }
       });
+      
+      if (hasUnseen) {
+        batch.commit().catch(e => console.error('Failed to mark seen', e));
+      }
+
       const reversed = fetchedMessages.reverse();
       setMessages(reversed);
       
@@ -388,18 +410,18 @@ export default function ChatUI({ user }: ChatUIProps) {
             </span>
           </div>
           <div className="flex flex-col items-start overflow-hidden w-full">
-            <h1 className="text-[16px] font-semibold text-white/90 truncate w-full text-left">
-              30xCam
+            <h1 className="text-[17px] font-semibold text-white truncate w-full text-left tracking-wide">
+              {otherUserName || (otherEmail ? (otherEmail.split('@')[0].substring(0, 2) + '***' + otherEmail.split('@')[0].substring(otherEmail.split('@')[0].length - 2) + '@gmail.com') : '')}
             </h1>
-            <p className="text-[13px] text-white/50 truncate w-full text-left">
-              {otherEmail}
+            <p className={`text-[12px] truncate w-full text-left font-light ${otherUserStatus?.state === 'online' ? 'text-emerald-400' : 'text-white/60'}`}>
+              {statusText}
             </p>
           </div>
         </div>
 
         <button 
           onClick={signOut}
-          className="px-3 py-1.5 ml-2 text-[12px] font-medium text-red-400 border border-red-400/30 rounded-full hover:bg-red-400/10 transition-colors whitespace-nowrap"
+          className="px-4 py-2 ml-2 text-[14px] font-bold text-white bg-red-500 hover:bg-red-600 rounded-full shadow-md transition-all whitespace-nowrap tracking-wide"
         >
           Sign Out
         </button>

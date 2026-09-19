@@ -6,6 +6,7 @@ export interface Message {
   text: string;
   createdAt: Timestamp | null;
   seen: boolean;
+  seenAt?: Timestamp | null;
   isEdited?: boolean;
   editedAt?: Timestamp | null;
   isPinned?: boolean;

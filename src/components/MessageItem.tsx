@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, FormEvent } from 'react';
 import { Message } from '@/types/chat';
 import { doc, updateDoc, deleteDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Edit2, Trash2, X, Check, Pin, Plus } from 'lucide-react';
+import { Edit2, Trash2, X, Check, Pin, Plus, CheckCheck } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 import { User } from 'firebase/auth';
 
@@ -295,10 +295,10 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
           transition: translateX === 0 ? 'transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28)' : 'none',
           touchAction: 'pan-y'
         }}
-        className={`relative max-w-[85%] sm:max-w-[70%] rounded-2xl px-3 pt-2 pb-1.5 shadow-sm border ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
+        className={`relative max-w-[85%] sm:max-w-[70%] rounded-[22px] px-3 pt-2 pb-1.5 shadow-sm border ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
           isMine
-            ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-sm border-[#c8eed4] cursor-pointer'
-            : 'bg-white text-[#111b21] rounded-tl-sm border-white cursor-pointer'
+            ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] cursor-pointer'
+            : 'bg-white text-[#111b21] rounded-tl-[4px] border-white cursor-pointer'
         } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''}`}
       >
         {/* Pinned Indicator */}
@@ -478,7 +478,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
             <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''}`}>
               {message.isDeletedForEveryone ? (
                 <>
-                  <Trash2 size={14} className="mr-1.5 opacity-60" /> This message was deleted
+                  <span className="italic font-light text-[14px] text-black/50 tracking-wide">This message was deleted</span>
                 </>
               ) : (
                 message.text
@@ -490,13 +490,12 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
                   Edited
                 </span>
               )}
-              <span className="text-[10px] text-black/40 font-medium">
-                {message.editedAt ? formatTime(message.editedAt) : formatTime(message.createdAt)}
+              <span className="text-[10.5px] text-black/45 font-medium tracking-tight">
+                {message.seen && message.seenAt ? formatTime(message.seenAt) : (message.editedAt ? formatTime(message.editedAt) : formatTime(message.createdAt))}
               </span>
               {isMine && (
-                <div className="flex items-center ml-1 space-x-0.5">
-                  <div className={`w-1.5 h-1.5 rounded-full ${message.seen ? 'bg-[#25D366] shadow-[0_0_2px_rgba(37,211,102,0.5)]' : 'bg-black/20'}`} />
-                  <div className={`w-1.5 h-1.5 rounded-full ${message.seen ? 'bg-[#25D366] shadow-[0_0_2px_rgba(37,211,102,0.5)]' : 'bg-black/20'}`} />
+                <div className="flex items-center ml-1 opacity-90">
+                  <CheckCheck size={14} className={`${message.seen ? 'text-[#34B7F1]' : 'text-black/30'}`} strokeWidth={2.5} />
                 </div>
               )}
             </div>
