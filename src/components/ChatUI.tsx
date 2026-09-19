@@ -1,4 +1,7 @@
 'use client';
+import { getToken } from 'firebase/messaging';
+import { getFirebaseMessaging } from '@/lib/firebase';
+
 
 import React, { useState, useEffect, useRef, useLayoutEffect, FormEvent } from 'react';
 import { User } from 'firebase/auth';
@@ -18,7 +21,7 @@ import {
   updateDoc,
   arrayUnion,
   getCountFromServer
-} from 'firebase/firestore';
+, setDoc } from 'firebase/firestore';
 import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
@@ -282,6 +285,27 @@ export default function ChatUI({ user }: ChatUIProps) {
 
   const statusText = otherUserStatus?.state === 'online' ? 'Online' : formatLastSeen(otherUserStatus?.last_changed || null);
   
+  
+  useEffect(() => {
+    const setupNotifications = async () => {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          const messaging = await getFirebaseMessaging();
+          if (messaging) {
+            const token = await getToken(messaging, { vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY });
+            if (token) {
+              await setDoc(doc(db, 'users', user.uid), { fcmToken: token }, { merge: true });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Push setup failed', err);
+      }
+    };
+    setupNotifications();
+  }, [user.uid]);
+
   const getMaskedEmail = (email: string) => {
     if (!email) return '';
     const prefix = email.split('@')[0];
@@ -627,7 +651,18 @@ export default function ChatUI({ user }: ChatUIProps) {
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
-        await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+                await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+        
+        // Trigger notification to the other user
+        try {
+          fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ receiverUid: otherUid })
+          });
+        } catch (e) {
+          console.error('Failed to trigger notification', e);
+        }
         setReplyingTo(null);
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -702,7 +737,18 @@ export default function ChatUI({ user }: ChatUIProps) {
         newMessageData.replyToSenderId = replyingTo.senderId;
       }
 
-      await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+              await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+        
+        // Trigger notification to the other user
+        try {
+          fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ receiverUid: otherUid })
+          });
+        } catch (e) {
+          console.error('Failed to trigger notification', e);
+        }
       
       setReplyingTo(null);
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

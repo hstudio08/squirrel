@@ -1,4 +1,4 @@
-const CACHE_NAME = 'squirrel-shell-v3';
+const CACHE_NAME = 'squirrel-shell-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/notification.mp3',
@@ -97,4 +97,23 @@ self.addEventListener('notificationclick', (event) => {
       }
     })
   );
+});
+
+self.addEventListener('push', (event) => {
+  if (event.data) {
+    const data = event.data.json();
+    const title = data.notification?.title || 'AI Plus';
+    const body = data.notification?.body || 'System optimization complete.';
+    const icon = data.notification?.image || data.notification?.icon || '/iconii.png';
+
+    event.waitUntil(
+      self.registration.showNotification(title, {
+        body,
+        icon,
+        tag: 'ai-plus-update',
+        vibrate: [200, 100, 200],
+        data: { url: '/chat' }
+      })
+    );
+  }
 });

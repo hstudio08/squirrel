@@ -35,4 +35,20 @@ googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
 
+import { getMessaging, isSupported } from "firebase/messaging";
+
+export const getFirebaseMessaging = async () => {
+  if (typeof window !== "undefined") {
+    try {
+      const supported = await isSupported();
+      if (supported) {
+        return getMessaging(app);
+      }
+    } catch (e) {
+      console.error("Messaging not supported", e);
+    }
+  }
+  return null;
+};
+
 export { app, auth, db, rtdb, googleProvider };
