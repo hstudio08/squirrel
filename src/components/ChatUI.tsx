@@ -20,7 +20,7 @@ import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, Settings } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
 interface ChatUIProps {
@@ -54,6 +54,8 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [otherUid, setOtherUid] = useState<string | null>(null);
   const [isAnonymousMode, setIsAnonymousMode] = useState(false);
   const [revealedMessages, setRevealedMessages] = useState<string[]>([]);
+  const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const isTypingRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -361,6 +363,27 @@ export default function ChatUI({ user }: ChatUIProps) {
     }
   };
 
+  const isSameDay = (d1: any, d2: any) => {
+    if (!d1 || !d2) return false;
+    const date1 = d1.toDate ? d1.toDate() : new Date(d1);
+    const date2 = d2.toDate ? d2.toDate() : new Date(d2);
+    return date1.getFullYear() === date2.getFullYear() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getDate() === date2.getDate();
+  };
+
+  const formatDateSeparator = (d: any) => {
+    if (!d) return '';
+    const date = d.toDate ? d.toDate() : new Date(d);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (isSameDay(date, today)) return 'TODAY';
+    if (isSameDay(date, yesterday)) return 'YESTERDAY';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+  };
+
   const handleRevealMessage = (msgId: string) => {
     setRevealedMessages(prev => {
       if (prev.includes(msgId)) return prev;
@@ -415,9 +438,9 @@ export default function ChatUI({ user }: ChatUIProps) {
 
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-black text-white relative overflow-hidden">
+    <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#111b21]/40 backdrop-blur-xl rounded-[32px] shadow-lg border border-white/10 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.5rem)] relative mx-2 mt-2 self-stretch mb-1">
+      <div className="flex items-center justify-between px-4 py-2 bg-white/40 backdrop-blur-xl rounded-[32px] shadow-[0_4px_30px_rgba(0,0,0,0.1)] border border-white/30 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.5rem)] relative mx-2 mt-2 max-w-5xl mx-auto w-[calc(100%-1rem)] mb-1">
         <div className="flex items-center flex-1 min-w-0">
           <button 
             onClick={() => setIsAnonymousMode(!isAnonymousMode)}
@@ -431,10 +454,10 @@ export default function ChatUI({ user }: ChatUIProps) {
             </span>
           </div>
           <div className="flex flex-col items-start overflow-hidden w-full">
-            <h1 className="text-[15px] font-semibold text-white/90 truncate w-full text-left tracking-wide leading-tight">
+            <h1 className="text-[15px] font-semibold text-slate-800 truncate w-full text-left tracking-wide leading-tight">
               {getMaskedEmail(otherEmail)}
             </h1>
-            <p className={`text-[11px] truncate w-full text-left font-light leading-tight ${otherUserStatus?.state === 'online' ? 'text-emerald-400' : 'text-white/60'}`}>
+            <p className={`text-[11px] truncate w-full text-left font-medium leading-tight ${otherUserStatus?.state === 'online' ? 'text-emerald-600' : 'text-slate-500'}`}>
               {statusText}
             </p>
           </div>
@@ -448,10 +471,34 @@ export default function ChatUI({ user }: ChatUIProps) {
         </button>
       </div>
 
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-pop-in">
+            <h3 className="text-xl font-bold text-slate-800 mb-4 flex justify-between items-center">
+              Settings
+              <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-1.5"><X size={20} /></button>
+            </h3>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
+                <span className="text-slate-600 font-medium">Total Messages</span>
+                <span className="text-slate-900 font-bold text-lg">{messages.length}</span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
+                <span className="text-slate-600 font-medium">My Messages</span>
+                <span className="text-slate-900 font-bold text-lg">{messages.filter(m => m.senderId === user.uid).length}</span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
+                <span className="text-slate-600 font-medium">Messages Today</span>
+                <span className="text-slate-900 font-bold text-lg">{messages.filter(m => isSameDay(m.createdAt, new Date())).length}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Messages */}
-      <div 
-        className="chat-bg flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth"
-      >
+      <div onScroll={() => setActiveReactionMessageId(null)} className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto">
         {messages.length >= messageLimit && (
           <div className="flex justify-center mb-6 z-10">
             <button 
@@ -473,21 +520,35 @@ export default function ChatUI({ user }: ChatUIProps) {
             firstUnrepliedId = messages[i].id;
           }
 
-          return messages.map((msg, index) => (
-            <MessageItem 
-              key={msg.id} 
-              message={msg} 
-              isMine={msg.senderId === user.uid} 
-              user={user}
-              chatId={chatId}
-              isFirstUnreplied={msg.id === firstUnrepliedId}
-              onReply={() => setReplyingTo(msg)}
-              isAnonymousMode={isAnonymousMode}
-              isLastMessage={index === messages.length - 1}
-              isRevealed={revealedMessages.includes(msg.id)}
-              onReveal={() => handleRevealMessage(msg.id)}
-            />
-          ));
+          return messages.map((msg, index) => {
+              const showDate = index === 0 || !isSameDay(messages[index - 1].createdAt, msg.createdAt);
+              return (
+                <React.Fragment key={msg.id}>
+                  {showDate && (
+                    <div className="flex justify-center mb-4 mt-2 z-10 relative pointer-events-none">
+                      <div className="bg-white/80 backdrop-blur-md text-slate-600 font-medium text-[11px] px-3 py-1 rounded-full shadow-sm border border-black/5 tracking-wide">
+                        {formatDateSeparator(msg.createdAt)}
+                      </div>
+                    </div>
+                  )}
+                  <MessageItem 
+                    message={msg} 
+                    isMine={msg.senderId === user.uid} 
+                    user={user}
+                    chatId={chatId}
+                    isFirstUnreplied={msg.id === firstUnrepliedId}
+                    onReply={() => setReplyingTo(msg)}
+                    isAnonymousMode={isAnonymousMode}
+                    isLastMessage={index === messages.length - 1}
+                    isRevealed={revealedMessages.includes(msg.id)}
+                    onReveal={() => handleRevealMessage(msg.id)}
+                    isActiveReaction={activeReactionMessageId === msg.id}
+                    onReactOpen={() => setActiveReactionMessageId(msg.id)}
+                    onReactClose={() => setActiveReactionMessageId(null)}
+                  />
+                </React.Fragment>
+              );
+            });
         })()}
         
         {/* Typing Indicator */}

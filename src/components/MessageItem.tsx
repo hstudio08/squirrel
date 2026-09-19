@@ -11,14 +11,17 @@ import { User } from 'firebase/auth';
 interface MessageItemProps {
   message: Message;
   isMine: boolean;
-  user: User;
+  user: any;
   chatId: string;
-  isFirstUnreplied?: boolean;
+  isFirstUnreplied: boolean;
   onReply?: () => void;
   isAnonymousMode?: boolean;
   isLastMessage?: boolean;
   isRevealed?: boolean;
   onReveal?: () => void;
+  isActiveReaction?: boolean;
+  onReactOpen?: () => void;
+  onReactClose?: () => void;
 }
 
 const formatTime = (timestamp: any) => {
@@ -31,7 +34,7 @@ const formatTime = (timestamp: any) => {
   }).format(date);
 };
 
-export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal }: MessageItemProps) {
+export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose }: MessageItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   
@@ -168,7 +171,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     if (isEditing) return;
     timerRef.current = setTimeout(() => {
         setShowOptions(true);
-        setShowReactions(true);
+        if (onReactOpen) onReactOpen();
       if (window.navigator.vibrate) {
         window.navigator.vibrate(50);
       }
@@ -182,9 +185,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     }
   };
 
-  const [showReactions, setShowReactions] = useState(false);
-  const lastTapRef = useRef<number>(0);
-  const [translateX, setTranslateX] = useState(0);
+      const [translateX, setTranslateX] = useState(0);
   const dragStartX = useRef<number | null>(null);
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -221,14 +222,16 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
         window.navigator.vibrate(50);
       }
     } else if (Math.abs(translateX) < 10) {
-      // It was a tap, check for double tap
-      if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-        if (!message.isDeletedForEveryone && !isEditing) {
-          setShowReactions(true);
-          if (window.navigator.vibrate) window.navigator.vibrate(50);
+      // Single tap
+      if (!isActiveReaction && !showOptions && !showDeleteConfirm) {
+        if (shouldMask && onReveal) {
+          onReveal();
         }
+      } else {
+        if (onReactClose) onReactClose();
+        setShowOptions(false);
+        setShowDeleteConfirm(false);
       }
-      lastTapRef.current = now;
     }
     
     setTranslateX(0);
@@ -253,7 +256,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     } catch (err) {
       console.error('Failed to react', err);
     } finally {
-      setShowReactions(false);
+      if (onReactClose) onReactClose();
     }
   };
 
@@ -292,7 +295,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
             // Fallback for right click on desktop
             if (timerRef.current) clearTimeout(timerRef.current);
               setShowOptions(true);
-              setShowReactions(true);
+              if (onReactOpen) onReactOpen();
           }
         }}
         style={{
@@ -300,7 +303,13 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
           transition: translateX === 0 ? 'transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28)' : 'none',
           touchAction: 'pan-y'
         }}
-        className={`relative max-w-[85%] sm:max-w-[70%] rounded-[22px] px-2.5 pt-1.5 pb-1 shadow-sm border ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
+        onDoubleClick={(e) => {
+            e.stopPropagation();
+            if (!message.isDeletedForEveryone && !isEditing && onReactOpen) {
+              onReactOpen();
+            }
+          }}
+          className={`relative max-w-[85%] sm:max-w-[70%] rounded-[22px] px-2.5 pt-1.5 pb-1 shadow-sm border ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
           isMine
             ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] cursor-pointer'
             : 'bg-white text-[#111b21] rounded-tl-[4px] border-white cursor-pointer'
@@ -315,19 +324,19 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
         )}
 
         {/* Unified Backdrop */}
-        {(showOptions || showDeleteConfirm || showReactions) && (
+        {(showOptions || showDeleteConfirm || isActiveReaction) && (
           <div 
             className="fixed inset-0 z-30"
-            onClick={(e) => { e.stopPropagation(); setShowReactions(false); setShowFullEmojiPicker(false); setShowOptions(false); setShowDeleteConfirm(false); }}
+            onClick={(e) => { e.stopPropagation(); if (onReactClose) onReactClose(); setShowFullEmojiPicker(false); setShowOptions(false); setShowDeleteConfirm(false); }}
           />
         )}
 
         {/* Stacked Container */}
-        {(showOptions || showDeleteConfirm || showReactions) && (
+        {(showOptions || showDeleteConfirm || isActiveReaction) && (
           <div className={`absolute ${isMine ? 'right-0 items-end origin-bottom-right' : 'left-0 items-start origin-bottom-left'} bottom-full mb-1 flex flex-col gap-1.5 z-40 animate-pop-in`}>
             
             {/* Reaction Selector Popup */}
-            {showReactions && !showFullEmojiPicker && (
+            {isActiveReaction && !showFullEmojiPicker && (
               <div className="bg-white shadow-xl rounded-full py-1.5 px-3 flex items-center space-x-2 border border-slate-100 w-max">
                 {['\uD83D\uDC4D', '\u2764\uFE0F', '\uD83D\uDE02', '\uD83D\uDE2E', '\uD83D\uDE22'].map(emoji => (
                   <button
