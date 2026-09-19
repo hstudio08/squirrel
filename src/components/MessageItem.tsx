@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, FormEvent } from 'react';
 import { Message } from '@/types/chat';
 import { doc, updateDoc, deleteDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Edit2, Trash2, X, Check, Pin, Plus, CheckCheck } from 'lucide-react';
+import { Edit2, Trash2, X, Check, Pin, Plus, CheckCheck, Copy, Circle, CheckCircle2 } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 import { User } from 'firebase/auth';
 
@@ -23,6 +23,9 @@ interface MessageItemProps {
   onReactOpen?: () => void;
   onReactClose?: () => void;
   otherEmail?: string;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 const formatTime = (timestamp: any) => {
@@ -35,7 +38,7 @@ const formatTime = (timestamp: any) => {
   }).format(date);
 };
 
-export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose, otherEmail }: MessageItemProps) {
+export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose, otherEmail, selectionMode = false, isSelected = false, onToggleSelect }: MessageItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
     
@@ -241,9 +244,11 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     } else if (Math.abs(translateX) < 10) {
       // Single tap
       if (!isActiveReaction && !showOptions && !showDeleteConfirm) {
-        if (shouldMask && onReveal) {
-          onReveal();
-        }
+        if (selectionMode && onToggleSelect) {
+            onToggleSelect();
+          } else if (shouldMask && onReveal) {
+            onReveal();
+          }
       } else {
         if (onReactClose) onReactClose();
         setShowOptions(false);
@@ -321,8 +326,9 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
           touchAction: 'pan-y'
         }}
         onDoubleClick={(e) => {
-            e.stopPropagation();
-            if (!message.isDeletedForEveryone && !isEditing && onReactOpen) {
+              e.stopPropagation();
+              if (selectionMode) { if (onToggleSelect) onToggleSelect(); return; }
+              if (!message.isDeletedForEveryone && !isEditing && onReactOpen) {
               onReactOpen();
             }
           }}
@@ -331,7 +337,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
             ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] cursor-pointer'
             : 'bg-white text-[#111b21] rounded-tl-[4px] border-white cursor-pointer'
         } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''} `}
-        onClick={() => { if (shouldMask && onReveal) onReveal(); }}
+        onClick={() => { if (selectionMode && onToggleSelect) { onToggleSelect(); return; } if (shouldMask && onReveal) onReveal(); }}
       >
         {/* Pinned Indicator */}
         {message.isPinned && (
@@ -403,8 +409,24 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
                 )}
                 
                 {!message.isDeletedForEveryone && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleTogglePin(); }}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setShowOptions(false); if (onToggleSelect) { onToggleSelect(); } }}
+                      className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full border-t border-slate-50"
+                    >
+                      <CheckCircle2 size={16} className="mr-3 text-slate-500" /> Select
+                    </button>
+                  )}
+                  {!message.isDeletedForEveryone && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(message.text); setShowOptions(false); }}
+                      className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full border-t border-slate-50"
+                    >
+                      <Copy size={16} className="mr-3 text-slate-500" /> Copy
+                    </button>
+                  )}
+                  {!message.isDeletedForEveryone && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleTogglePin(); }}
                     className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full border-t border-slate-50"
                   >
                     <Pin size={16} className="mr-3 text-slate-500" /> {message.isPinned ? 'Unpin' : 'Pin'}

@@ -20,7 +20,7 @@ import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, Settings } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, Settings, ArrowLeft, Copy, Trash2 } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 
 interface ChatUIProps {
@@ -59,6 +59,8 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [enterToSend, setEnterToSend] = useState(false);
   const [clearedAt, setClearedAt] = useState<number>(0);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
 
   const isTypingRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -297,6 +299,44 @@ export default function ChatUI({ user }: ChatUIProps) {
     return () => unsubscribe();
   }, [messageLimit, isInitialLoad, chatId]);
 
+  const handleToggleSelect = (id: string) => {
+    setSelectedMessages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      if (newSet.size === 0) setSelectionMode(false);
+      else setSelectionMode(true);
+      return newSet;
+    });
+  };
+
+  const handleCopySelected = () => {
+    const texts = messages.filter(m => selectedMessages.has(m.id)).map(m => m.text).join('\n\n');
+    navigator.clipboard.writeText(texts);
+    setSelectionMode(false);
+    setSelectedMessages(new Set());
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!window.confirm(`Delete ${selectedMessages.size} messages for everyone?`)) return;
+    try {
+      await Promise.all(
+        Array.from(selectedMessages).map(id => updateDoc(doc(db, `conversations/${chatId}/messages`, id), {
+          text: '',
+          isDeletedForEveryone: true,
+          editedAt: rtdbServerTimestamp()
+        }))
+      );
+    } catch (e) {
+      console.error(e);
+    }
+    setSelectionMode(false);
+    setSelectedMessages(new Set());
+  };
+
   const loadMore = () => {
     setMessageLimit(prev => prev + 15);
   };
@@ -455,105 +495,55 @@ export default function ChatUI({ user }: ChatUIProps) {
     return time > clearedAt;
   });
 
-  return (
-    <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white/40 backdrop-blur-xl rounded-[32px] shadow-[0_4px_30px_rgba(0,0,0,0.1)] border border-white/30 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.5rem)] relative mx-2 mt-2 max-w-5xl mx-auto w-[calc(100%-1rem)] mb-1">
-        <div className="flex items-center flex-1 min-w-0">
-          <button 
-            onClick={() => setIsAnonymousMode(!isAnonymousMode)}
-            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mr-2 transition-colors ${isAnonymousMode ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
-          >
-            <Ghost size={16} />
-          </button>
-          <div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center mr-2 shrink-0">
-            <span className="text-[14px] font-bold text-white">
-              {otherEmail[0].toUpperCase()}
-            </span>
-          </div>
-          <div className="flex flex-col items-start overflow-hidden w-full">
-            <h1 className="text-[15px] font-semibold text-slate-800 truncate w-full text-left tracking-wide leading-tight">
-              {getMaskedEmail(otherEmail)}
-            </h1>
-            <p className={`text-[11px] truncate w-full text-left font-medium leading-tight ${otherUserStatus?.state === 'online' ? 'text-emerald-600' : 'text-slate-500'}`}>
-              {statusText}
-            </p>
-          </div>
-        </div>
+  const daysCount = new Set(visibleMessages.map(m => {
+    if (!m.createdAt) return '';
+    const date = m.createdAt.toDate ? m.createdAt.toDate() : new Date(m.createdAt);
+    return date.toDateString();
+  }).filter(Boolean)).size;
 
-        <div className="flex items-center ml-2 space-x-2 shrink-0">
-          <button onClick={() => setShowSettings(true)} className="p-2 text-slate-700 hover:text-slate-900 transition-colors bg-white/50 rounded-full shadow-sm">
-            <Settings size={20} />
+  if (showSettings) {
+    return (
+      <div className="flex flex-col h-[100dvh] bg-white relative overflow-hidden w-full max-w-5xl mx-auto">
+        <div className="flex items-center px-4 py-4 bg-white shadow-sm border-b border-slate-100 z-10 pt-[max(env(safe-area-inset-top),1rem)]">
+          <button onClick={() => setShowSettings(false)} className="p-2 mr-3 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-700 transition-colors">
+            <ArrowLeft size={24} />
           </button>
-          <button 
-            onClick={signOut}
-            className="px-3 py-1.5 text-[12px] font-bold text-white bg-red-500/90 hover:bg-red-500 rounded-full shadow-sm transition-all whitespace-nowrap"
-          >
-            Sign Out
-          </button>
+          <h1 className="text-xl font-bold text-slate-800 tracking-wide">Settings</h1>
         </div>
-      </div>
-
-      {/* Settings Modal */}
-      {showSettings && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-pop-in">
-            <h3 className="text-xl font-bold text-slate-800 mb-4 flex justify-between items-center">
-              Settings
-              <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-1.5"><X size={20} /></button>
-            </h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
-                <span className="text-slate-600 font-medium">Total Messages</span>
-                <span className="text-slate-900 font-bold text-lg">{visibleMessages.length}</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
-                <span className="text-slate-600 font-medium">My Messages</span>
-                <span className="text-slate-900 font-bold text-lg">{visibleMessages.filter(m => m.senderId === user.uid).length}</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
-                <span className="text-slate-600 font-medium">Messages Today</span>
-                <span className="text-slate-900 font-bold text-lg">{visibleMessages.filter(m => isSameDay(m.createdAt, new Date())).length}</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
-                <span className="text-slate-600 font-medium">Enter to Send</span>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" checked={enterToSend} onChange={(e) => setEnterToSend(e.target.checked)} className="sr-only peer" />
-                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                </label>
-              </div>
-              <div className="pt-2 border-t border-slate-100">
-                <button 
-                  onClick={() => setShowClearConfirm(true)}
-                  className="w-full py-2.5 px-4 bg-red-50 text-red-600 font-medium rounded-xl hover:bg-red-100 transition-colors"
-                >
-                  Clear Chat History
-                </button>
-              </div>
-            </div>
+        <div className="flex-1 overflow-y-auto px-4 py-6 flex flex-col space-y-4">
+          <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+            <span className="text-slate-600 font-medium">Total Messages</span>
+            <span className="text-slate-900 font-bold text-lg">{visibleMessages.length}</span>
+          </div>
+          <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+            <span className="text-slate-600 font-medium">My Messages</span>
+            <span className="text-slate-900 font-bold text-lg">{visibleMessages.filter(m => m.senderId === user.uid).length}</span>
+          </div>
+          <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+            <span className="text-slate-600 font-medium">Days Chatted</span>
+            <span className="text-slate-900 font-bold text-lg">{daysCount}</span>
+          </div>
+          <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+            <span className="text-slate-600 font-medium">Messages Today</span>
+            <span className="text-slate-900 font-bold text-lg">{visibleMessages.filter((m: any) => isSameDay(m.createdAt, new Date())).length}</span>
+          </div>
+          <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+            <span className="text-slate-600 font-medium">Enter to Send</span>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" checked={enterToSend} onChange={(e) => setEnterToSend(e.target.checked)} className="sr-only peer" />
+              <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+            </label>
+          </div>
+          <div className="pt-4 border-t border-slate-100">
+            <button 
+              onClick={() => setShowClearConfirm(true)}
+              className="w-full py-3.5 px-4 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors"
+            >
+              Clear Chat History
+            </button>
           </div>
         </div>
-      )}
-      
-      {/* Clear History Confirmation Modal */}
-      {showClearConfirm && (
-        <div className="absolute inset-0 z-[60] flex items-center justify-center p-4 bg-white/10 backdrop-blur-md">
-          <div className="bg-white/70 backdrop-blur-xl rounded-[32px] p-6 w-full max-w-sm shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-white/40 animate-pop-in flex flex-col items-center text-center">
-            <h3 className="text-lg font-bold text-slate-800 mb-2">Clear Chat History?</h3>
-            <p className="text-sm text-slate-600 mb-6 font-medium">This will remove all messages for you on this device. They will not be deleted for the other person.</p>
-            <div className="flex w-full space-x-3">
-              <button onClick={() => setShowClearConfirm(false)} className="flex-1 py-3 px-4 bg-white/60 hover:bg-white text-slate-700 font-semibold rounded-2xl transition-all shadow-sm border border-slate-100">
-                Cancel
-              </button>
-              <button onClick={() => { setClearedAt(Date.now()); setShowClearConfirm(false); setShowSettings(false); }} className="flex-1 py-3 px-4 bg-red-500/90 hover:bg-red-500 text-white font-semibold rounded-2xl shadow-sm transition-all">
-                Clear
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Messages */}
+        {/* Messages */}
       <div onScroll={() => setActiveReactionMessageId(null)} className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto">
         {messages.length >= messageLimit && (
           <div className="flex justify-center mb-6 z-10">
@@ -600,6 +590,9 @@ export default function ChatUI({ user }: ChatUIProps) {
                     onReactOpen={() => setActiveReactionMessageId(msg.id)}
                     onReactClose={() => setActiveReactionMessageId(null)}
                     otherEmail={otherEmail}
+                    selectionMode={selectionMode}
+                    isSelected={selectedMessages.has(msg.id)}
+                    onToggleSelect={() => handleToggleSelect(msg.id)}
                   />
                 </React.Fragment>
               );
@@ -621,7 +614,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 px-2 sm:px-4 py-2 bg-[#f0f2f5] pb-[max(env(safe-area-inset-bottom),0.5rem)] z-20">
+      <div className="shrink-0 px-2 sm:px-4 py-3 bg-white/30 backdrop-blur-xl border-t border-white/40 pb-[max(env(safe-area-inset-bottom),0.75rem)] z-20">
         
         {showEmojiPicker && (
           <div ref={emojiPickerRef} className="absolute bottom-[70px] left-2 sm:left-4 z-30 animate-pop-in">
@@ -658,7 +651,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         )}
 
         <form onSubmit={handleSend} className="flex items-end space-x-2 max-w-4xl mx-auto relative z-20">
-          <div className="flex-1 flex items-end bg-white rounded-3xl overflow-hidden shadow-sm px-2">
+          <div className="flex-1 flex items-end bg-white/60 backdrop-blur-md border border-white/50 rounded-3xl overflow-hidden shadow-sm px-2">
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -716,4 +709,5 @@ export default function ChatUI({ user }: ChatUIProps) {
       </div>
     </div>
   );
+}
 }
