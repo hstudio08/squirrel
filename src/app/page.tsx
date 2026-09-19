@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithRedirect, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Bot, Sparkles, Shield, ArrowRight, BrainCircuit, Cpu, Network, Lock, ChevronDown, Globe, Command, Terminal, Server, Database, Code, Activity, ShieldCheck, Box } from 'lucide-react';
@@ -29,27 +29,8 @@ export default function AIPlusLandingPage() {
   }, []);
 
   useEffect(() => {
-    getRedirectResult(auth).then(async (result) => {
-      if (result?.user) {
-        const email = result.user.email;
-        if (email && allowedEmails.includes(email)) {
-          await setDoc(doc(db, 'users', result.user.uid), {
-            uid: result.user.uid,
-            email: result.user.email,
-            displayName: result.user.displayName,
-            photoURL: result.user.photoURL,
-            lastLogin: serverTimestamp()
-          }, { merge: true });
-          router.push('/chat');
-        } else {
-          auth.signOut();
-          alert('Access Denied. This is a private environment.');
-        }
-      }
-    }).catch(console.error);
-
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user && user.email && allowedEmails.includes(user.email)) {
+      if (user && user.email && allowedEmails.includes(user.email.toLowerCase())) {
         router.push('/chat');
       }
     });
@@ -75,11 +56,34 @@ export default function AIPlusLandingPage() {
       setIsLoggingIn(true);
       setClickCount(0);
       // Using the globally initialized provider to avoid internal-error
-      signInWithRedirect(auth, googleProvider).catch((error) => {
-          console.error('Redirect failed:', error);
-          alert('Redirect Failed: ' + error.message);
-          setIsLoggingIn(false);
-        });
+      signInWithPopup(auth, googleProvider)
+        .then(async (result) => {
+          if (result?.user) {
+            const email = result.user.email?.toLowerCase();
+            if (email && allowedEmails.includes(email)) {
+              try {
+                await setDoc(doc(db, 'users', result.user.uid), {
+                  uid: result.user.uid,
+                  email: result.user.email,
+                  displayName: result.user.displayName,
+                  photoURL: result.user.photoURL,
+                  lastLogin: serverTimestamp()
+                }, { merge: true });
+              } catch (e) {
+                console.error('Firestore error:', e);
+              }
+              router.push('/chat');
+            } else {
+              auth.signOut();
+              alert('Access Denied. Private environment.');
+            }
+          }
+        })
+        .catch((error) => {
+          console.error('Login failed:', error);
+          alert('Login Failed: ' + error.message);
+        })
+        .finally(() => setIsLoggingIn(false));
     }
   };
 
