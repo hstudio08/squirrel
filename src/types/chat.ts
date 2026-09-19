@@ -14,4 +14,5 @@ export interface Message {
   replyToId?: string;
   replyToText?: string;
   replyToSenderId?: string;
+  reactions?: Record<string, string>;
 }

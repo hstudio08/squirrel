@@ -139,6 +139,21 @@ export default function ChatUI({ user }: ChatUIProps) {
           messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
           setIsInitialLoad(false);
         }, 100);
+      } else {
+        // Check for new messages from the other user to trigger notification
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const newMsg = change.doc.data();
+            if (newMsg.senderId !== user.uid && document.visibilityState === 'hidden') {
+              const notificationsEnabled = localStorage.getItem('notificationsEnabled') === 'true';
+              if (notificationsEnabled && 'serviceWorker' in navigator) {
+                navigator.serviceWorker.ready.then(registration => {
+                  registration.active?.postMessage({ type: 'SHOW_NOTIFICATION' });
+                });
+              }
+            }
+          }
+        });
       }
     }, (error) => {
       console.error("Error fetching messages:", error);
@@ -222,37 +237,95 @@ export default function ChatUI({ user }: ChatUIProps) {
     }
   };
 
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('notificationsEnabled');
+    if (saved === 'true') setNotificationsEnabled(true);
+  }, []);
+
+  const toggleNotifications = async () => {
+    if (!notificationsEnabled) {
+      if (Notification.permission === 'default') {
+        const perm = await Notification.requestPermission();
+        if (perm === 'granted') {
+          setNotificationsEnabled(true);
+          localStorage.setItem('notificationsEnabled', 'true');
+        } else {
+          alert("Notification permission denied by browser.");
+        }
+      } else if (Notification.permission === 'granted') {
+        setNotificationsEnabled(true);
+        localStorage.setItem('notificationsEnabled', 'true');
+      } else {
+        alert("Notification permission is blocked. Please enable it in browser settings.");
+      }
+    } else {
+      setNotificationsEnabled(false);
+      localStorage.setItem('notificationsEnabled', 'false');
+    }
+  };
+
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#efeae2] relative overflow-hidden">
-      {/* Header - Completely clickable as Logout */}
-      <button
-        onClick={signOut}
-        className="flex items-center w-full px-4 py-3 bg-[#f0f2f5] border-b border-slate-200 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.75rem)] hover:bg-[#e9edef] active:bg-[#d1d7db] transition-colors"
-      >
-        <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center mr-3 shrink-0">
-          <span className="text-slate-600 font-bold text-lg">
-            {otherEmail[0].toUpperCase()}
-          </span>
-        </div>
-        <div className="flex flex-col items-start overflow-hidden">
-          <h1 className="text-[16px] font-semibold text-[#111b21] truncate w-full text-left">
-            Private chat
-          </h1>
-          <p className="text-[13px] text-[#667781] truncate w-full text-left">
-            {otherEmail}
-          </p>
-        </div>
-      </button>
+    <div className="flex flex-col h-[100dvh] bg-black text-white relative overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between w-full px-4 py-3 bg-[#0a0a0a] border-b border-white/5 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.75rem)] relative">
+        <button
+          onClick={signOut}
+          className="flex items-center flex-1 overflow-hidden group hover:opacity-80 transition-opacity"
+        >
+          <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center mr-3 shrink-0 group-active:scale-95 transition-transform">
+            <span className="text-white/70 font-bold text-lg">
+              {otherEmail[0].toUpperCase()}
+            </span>
+          </div>
+          <div className="flex flex-col items-start overflow-hidden">
+            <h1 className="text-[16px] font-semibold text-white/90 truncate w-full text-left">
+              30xCam
+            </h1>
+            <p className="text-[13px] text-white/50 truncate w-full text-left">
+              {otherEmail}
+            </p>
+          </div>
+        </button>
+
+        <button 
+          onClick={() => setShowSettings(!showSettings)}
+          className="p-2 ml-2 text-white/50 hover:text-white/90 rounded-full hover:bg-white/5 transition-colors"
+        >
+          <Info size={20} />
+        </button>
+
+        {showSettings && (
+          <div className="absolute top-full right-4 mt-2 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl p-4 w-64 z-30 animate-pop-in">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-white/90">Notifications</span>
+              <button 
+                onClick={toggleNotifications}
+                className={`w-12 h-6 rounded-full p-1 transition-colors ${notificationsEnabled ? 'bg-teal-500' : 'bg-white/20'}`}
+              >
+                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform ${notificationsEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+            <p className="text-[11px] text-white/40 mt-2">
+              {Notification.permission === 'denied' 
+                ? 'Blocked by browser. Allow in site settings.' 
+                : 'Receive a generic alert when you get a new message in the background.'}
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Messages */}
       <div 
-        className="chat-bg flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth"
+        className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth bg-black"
       >
         {messages.length >= messageLimit && (
           <div className="flex justify-center mb-6 z-10">
             <button 
               onClick={loadMore}
-              className="px-4 py-1.5 bg-white shadow-sm rounded-full text-[13px] font-medium text-slate-600 active:scale-95 transition-all"
+              className="px-4 py-1.5 bg-[#1a1a1a] border border-white/10 rounded-full text-[13px] font-medium text-white/70 active:scale-95 transition-all"
             >
               Load earlier messages
             </button>
@@ -261,13 +334,11 @@ export default function ChatUI({ user }: ChatUIProps) {
         <div className="flex-1" />
         
         {(() => {
-          // Find the first message from the other user that is after our last reply
           let firstUnrepliedId: string | null = null;
           for (let i = messages.length - 1; i >= 0; i--) {
             if (messages[i].senderId === user.uid) {
-              break; // Found our last reply
+              break; 
             }
-            // This message is from the other user
             firstUnrepliedId = messages[i].id;
           }
 
@@ -286,10 +357,10 @@ export default function ChatUI({ user }: ChatUIProps) {
         {/* Typing Indicator */}
         {isOtherTyping && (
           <div className="flex w-full justify-start mb-2.5 animate-pop-in">
-            <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center space-x-1">
-              <div className="typing-dot" />
-              <div className="typing-dot" />
-              <div className="typing-dot" />
+            <div className="bg-[#1a1a1a] border border-white/5 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center space-x-1">
+              <div className="typing-dot !bg-white/50" />
+              <div className="typing-dot !bg-white/50" />
+              <div className="typing-dot !bg-white/50" />
             </div>
           </div>
         )}
@@ -298,14 +369,13 @@ export default function ChatUI({ user }: ChatUIProps) {
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 px-2 sm:px-4 py-2 bg-[#f0f2f5] pb-[max(env(safe-area-inset-bottom),0.5rem)] z-20">
+      <div className="shrink-0 px-2 sm:px-4 py-2 bg-[#0a0a0a] border-t border-white/5 pb-[max(env(safe-area-inset-bottom),0.5rem)] z-20">
         
-        {/* Emoji Picker Popover */}
         {showEmojiPicker && (
           <div ref={emojiPickerRef} className="absolute bottom-[70px] left-2 sm:left-4 z-30 animate-pop-in">
             <EmojiPicker 
               onEmojiClick={onEmojiClick} 
-              theme={Theme.LIGHT}
+              theme={Theme.DARK}
               lazyLoadEmojis
               searchDisabled
               skinTonesDisabled
@@ -316,18 +386,18 @@ export default function ChatUI({ user }: ChatUIProps) {
         )}
 
         {replyingTo && (
-          <div className="max-w-4xl mx-auto mb-2 flex items-center bg-[#e2e8f0] rounded-lg p-2 shadow-sm border-l-4 border-teal-500 animate-slide-up relative z-10">
+          <div className="max-w-4xl mx-auto mb-2 flex items-center bg-[#1a1a1a] rounded-xl p-2 border-l-4 border-teal-500 animate-slide-up relative z-10">
             <div className="flex-1 overflow-hidden pr-2">
-              <p className="text-[12px] font-semibold text-teal-600 mb-0.5">
+              <p className="text-[12px] font-semibold text-teal-500 mb-0.5">
                 {replyingTo.senderId === user.uid ? 'You' : otherEmail}
               </p>
-              <p className="text-[13px] text-slate-600 truncate">
+              <p className="text-[13px] text-white/70 truncate">
                 {replyingTo.text}
               </p>
             </div>
             <button
               onClick={() => setReplyingTo(null)}
-              className="p-1 rounded-full hover:bg-slate-300 text-slate-500 shrink-0"
+              className="p-1 rounded-full hover:bg-white/10 text-white/50 shrink-0"
               type="button"
             >
               <X size={16} />
@@ -336,11 +406,11 @@ export default function ChatUI({ user }: ChatUIProps) {
         )}
 
         <form onSubmit={handleSend} className="flex items-end space-x-2 max-w-4xl mx-auto relative z-20">
-          <div className="flex-1 flex items-end bg-white rounded-3xl overflow-hidden shadow-sm px-2">
+          <div className="flex-1 flex items-end bg-[#1a1a1a] rounded-3xl overflow-hidden px-2 border border-white/10 focus-within:border-white/20 transition-colors">
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="shrink-0 p-3 text-slate-500 hover:text-slate-700 transition-colors self-end"
+              className="shrink-0 p-3 text-white/50 hover:text-white/90 transition-colors self-end"
             >
               <Smile size={24} strokeWidth={1.5} />
             </button>
@@ -348,8 +418,8 @@ export default function ChatUI({ user }: ChatUIProps) {
               ref={textareaRef}
               value={text}
               onChange={handleTextChange}
-              placeholder="Type a message"
-              className="flex-1 bg-transparent text-[#111b21] placeholder-[#8696a0] py-[13px] px-2 text-[15px] focus:outline-none resize-none leading-snug max-h-[120px] min-h-[48px]"
+              placeholder="Type a message..."
+              className="flex-1 bg-transparent text-white placeholder-white/40 py-[13px] px-2 text-[15px] focus:outline-none resize-none leading-snug max-h-[120px] min-h-[48px]"
               rows={1}
             />
           </div>
@@ -357,10 +427,10 @@ export default function ChatUI({ user }: ChatUIProps) {
           <button
             type="submit"
             disabled={!text.trim() || isSending}
-            className={`shrink-0 w-12 h-12 rounded-full flex items-center justify-center shadow-sm transition-all active:scale-95 ${
+            className={`shrink-0 w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 ${
               !text.trim() || isSending
-                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                : 'bg-[#00a884] text-white hover:bg-[#008f6f]'
+                ? 'bg-white/10 text-white/30 cursor-not-allowed'
+                : 'bg-teal-600 text-white hover:bg-teal-500'
             }`}
           >
             <Send size={20} className="ml-1" />

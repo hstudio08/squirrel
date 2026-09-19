@@ -61,6 +61,20 @@ service cloud.firestore {
             && resource.data.senderId == request.auth.uid
             && request.resource.data.isDeletedForEveryone == true
             && request.resource.data.text == ""
+          ) ||
+          // Case 6: User adds or removes their own reaction
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+            && request.resource.data.reactions is map
+            && (
+                 (!('reactions' in resource.data) && request.resource.data.reactions.keys().hasOnly([request.auth.uid]))
+                 ||
+                 ('reactions' in resource.data && request.resource.data.reactions.diff(resource.data.reactions).affectedKeys().hasOnly([request.auth.uid]))
+               )
+            && (
+                 !(request.auth.uid in request.resource.data.reactions) 
+                 || request.resource.data.reactions[request.auth.uid] in ['❤️', '😂', '😮', '😢', '👍']
+               )
           )
         );
         

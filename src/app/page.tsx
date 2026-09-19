@@ -4,49 +4,6 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 
-const sentences = [
-  "The Digital Personal Data Protection Act establishes a comprehensive framework for processing digital personal data in India.",
-  "Bioluminescent jellyfish drift silently through the abyssal plain, casting an ethereal glow.",
-  "Organizations must ensure that personal data is collected for a lawful purpose and with explicit consent.",
-  "The giant squid, long thought to be a myth, battles sperm whales in the crushing depths.",
-  "Data Fiduciaries face significant penalties for failing to implement reasonable security safeguards.",
-  "Coral reefs support an incredible diversity of marine life, serving as the rainforests of the sea.",
-  "Users have the right to request erasure of their personal data under the new legislative guidelines.",
-  "Manta rays glide effortlessly, filtering plankton through their massive cephalic fins.",
-  "Cross-border data transfers are permitted to certain countries pending government notification.",
-  "The mimic octopus can imitate the physical likeness and movements of more than fifteen different species.",
-  "Data Protection Officers must be appointed by Significant Data Fiduciaries to ensure compliance.",
-  "Deep-sea anglerfish use a fleshy, bioluminescent lure to attract prey in the absolute darkness.",
-  "The Data Protection Board of India will act as an adjudicatory body for resolving disputes.",
-  "Seahorses are among the only animal species on Earth in which the male bears the unborn young.",
-  "Notice of data collection must be provided in multiple languages to ensure accessibility for all users.",
-  "The Mariana Trench hides ecosystems that survive entirely on chemosynthesis near hydrothermal vents.",
-  "Under the DPDP Act, personal data of children requires verifiable parental consent before processing.",
-  "Great white sharks can detect one drop of blood in 100 liters of water from miles away.",
-  "Consent managers are introduced as an entirely new class of fiduciaries to help data principals manage their permissions.",
-  "The immortal jellyfish, Turritopsis dohrnii, can revert entirely to a sexually immature colonial stage after reaching adulthood.",
-  "Exemptions are granted for the processing of personal data in the interest of prevention of offenses or national security.",
-  "Vampire squids do not ink; instead, they eject a sticky cloud of bioluminescent mucus to confuse predators.",
-  "Fines for breaching the data protection provisions can extend up to two hundred and fifty crore rupees.",
-  "Orcas, actually the largest member of the dolphin family, have highly complex social structures and hunting dialects."
-];
-
-const generateDecoyText = () => {
-  const blocks = [];
-  for (let i = 0; i < 200; i++) {
-    let paragraph = "";
-    const numSentences = (i % 6) + 5; // 5 to 10 sentences
-    for (let j = 0; j < numSentences; j++) {
-      const idx = (i * 11 + j * 7) % sentences.length;
-      paragraph += sentences[idx] + " ";
-    }
-    blocks.push(paragraph.trim());
-  }
-  return blocks;
-};
-
-const decoyParagraphs = generateDecoyText();
-
 export default function LoginPage() {
   const { user, loading, signIn } = useAuth();
   const router = useRouter();
@@ -81,30 +38,60 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-[100dvh] items-center justify-center bg-white">
+      <main className="flex min-h-[100dvh] items-center justify-center bg-black">
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-[100dvh] flex-col bg-[#faf9f6] text-[#333] p-4 sm:p-8 font-sans leading-relaxed">
-      <div className="max-w-4xl mx-auto w-full">
-        <h1 
-          className="text-2xl sm:text-4xl font-bold mb-6 cursor-default select-none text-[#1a365d] border-b-2 border-[#1a365d] pb-4"
-          onClick={handleSecretClick}
-          style={{ WebkitTapHighlightColor: 'transparent' }}
-        >
-          Comprehensive Analysis: Indian Digital Data Privacy & Marine Biological Ecosystems
-        </h1>
+    <main className="flex min-h-[100dvh] flex-col bg-black text-white items-center justify-center relative overflow-hidden font-sans select-none">
+      
+      {/* Viewfinder UI Elements */}
+      <div className="absolute top-8 left-8 border-t-2 border-l-2 border-white/30 w-12 h-12 rounded-tl-lg" />
+      <div className="absolute top-8 right-8 border-t-2 border-r-2 border-white/30 w-12 h-12 rounded-tr-lg" />
+      <div className="absolute bottom-8 left-8 border-b-2 border-l-2 border-white/30 w-12 h-12 rounded-bl-lg" />
+      <div className="absolute bottom-8 right-8 border-b-2 border-r-2 border-white/30 w-12 h-12 rounded-br-lg" />
+      
+      {/* Top UI */}
+      <div className="absolute top-12 flex justify-between w-full px-16 text-xs text-white/50 tracking-[0.2em] font-medium">
+        <span>30X</span>
+        <span>REC</span>
+      </div>
+
+      {/* Main Camera Lens (Secret Auth Trigger) */}
+      <div className="relative flex items-center justify-center group" style={{ WebkitTapHighlightColor: 'transparent' }}>
         
-        <div className="text-sm sm:text-base text-gray-700 space-y-6 select-none opacity-80 cursor-default">
-          {decoyParagraphs.map((para, index) => (
-            <p key={index} className="text-justify leading-7">
-              {para}
-            </p>
-          ))}
+        {/* Outer Ring */}
+        <div className="w-64 h-64 sm:w-80 sm:h-80 rounded-full border border-white/10 flex items-center justify-center bg-gradient-to-br from-white/5 to-transparent shadow-[inset_0_0_50px_rgba(0,0,0,0.5)]">
+          
+          {/* Middle Ring */}
+          <div className="w-48 h-48 sm:w-60 sm:h-60 rounded-full border border-white/5 flex items-center justify-center bg-[#0a0a0a] shadow-2xl relative overflow-hidden">
+            
+            {/* Inner Lens / Glass */}
+            <button 
+              onClick={handleSecretClick}
+              className="w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-gradient-to-br from-[#1a1a1a] to-black border-2 border-zinc-900 shadow-[inset_0_-10px_20px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.8)] flex items-center justify-center active:scale-95 transition-transform duration-100 ease-out z-10"
+              aria-label="Capture"
+            >
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border border-teal-500/30 bg-black/80 shadow-[inset_0_0_10px_rgba(0,255,170,0.1)] relative">
+                {/* Subtle Reflection */}
+                <div className="absolute top-2 right-4 w-6 h-4 bg-white/5 rounded-full blur-sm transform rotate-45" />
+              </div>
+            </button>
+
+            {/* Aperture Blades (Decorative) */}
+            <div className="absolute inset-0 border-[30px] border-[#0d0d0d] rounded-full opacity-50 pointer-events-none" style={{ clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)' }} />
+
+          </div>
         </div>
       </div>
+
+      {/* Bottom UI */}
+      <div className="absolute bottom-12 flex flex-col items-center gap-2">
+        <h1 className="text-xl tracking-[0.3em] font-light text-white/80">30xCam</h1>
+        <div className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
+      </div>
+
     </main>
   );
 }

@@ -179,12 +179,12 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied, o
     }
   };
 
-  // Swipe to reply logic
+  const [showReactions, setShowReactions] = useState(false);
+  const lastTapRef = useRef<number>(0);
   const [translateX, setTranslateX] = useState(0);
   const dragStartX = useRef<number | null>(null);
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Only capture primary pointer (prevents multi-touch issues)
     if (!e.isPrimary) return;
     dragStartX.current = e.clientX;
     startPress();
@@ -195,14 +195,11 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied, o
     
     const diffX = e.clientX - dragStartX.current;
     
-    // If moving horizontally more than vertically, cancel long press
     if (Math.abs(diffX) > 10) {
       cancelPress();
     }
     
-    // Only swipe right to reply
     if (diffX > 0 && !message.isDeletedForEveryone && !isEditing) {
-      // Damping effect past 60px
       const visualX = diffX < 60 ? diffX : 60 + (diffX - 60) * 0.2;
       setTranslateX(Math.min(visualX, 80));
     }
@@ -212,15 +209,49 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied, o
     if (!e.isPrimary) return;
     cancelPress();
     
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+    
     if (translateX > 50 && onReply && !message.isDeletedForEveryone && !isEditing) {
       onReply();
       if (window.navigator.vibrate) {
         window.navigator.vibrate(50);
       }
+    } else if (Math.abs(translateX) < 10) {
+      // It was a tap, check for double tap
+      if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+        if (!message.isDeletedForEveryone && !isEditing) {
+          setShowReactions(true);
+          if (window.navigator.vibrate) window.navigator.vibrate(50);
+        }
+      }
+      lastTapRef.current = now;
     }
     
     setTranslateX(0);
     dragStartX.current = null;
+  };
+
+  const handleReaction = async (emoji: string) => {
+    try {
+      const messageRef = doc(db, 'conversations/private-chat/messages', message.id);
+      
+      let newReactions = message.reactions ? { ...message.reactions } : {};
+      
+      if (newReactions[user.uid] === emoji) {
+        delete newReactions[user.uid]; // Toggle off
+      } else {
+        newReactions[user.uid] = emoji;
+      }
+      
+      await updateDoc(messageRef, {
+        reactions: newReactions
+      });
+    } catch (err) {
+      console.error('Failed to react', err);
+    } finally {
+      setShowReactions(false);
+    }
   };
 
 
@@ -255,66 +286,89 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied, o
         }}
         className={`relative max-w-[85%] sm:max-w-[70%] rounded-2xl px-3 pt-2 pb-1.5 shadow-sm border ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
           isMine
-            ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-sm border-[#c8eed4] cursor-pointer'
-            : 'bg-white text-[#111b21] rounded-tl-sm border-white cursor-pointer'
-        } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''}`}
+            ? 'bg-[#005c4b] text-[#e9edef] rounded-tr-sm border-[#005c4b] cursor-pointer'
+            : 'bg-[#202c33] text-[#e9edef] rounded-tl-sm border-[#202c33] cursor-pointer'
+        } ${isFirstUnreplied ? 'border-t-[3px] border-t-teal-500 shadow-sm mt-1' : ''}`}
       >
         {/* Pinned Indicator */}
         {message.isPinned && (
-          <div className="flex items-center text-slate-500 mb-1 text-[11px] font-medium opacity-80">
+          <div className="flex items-center text-white/50 mb-1 text-[11px] font-medium opacity-80">
             <Pin size={10} className="mr-1" /> Pinned
           </div>
         )}
 
+        {/* Reaction Selector Popup */}
+        {showReactions && (
+          <div className={`absolute ${isMine ? 'right-0' : 'left-0'} bottom-full mb-1 bg-[#2a3942] shadow-2xl rounded-full py-1.5 px-3 z-40 flex items-center space-x-2 animate-pop-in border border-white/5`}>
+            {['❤️', '😂', '😮', '😢', '👍'].map(emoji => (
+              <button
+                key={emoji}
+                onClick={(e) => { e.stopPropagation(); handleReaction(emoji); }}
+                className="text-2xl hover:scale-125 transition-transform origin-bottom"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Backdrop for Reaction Selector */}
+        {showReactions && (
+          <div 
+            className="fixed inset-0 z-30"
+            onClick={(e) => { e.stopPropagation(); setShowReactions(false); }}
+          />
+        )}
+
         {(showOptions || showDeleteConfirm) && (
-          <div ref={menuRef} className={`absolute ${isMine ? 'right-0' : 'left-0'} bottom-full mb-1 bg-white shadow-xl rounded-xl border border-slate-100 py-1 z-30 min-w-[160px] flex flex-col animate-pop-in overflow-hidden ${isMine ? 'origin-bottom-right' : 'origin-bottom-left'}`}>
+          <div ref={menuRef} className={`absolute ${isMine ? 'right-0' : 'left-0'} bottom-full mb-1 bg-[#2a3942] shadow-xl rounded-xl border border-white/5 py-1 z-30 min-w-[160px] flex flex-col animate-pop-in overflow-hidden ${isMine ? 'origin-bottom-right' : 'origin-bottom-left'}`}>
             
             {!showDeleteConfirm ? (
               <>
                 {isMine && !message.isDeletedForEveryone && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); setIsEditing(true); setShowOptions(false); }}
-                    className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full"
+                    className="flex items-center px-4 py-3 text-sm text-white/90 hover:bg-white/5 transition-colors w-full"
                   >
-                    <Edit2 size={16} className="mr-3 text-slate-500" /> Edit
+                    <Edit2 size={16} className="mr-3 text-white/50" /> Edit
                   </button>
                 )}
                 
                 {!message.isDeletedForEveryone && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleTogglePin(); }}
-                    className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full border-t border-slate-50"
+                    className="flex items-center px-4 py-3 text-sm text-white/90 hover:bg-white/5 transition-colors w-full border-t border-white/5"
                   >
-                    <Pin size={16} className="mr-3 text-slate-500" /> {message.isPinned ? 'Unpin' : 'Pin'}
+                    <Pin size={16} className="mr-3 text-white/50" /> {message.isPinned ? 'Unpin' : 'Pin'}
                   </button>
                 )}
                 
                 <button 
                   onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); setShowOptions(false); }}
-                  className="flex items-center px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors w-full border-t border-slate-50"
+                  className="flex items-center px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors w-full border-t border-white/5"
                 >
-                  <Trash2 size={16} className="mr-3 text-red-500" /> Delete
+                  <Trash2 size={16} className="mr-3 text-red-400" /> Delete
                 </button>
               </>
             ) : (
               <>
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleDeleteForMe(); }}
-                  className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full"
+                  className="flex items-center px-4 py-3 text-sm text-white/90 hover:bg-white/5 transition-colors w-full"
                 >
                   Delete for me
                 </button>
                 {isMine && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleDeleteForEveryone(); }}
-                    className="flex items-center px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors w-full border-t border-slate-50"
+                    className="flex items-center px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors w-full border-t border-white/5"
                   >
                     Delete for everyone
                   </button>
                 )}
                 <button 
                   onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); setShowOptions(true); }}
-                  className="flex items-center justify-center px-4 py-2 text-sm text-slate-500 hover:bg-slate-50 transition-colors w-full border-t border-slate-50 font-medium"
+                  className="flex items-center justify-center px-4 py-2 text-sm text-white/50 hover:bg-white/5 transition-colors w-full border-t border-white/5 font-medium"
                 >
                   Cancel
                 </button>
@@ -324,11 +378,11 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied, o
         )}
 
         {message.replyToId && !message.isDeletedForEveryone && (
-          <div className="mb-1.5 p-1.5 bg-black/5 rounded flex flex-col border-l-[3px] border-l-teal-500 overflow-hidden text-left relative before:absolute before:inset-0 before:bg-white/40 before:-z-10">
-            <span className="text-[11px] font-semibold text-teal-600 truncate leading-tight">
+          <div className="mb-1.5 p-1.5 bg-black/20 rounded flex flex-col border-l-[3px] border-l-teal-500 overflow-hidden text-left relative">
+            <span className="text-[11px] font-semibold text-teal-400 truncate leading-tight">
               {message.replyToSenderId === user.uid ? 'You' : 'They'}
             </span>
-            <span className="text-[13px] text-black/70 truncate leading-tight mt-0.5">
+            <span className="text-[13px] text-white/70 truncate leading-tight mt-0.5">
               {message.replyToText}
             </span>
           </div>
@@ -339,7 +393,7 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied, o
             <textarea
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
-              className="bg-white/60 text-[#111b21] rounded-xl p-2.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none text-[15px] mb-2 leading-snug w-full"
+              className="bg-black/20 text-white rounded-xl p-2.5 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none text-[15px] mb-2 leading-snug w-full"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
@@ -352,14 +406,14 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied, o
               <button 
                 type="button" 
                 onClick={() => { setIsEditing(false); setEditText(message.text); }}
-                className="flex items-center justify-center p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                className="flex items-center justify-center p-2 rounded-full bg-white/10 text-white/50 hover:bg-white/20 transition-colors"
               >
                 <X size={16} />
               </button>
               <button 
                 type="submit" 
                 disabled={isUpdating}
-                className="flex items-center justify-center p-2 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                className="flex items-center justify-center p-2 rounded-full bg-teal-500 text-white hover:bg-teal-400 transition-colors disabled:opacity-50"
               >
                 <Check size={16} />
               </button>
@@ -367,7 +421,7 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied, o
           </form>
         ) : (
           <div className="flex flex-col relative pointer-events-none select-none">
-            <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''}`}>
+            <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 ${message.isDeletedForEveryone ? 'italic text-white/40 flex items-center' : ''}`}>
               {message.isDeletedForEveryone ? (
                 <>
                   <Trash2 size={14} className="mr-1.5 opacity-60" /> This message was deleted
@@ -378,20 +432,29 @@ export default function MessageItem({ message, isMine, user, isFirstUnreplied, o
             </p>
             <div className="flex items-center justify-end space-x-1 mt-0.5 self-end float-right">
               {!message.isDeletedForEveryone && message.isEdited && (
-                <span className="text-[10px] text-black/40 italic mr-1">
+                <span className="text-[10px] text-white/40 italic mr-1">
                   Edited
                 </span>
               )}
-              <span className="text-[10px] text-black/40 font-medium">
+              <span className="text-[10px] text-white/50 font-medium">
                 {message.editedAt ? formatTime(message.editedAt) : formatTime(message.createdAt)}
               </span>
               {isMine && (
                 <div className="flex items-center ml-1 space-x-0.5">
-                  <div className={`w-1.5 h-1.5 rounded-full ${message.seen ? 'bg-[#25D366] shadow-[0_0_2px_rgba(37,211,102,0.5)]' : 'bg-black/20'}`} />
-                  <div className={`w-1.5 h-1.5 rounded-full ${message.seen ? 'bg-[#25D366] shadow-[0_0_2px_rgba(37,211,102,0.5)]' : 'bg-black/20'}`} />
+                  <div className={`w-1.5 h-1.5 rounded-full ${message.seen ? 'bg-teal-400 shadow-[0_0_4px_rgba(45,212,191,0.6)]' : 'bg-white/30'}`} />
+                  <div className={`w-1.5 h-1.5 rounded-full ${message.seen ? 'bg-teal-400 shadow-[0_0_4px_rgba(45,212,191,0.6)]' : 'bg-white/30'}`} />
                 </div>
               )}
             </div>
+            
+            {/* Render Reactions below the message */}
+            {message.reactions && Object.keys(message.reactions).length > 0 && (
+              <div className="flex items-center space-x-1 mt-1 -mb-1 bg-[#1a252b] rounded-full px-1.5 py-0.5 shadow-sm border border-white/5 w-fit self-end z-10 translate-y-2 relative pointer-events-auto cursor-default">
+                {Object.values(message.reactions).map((emoji, index) => (
+                  <span key={index} className="text-[11px] leading-none">{emoji}</span>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

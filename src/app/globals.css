@@ -6,8 +6,8 @@
 }
 
 :root {
-  --background: #efeae2;
-  --foreground: #111b21;
+  --background: #000000;
+  --foreground: #ffffff;
 }
 
 body {
@@ -31,6 +31,15 @@ body {
   animation: popIn 0.25s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
 }
 
+@keyframes slideUp {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.2s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+}
+
 @keyframes bounceDot {
   0%, 100% { transform: translateY(0); opacity: 0.5; }
   50% { transform: translateY(-3px); opacity: 1; }
@@ -39,7 +48,7 @@ body {
 .typing-dot {
   width: 4px;
   height: 4px;
-  background-color: #00a884;
+  background-color: #00ffaa;
   border-radius: 50%;
   animation: bounceDot 1.2s infinite ease-in-out;
 }
@@ -48,9 +57,9 @@ body {
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-/* WhatsApp style dotted pattern + huge faint center squirrel */
+/* 30xCam style faint grid */
 .chat-bg {
-  background-color: #efeae2;
+  background-color: #000000;
   position: relative;
 }
 
@@ -59,20 +68,22 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: radial-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 30px 30px;
   z-index: 0;
 }
 
 .chat-bg::after {
-  content: "Squirrel";
+  content: "30xCam";
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 15vw;
-  font-weight: 900;
-  color: rgba(0, 0, 0, 0.02);
+  font-weight: 200;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.02);
   pointer-events: none;
   z-index: 0;
   user-select: none;
