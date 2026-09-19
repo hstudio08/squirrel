@@ -300,12 +300,19 @@ export default function ChatUI({ user }: ChatUIProps) {
         let hasUnseen = false;
 
         // 1. Process sounds BEFORE updating newestMsgTimeRef
+        // 1. Process sounds BEFORE updating newestMsgTimeRef
         if (initialLoadDone.current && !isFirstSnapshot) {
           let shouldScroll = false;
+          
+          let isNearBottom = true;
+          if (scrollContainerRef.current) {
+            const { scrollHeight, scrollTop, clientHeight } = scrollContainerRef.current;
+            isNearBottom = scrollHeight - scrollTop - clientHeight < 250;
+          }
+
           snapshot.docChanges().forEach((change) => {
             if (change.type === 'added') {
               const newMsg = change.doc.data();
-              shouldScroll = true;
               
               let msgTime = 0;
               if (newMsg.createdAt) {
@@ -314,8 +321,13 @@ export default function ChatUI({ user }: ChatUIProps) {
                 else if (typeof newMsg.createdAt === 'number') msgTime = newMsg.createdAt;
               }
 
-              if (msgTime > newestMsgTimeRef.current && newMsg.senderId !== user.uid) {
-                playNotificationSound();
+              if (msgTime > newestMsgTimeRef.current) {
+                if (newMsg.senderId === user.uid || isNearBottom) {
+                  shouldScroll = true;
+                }
+                if (newMsg.senderId !== user.uid) {
+                  playNotificationSound();
+                }
               }
             }
           });
