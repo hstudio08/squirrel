@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, adminMessaging } from '@/lib/firebase-admin';
 
 const FAKE_MESSAGES = [
-  "AI Plus has a new feature available.",
-  "AI Plus got a new neural upgrade.",
-  "System optimization complete.",
-  "New privacy protocols initialized.",
-  "AI Plus: Background sync finished.",
-  "Server node connection refreshed.",
-  "AI Plus version 2.4.1 is now active.",
-  "Diagnostic check complete: 0 errors.",
-  "Security definitions updated.",
-  "AI Plus performance metrics compiled."
+  "Your AI assistant has something new for you.",
+  "Your AI session is ready to continue.",
+  "A new AI insight is waiting.",
+  "Your AI assistant just finished processing.",
+  "A fresh AI response is ready.",
+  "Your AI workspace has been updated.",
+  "Your AI assistant is ready when you are.",
+  "A new AI thought is waiting for you.",
+  "Your AI assistant has a new update for you.",
+  "Your latest AI interaction is ready."
 ];
 
 export async function POST(req: NextRequest) {
