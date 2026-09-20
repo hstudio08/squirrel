@@ -45,4 +45,3 @@ next-env.d.ts
 .env.local
 .env.*
 scratch/
-src/app/chat/preview/
