@@ -1352,13 +1352,30 @@ export default function ChatUI({ user }: ChatUIProps) {
           <button
             type="submit"
             disabled={!text.trim() || isSending}
-            className={`shrink-0 w-12 h-12 rounded-full flex items-center justify-center shadow-sm transition-all active:scale-95 ${
+            className={`group relative shrink-0 w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all duration-300 ease-out outline-none ${
               !text.trim() || isSending
-                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                : 'bg-[#00a884] text-white hover:bg-[#008f6f]'
+                ? 'bg-slate-100/80 backdrop-blur text-slate-400 shadow-sm cursor-not-allowed'
+                : 'bg-gradient-to-tr from-[#008f6f] to-[#12c49c] text-white shadow-md hover:shadow-xl hover:scale-105 active:scale-95 ring-4 ring-[#00a884]/20'
             }`}
           >
-            <Send size={20} className="ml-1" />
+            {/* Pulse ring effect when ready to send */}
+            {text.trim() && !isSending && (
+              <span className="absolute inset-0 rounded-full bg-[#00a884] opacity-20 animate-ping" style={{ animationDuration: '2.5s' }}></span>
+            )}
+            
+            {/* Icon container with launch animation on hover */}
+            <div className={`relative z-10 transition-transform duration-300 ease-out ${text.trim() && !isSending ? 'group-hover:translate-x-1 group-hover:-translate-y-1' : ''}`}>
+              {isSending ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Send 
+                  size={22} 
+                  className={`ml-1 transition-all duration-300 ${text.trim() ? 'drop-shadow-sm' : ''}`} 
+                  fill={text.trim() ? "currentColor" : "none"} 
+                  strokeWidth={text.trim() ? 1.5 : 2} 
+                />
+              )}
+            </div>
           </button>
         </form>
       </div>
