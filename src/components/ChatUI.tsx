@@ -151,17 +151,24 @@ export default function ChatUI({ user }: ChatUIProps) {
   const pinBannerRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   
+  const shouldScrollToTopAfterLoad = useRef(false);
+
   useLayoutEffect(() => {
-    if (prevScrollHeightRef.current > 0 && scrollContainerRef.current) {
+    if (shouldScrollToTopAfterLoad.current && scrollContainerRef.current) {
       const diff = scrollContainerRef.current.scrollHeight - prevScrollHeightRef.current;
       if (diff > 0) {
-        scrollContainerRef.current.scrollTop += diff;
+        // The DOM has grown with the new older messages.
+        // The user wants to "remain at the top of the loaded chats", meaning they 
+        // want to see the oldest message in the newly loaded batch.
+        // We can just scroll to the very top (or near top so they don't immediately hit the button).
+        scrollContainerRef.current.scrollTop = 10; 
+        
+        prevScrollHeightRef.current = 0;
+        shouldScrollToTopAfterLoad.current = false;
       }
-      prevScrollHeightRef.current = 0;
     }
   }, [messages]);
 
-  
   const [otherUserName, setOtherUserName] = useState<string>('');
   const [otherUserStatus, setOtherUserStatus] = useState<{state: string, last_changed: number} | null>(null);
   const [otherUid, setOtherUid] = useState<string | null>(null);
@@ -374,6 +381,15 @@ export default function ChatUI({ user }: ChatUIProps) {
   useEffect(() => {
     const setupNotifications = async () => {
       try {
+        // Ensure user record exists with email for querying
+        if (user.email) {
+          await setDoc(doc(db, 'users', user.uid), { 
+            email: user.email,
+            displayName: user.displayName || user.email.split('@')[0],
+            uid: user.uid
+          }, { merge: true });
+        }
+
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
           const messaging = await getFirebaseMessaging();
@@ -690,6 +706,11 @@ export default function ChatUI({ user }: ChatUIProps) {
   const loadMore = () => {
     if (scrollContainerRef.current) {
       prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
+      shouldScrollToTopAfterLoad.current = true;
+      setTimeout(() => {
+        prevScrollHeightRef.current = 0;
+        shouldScrollToTopAfterLoad.current = false;
+      }, 1500); // Failsafe reset
     }
     setMessageLimit(prev => prev + 25);
   };
@@ -1125,9 +1146,9 @@ export default function ChatUI({ user }: ChatUIProps) {
 
       {/* Search Bar - Absolute positioned over messages for speed and no layout shift */}
           <div 
-            className={`absolute top-[75px] left-0 right-0 z-30 w-full max-w-5xl mx-auto px-4 pointer-events-none transition-all duration-150 ease-in-out ${showSearch ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}
+            className={`absolute top-[75px] left-0 right-0 z-30 w-full max-w-5xl mx-auto px-4 transition-all duration-150 ease-in-out ${showSearch ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}
           >
-            <div className="bg-[#efeae2] border border-slate-300 shadow-md rounded-2xl p-2 flex items-center space-x-2 pointer-events-auto">
+            <div className="bg-[#efeae2] border border-slate-300 shadow-md rounded-2xl p-2 flex items-center space-x-2">
               <div className="flex-1 bg-white rounded-xl flex items-center px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
                 <Search size={16} className="text-slate-400 mr-2 shrink-0" />
                 <input
