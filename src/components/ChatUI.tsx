@@ -78,16 +78,11 @@ const StatusIndicator = ({ state, timestamp, isTyping }: { state: string | undef
   }
 
   const date = new Date(timestamp);
-  const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()} | ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear().toString().slice(-2)} | ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
 
   return (
-    <div className="grid h-[14px] place-items-end">
-      <div className={`col-start-1 row-start-1 flex items-center transition-opacity duration-500 ease-in-out ${toggle ? 'opacity-100' : 'opacity-0'}`}>
-        <span className="text-[11px] font-semibold text-slate-500 truncate text-right">Offline</span>
-      </div>
-      <div className={`col-start-1 row-start-1 flex items-center transition-opacity duration-500 ease-in-out ${!toggle ? 'opacity-100' : 'opacity-0'}`}>
-        <span className="text-[11px] font-semibold text-slate-500 truncate text-right whitespace-nowrap">{formattedDate}</span>
-      </div>
+    <div className="flex items-center justify-end h-[14px] animate-fade-in">
+      <span className="text-[11px] font-semibold text-slate-500 text-right whitespace-nowrap">{formattedDate}</span>
     </div>
   );
 };
@@ -1014,12 +1009,17 @@ export default function ChatUI({ user }: ChatUIProps) {
             SQUIRREL
           </h1>
         </div>
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2 bg-white/40 backdrop-blur-xl rounded-[32px] shadow-[0_4px_30px_rgba(0,0,0,0.1)] border border-white/30 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.5rem)] relative mx-2 mt-2 max-w-5xl mx-auto w-[calc(100%-1rem)] mb-1">
-          {selectionMode ? (
-            <div className="flex items-center justify-between w-full h-10">
-              <div className="flex items-center">
-                <button onClick={() => { setSelectionMode(false); setSelectedMessages(new Set()); }} className="p-2 mr-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm">
+        {/* Floating Top Section */}
+        <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none w-full">
+          {/* Header */}
+          <div className="pointer-events-auto flex items-center justify-between px-4 py-2 bg-white/20 backdrop-blur-md backdrop-saturate-150 rounded-[32px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] border border-white/40 shrink-0 pt-[max(env(safe-area-inset-top),0.5rem)] relative mx-2 mt-2 max-w-5xl sm:mx-auto w-[calc(100%-1rem)] mb-1 will-change-transform transform-gpu">
+            {/* Sleek yellow shade line */}
+            <div className="absolute bottom-0 left-[10%] right-[10%] h-[1.5px] bg-gradient-to-r from-transparent via-yellow-400/90 to-transparent pointer-events-none rounded-full blur-[0.3px]"></div>
+            
+            {selectionMode ? (
+              <div className="flex items-center justify-between w-full h-10">
+                <div className="flex items-center">
+                  <button onClick={() => { setSelectionMode(false); setSelectedMessages(new Set()); }} className="p-2 mr-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm">
                   <X size={20} />
                 </button>
                 <span className="font-bold text-slate-800 text-lg">{selectedMessages.size} selected</span>
@@ -1121,8 +1121,9 @@ export default function ChatUI({ user }: ChatUIProps) {
              </div>
            </div>
         )}
+      </div>
 
-        {/* Search Bar - Absolute positioned over messages for speed and no layout shift */}
+      {/* Search Bar - Absolute positioned over messages for speed and no layout shift */}
           <div 
             className={`absolute top-[75px] left-0 right-0 z-30 w-full max-w-5xl mx-auto px-4 pointer-events-none transition-all duration-150 ease-in-out ${showSearch ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}
           >
@@ -1171,12 +1172,16 @@ export default function ChatUI({ user }: ChatUIProps) {
         }} 
         className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto"
       >
+        {/* Spacers to prevent content from hiding under the floating header */}
+        <div className="shrink-0 h-[60px]" />
+        {pinnedMessage && !isKeyboardOpen && <div className="shrink-0 h-[50px]" />}
+        
         {showScrollBottom && (
           <button 
             onClick={() => {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
             }}
-            className={`fixed right-6 sm:right-10 z-[100] p-3 bg-white/90 backdrop-blur-md rounded-full shadow-[0_4px_15px_rgba(0,0,0,0.1)] border border-slate-200 text-slate-700 hover:text-blue-500 hover:scale-105 transition-all duration-300 cursor-pointer animate-pop-in ${replyingTo ? 'bottom-[145px]' : 'bottom-[80px]'}`}
+            className={`fixed right-6 sm:right-10 z-[100] p-3 rounded-full cursor-pointer animate-pop-in will-change-transform transform-gpu transition-all duration-300 ease-out bg-white/20 backdrop-blur-md backdrop-saturate-150 border border-white/40 shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] text-slate-700 hover:text-blue-600 hover:bg-white/30 hover:scale-105 active:scale-95 ${replyingTo ? 'bottom-[145px]' : 'bottom-[80px]'}`}
           >
             <ChevronDown size={22} strokeWidth={2.5} />
           </button>
