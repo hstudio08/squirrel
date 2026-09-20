@@ -178,6 +178,26 @@ export default function ChatUI({ user }: ChatUIProps) {
     };
   }, []);
 
+  // Handle mobile keyboard appearing/disappearing
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const handleViewportResize = () => {
+      if (scrollContainerRef.current) {
+        const target = scrollContainerRef.current;
+        const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+        
+        // If user hasn't scrolled up more than roughly a page, keep them at the bottom
+        // when the keyboard resizes the viewport
+        if (scrollBottom <= target.clientHeight + 150) {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        }
+      }
+    };
+    
+    window.visualViewport.addEventListener('resize', handleViewportResize);
+    return () => window.visualViewport?.removeEventListener('resize', handleViewportResize);
+  }, []);
+
   const isTypingRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTypingWriteRef = useRef<number>(0); // throttle RTDB writes
@@ -1135,6 +1155,19 @@ export default function ChatUI({ user }: ChatUIProps) {
               placeholder="Type a message"
               className="flex-1 bg-transparent text-[#111b21] placeholder-[#8696a0] py-[10px] px-2 text-[14.5px] focus:outline-none resize-none leading-snug max-h-[100px] min-h-[40px]"
               rows={1}
+              onFocus={() => {
+                const isMobile = window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent);
+                if (isMobile && scrollContainerRef.current) {
+                  const target = scrollContainerRef.current;
+                  const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+                  
+                  if (scrollBottom <= target.clientHeight + 150) {
+                    setTimeout(() => {
+                      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    }, 300);
+                  }
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   const isMobile = window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent);
