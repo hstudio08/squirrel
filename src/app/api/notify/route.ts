@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const token = userData?.fcmToken;
 
     if (!token) {
-      return NextResponse.json({ error: 'No FCM token found for user' }, { status: 404 });
+      return NextResponse.json({ error: 'No FCM token found for user' }, { status: 422 });
     }
 
     // Pick a random decoy message
