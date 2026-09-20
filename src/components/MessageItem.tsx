@@ -78,6 +78,13 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     const [showReactionDetails, setShowReactionDetails] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFullEmojiPicker, setShowFullEmojiPicker] = useState(false);
+  const [optimisticReactions, setOptimisticReactions] = useState(message.reactions || {});
+  const reactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setOptimisticReactions(message.reactions || {});
+  }, [message.reactions]);
+
   const shouldMask = isAnonymousMode && !isLastMessage && !isRevealed;
   
   // Long press logic
@@ -117,25 +124,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     };
   }, [isMine, message.id, message.seen]);
 
-  // Close options menu if clicked outside or scrolled
-  useEffect(() => {
-    const handleClose = (e: Event) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowOptions(false);
-        setShowDeleteConfirm(false);
-      }
-    };
-    if (showOptions || showDeleteConfirm) {
-      document.addEventListener('pointerdown', handleClose);
-      
-      document.addEventListener('scroll', handleClose, true);
-    }
-    return () => {
-      document.removeEventListener('pointerdown', handleClose);
-      
-      document.removeEventListener('scroll', handleClose, true);
-    };
-  }, [showOptions, showDeleteConfirm]);
+  // Menu closing is handled by the backdrop overlay
 
   const handleEditSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -154,7 +143,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
         editedAt: serverTimestamp()
       });
       setIsEditing(false);
-      setShowOptions(false);
+      setShowOptions(false); if (onReactClose) onReactClose();
     } catch (err) {
       console.error('Failed to edit message', err);
       setEditText(message.text);
@@ -164,7 +153,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
   };
 
   const handleDeleteForEveryone = async () => {
-    setShowOptions(false);
+    setShowOptions(false); if (onReactClose) onReactClose();
       setShowDeleteConfirm(false);
     try {
       const messageRef = doc(db, `conversations/${chatId}/messages`, message.id);
@@ -178,7 +167,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
   };
 
   const handleDeleteForMe = async () => {
-    setShowOptions(false);
+    setShowOptions(false); if (onReactClose) onReactClose();
       setShowDeleteConfirm(false);
     try {
       const messageRef = doc(db, `conversations/${chatId}/messages`, message.id);
@@ -196,7 +185,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
       await updateDoc(messageRef, {
         isPinned: !message.isPinned
       });
-      setShowOptions(false);
+      setShowOptions(false); if (onReactClose) onReactClose();
     } catch (err) {
       console.error('Failed to pin message', err);
     }
@@ -314,7 +303,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
       } else {
         // Tapped outside popup — close everything
         if (onReactClose) onReactClose();
-        setShowOptions(false);
+        setShowOptions(false); if (onReactClose) onReactClose();
         setShowDeleteConfirm(false);
       }
     }
@@ -323,26 +312,39 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     dragStartX.current = null;
   };
 
-  const handleReaction = async (emoji: string) => {
-    try {
-      const messageRef = doc(db, `conversations/${chatId}/messages`, message.id);
-      
-      let newReactions = message.reactions ? { ...message.reactions } : {};
-      
+  const handleReaction = (emoji: string) => {
+    // 1. Optimistic Update immediately
+    setOptimisticReactions(prev => {
+      const newReactions = { ...prev };
       if (newReactions[user.uid] === emoji) {
         delete newReactions[user.uid]; // Toggle off
       } else {
         newReactions[user.uid] = emoji;
       }
       
-      await updateDoc(messageRef, {
-        reactions: newReactions
-      });
-    } catch (err) {
-      console.error('Failed to react', err);
-    } finally {
-      if (onReactClose) onReactClose();
-    }
+      // 2. Clear old timeout to debounce
+      if (reactionTimeoutRef.current) {
+        clearTimeout(reactionTimeoutRef.current);
+      }
+      
+      // 3. Debounce Firebase write by 500ms
+      reactionTimeoutRef.current = setTimeout(async () => {
+        try {
+          const messageRef = doc(db, `conversations/${chatId}/messages`, message.id);
+          await updateDoc(messageRef, {
+            reactions: newReactions
+          });
+        } catch (err) {
+          console.error('Failed to react', err);
+          // Revert to server state if failed
+          setOptimisticReactions(message.reactions || {});
+        }
+      }, 500);
+      
+      return newReactions;
+    });
+
+    if (onReactClose) onReactClose();
   };
 
 
@@ -413,13 +415,16 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
         {(showOptions || showDeleteConfirm || isActiveReaction) && (
           <div 
             className="fixed inset-0 z-30"
+            onPointerDown={(e) => { e.stopPropagation(); if (onReactClose) onReactClose(); setShowFullEmojiPicker(false); setShowOptions(false); setShowDeleteConfirm(false); }}
+            onTouchStart={(e) => { e.stopPropagation(); if (onReactClose) onReactClose(); setShowFullEmojiPicker(false); setShowOptions(false); setShowDeleteConfirm(false); }}
+            onWheel={(e) => { e.stopPropagation(); if (onReactClose) onReactClose(); setShowFullEmojiPicker(false); setShowOptions(false); setShowDeleteConfirm(false); }}
             onClick={(e) => { e.stopPropagation(); if (onReactClose) onReactClose(); setShowFullEmojiPicker(false); setShowOptions(false); setShowDeleteConfirm(false); }}
           />
         )}
 
         {/* Stacked Container */}
         {(showOptions || showDeleteConfirm || isActiveReaction) && (
-          <div data-popup className={`absolute ${isMine ? 'right-0 items-end origin-bottom-right' : 'left-0 items-start origin-bottom-left'} bottom-full mb-1 flex flex-col gap-1.5 z-40 animate-pop-in`}>
+          <div data-popup onPointerDown={(e) => e.stopPropagation()} className={`absolute ${isMine ? 'right-0 items-end origin-bottom-right' : 'left-0 items-start origin-bottom-left'} bottom-full mb-1 flex flex-col gap-1.5 z-40 animate-pop-in`}>
             
             {/* Reaction Selector Popup */}
             {isActiveReaction && !showFullEmojiPicker && (
@@ -471,7 +476,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
                         e.preventDefault();
                         e.stopPropagation();
                         if (onPinToggle) onPinToggle();
-                        setShowOptions(false);
+                        setShowOptions(false); if (onReactClose) onReactClose();
                       }}
                       className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors w-full border-b border-slate-100"
                     >
@@ -483,7 +488,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
                           e.preventDefault();
                           e.stopPropagation();
                           setIsEditing(true);
-                          setShowOptions(false);
+                          setShowOptions(false); if (onReactClose) onReactClose();
                         }}
                         className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors w-full"
                       >
@@ -495,7 +500,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
                         e.preventDefault();
                         e.stopPropagation();
                         setShowDeleteConfirm(true);
-                        setShowOptions(false);
+                        setShowOptions(false); if (onReactClose) onReactClose();
                       }}
                       className={`flex items-center px-4 py-3 text-sm text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors w-full ${isMine && !message.isDeletedForEveryone ? 'border-t border-slate-100' : ''}`}
                     >
@@ -678,13 +683,21 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
             </div>
             
             {/* Render Reactions below the message */}
-            {message.reactions && Object.keys(message.reactions).length > 0 && (
+            {optimisticReactions && Object.keys(optimisticReactions).length > 0 && (
               <div 
-                onClick={(e) => { e.stopPropagation(); setShowReactionDetails(true); }}
-                className="flex items-center space-x-1 mt-1 -mb-1 bg-white rounded-full px-1.5 py-0.5 shadow-sm border border-slate-100 w-fit self-end z-10 translate-y-2 relative pointer-events-auto cursor-pointer hover:bg-slate-50 transition-colors"
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  const uids = Object.keys(optimisticReactions);
+                  if (uids.length === 1 && uids[0] === user.uid) {
+                    handleReaction(optimisticReactions[user.uid]);
+                  } else {
+                    setShowReactionDetails(true); 
+                  }
+                }}
+                className={`flex items-center space-x-1 mt-1 -mb-1 rounded-full px-1.5 py-0.5 shadow-sm border w-fit self-end z-10 translate-y-2 relative pointer-events-auto cursor-pointer transition-all duration-200 ${optimisticReactions[user.uid] ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-100 hover:bg-blue-100' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
               >
-                {Object.values(message.reactions).map((emoji, index) => (
-                  <span key={index} className="text-[12px] leading-none">{emoji}</span>
+                {Object.values(optimisticReactions).map((emoji, index) => (
+                  <span key={index} className="text-[12px] leading-none">{emoji as string}</span>
                 ))}
               </div>
             )}
@@ -692,24 +705,39 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
         )}
       </div>
 
-      {showReactionDetails && message.reactions && (
+      {showReactionDetails && optimisticReactions && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" onClick={(e) => { e.stopPropagation(); setShowReactionDetails(false); }}>
           <div className="bg-white rounded-[16px] p-3 w-full max-w-[200px] shadow-xl border border-slate-100 animate-pop-in flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-[13px] font-bold text-slate-800 tracking-tight">Reactions</h3>
-              <button onClick={() => setShowReactionDetails(false)} className="p-1 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors">
-                <X size={12} />
+              <span className="text-[13px] font-bold text-slate-800">Reactions</span>
+              <button onClick={() => setShowReactionDetails(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full p-1 transition-colors">
+                <X size={14} />
               </button>
             </div>
             <div className="flex flex-col space-y-1.5">
-              {Object.entries(message.reactions).map(([uid, emoji]) => (
-                <div key={uid} className="flex items-center space-x-2 p-1.5 bg-slate-50 rounded-lg">
-                  <div className="w-7 h-7 bg-white shadow-sm rounded-full flex items-center justify-center text-[15px]">
-                    {emoji}
+              {Object.entries(optimisticReactions).map(([uid, emoji]) => (
+                <div key={uid} className={`flex items-center justify-between p-1.5 rounded-lg border ${uid === user.uid ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-slate-50 border-transparent'}`}>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7 bg-white shadow-sm rounded-full flex items-center justify-center text-[15px]">
+                      {emoji as string}
+                    </div>
+                    <span className="text-[12px] font-semibold text-slate-700 truncate">
+                      {uid === user.uid ? 'You' : (otherEmail ? getMaskedEmail(otherEmail) : 'Other')}
+                    </span>
                   </div>
-                  <span className="text-[12px] font-semibold text-slate-700 truncate">
-                    {uid === user.uid ? 'You' : (otherEmail ? getMaskedEmail(otherEmail) : 'Other')}
-                  </span>
+                  {uid === user.uid && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReaction(emoji as string);
+                        setShowReactionDetails(false);
+                      }}
+                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                      title="Remove reaction"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
