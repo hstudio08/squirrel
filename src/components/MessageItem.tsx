@@ -29,6 +29,8 @@ interface MessageItemProps {
   isExpanded?: boolean;
   onToggleExpand?: () => void;
   searchQuery?: string;
+  isPinned?: boolean;
+  onPinToggle?: () => void;
 }
 
 const formatTime = (timestamp: any) => {
@@ -43,7 +45,9 @@ const formatTime = (timestamp: any) => {
 
 export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose, otherEmail, selectionMode = false, isSelected = false, onToggleSelect, isExpanded,
     onToggleExpand,
-    searchQuery
+    searchQuery,
+    isPinned = false,
+    onPinToggle
   }: MessageItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -432,6 +436,17 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
               >
                 {!showDeleteConfirm ? (
                   <>
+                    <button
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (onPinToggle) onPinToggle();
+                        setShowOptions(false);
+                      }}
+                      className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors w-full border-b border-slate-100"
+                    >
+                      <Pin size={16} className={`mr-3 ${isPinned ? 'text-blue-500 fill-blue-500' : 'text-slate-500'}`} /> {isPinned ? 'Unpin' : 'Pin'}
+                    </button>
                     {isMine && !message.isDeletedForEveryone && (
                       <button
                         onPointerDown={(e) => {

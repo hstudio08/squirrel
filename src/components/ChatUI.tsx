@@ -20,8 +20,9 @@ import {
   doc,
   updateDoc,
   arrayUnion,
-  getCountFromServer
-, setDoc } from 'firebase/firestore';
+  getCountFromServer,
+  deleteField,
+  setDoc } from 'firebase/firestore';
 import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
@@ -114,6 +115,10 @@ export default function ChatUI({ user }: ChatUIProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [pinnedMessage, setPinnedMessage] = useState<{ id: string; text: string; senderId: string } | null>(null);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [showUnpinConfirm, setShowUnpinConfirm] = useState(false);
+  const [showPinError, setShowPinError] = useState(false);
   
 
   const chatId = 'private-chat';
@@ -127,6 +132,9 @@ export default function ChatUI({ user }: ChatUIProps) {
   const newestMsgTimeRef = useRef<number>(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef<number>(0);
+  const pinSwipeStartRef = useRef<number | null>(null);
+  const pinSwipeDraggingRef = useRef<boolean>(false);
+  const pinBannerRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   
   useLayoutEffect(() => {
@@ -182,6 +190,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
     const handleViewportResize = () => {
+      setIsKeyboardOpen(window.visualViewport!.height < window.innerHeight - 100);
       if (scrollContainerRef.current) {
         const target = scrollContainerRef.current;
         const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
@@ -478,6 +487,13 @@ export default function ChatUI({ user }: ChatUIProps) {
 
     useEffect(() => {
       if (!user?.uid) return;
+      
+      const convUnsub = onSnapshot(doc(db, 'conversations', chatId), (docSnap) => {
+        if (docSnap.exists()) {
+          setPinnedMessage(docSnap.data().pinnedMessage || null);
+        }
+      });
+      
       const cacheKey = `sq_c_${chatId}_${user.uid}`;
 
       // ΓöÇΓöÇ STEP 1: Paint cached messages INSTANTLY (zero Firestore reads) ΓöÇΓöÇ
@@ -608,7 +624,10 @@ export default function ChatUI({ user }: ChatUIProps) {
         console.error("Error fetching messages:", error);
       });
   
-      return () => unsubscribe();
+      return () => {
+        unsubscribe();
+        convUnsub();
+      };
     }, [messageLimit, chatId, user?.uid]);
 
   const handleToggleSelect = (id: string) => {
@@ -776,6 +795,97 @@ export default function ChatUI({ user }: ChatUIProps) {
     if (isSameDay(date, today)) return 'TODAY';
     if (isSameDay(date, yesterday)) return 'YESTERDAY';
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+  };
+
+  const handlePinToggle = async (msg: Message) => {
+    try {
+      if (pinnedMessage?.id === msg.id) {
+        // Show confirm unpin dialog
+        setShowUnpinConfirm(true);
+      } else {
+        if (pinnedMessage) {
+          // Can't pin two messages
+          setShowPinError(true);
+          setTimeout(() => setShowPinError(false), 3000);
+          return;
+        }
+        // Pin
+        await setDoc(doc(db, 'conversations', chatId), {
+          pinnedMessage: { id: msg.id, text: msg.text, senderId: msg.senderId }
+        }, { merge: true });
+      }
+    } catch (error) {
+      console.error('Failed to toggle pin', error);
+      alert('Failed to pin: ' + (error instanceof Error ? error.message : 'Missing permissions. Did you deploy firestore.rules?'));
+    }
+  };
+
+  const confirmUnpin = async () => {
+    try {
+      await updateDoc(doc(db, 'conversations', chatId), {
+        pinnedMessage: deleteField()
+      });
+      setShowUnpinConfirm(false);
+    } catch (error) {
+      console.error('Failed to unpin', error);
+      alert('Failed to unpin: ' + (error instanceof Error ? error.message : 'Missing permissions. Did you deploy firestore.rules?'));
+      setShowUnpinConfirm(false);
+    }
+  };
+
+  const handlePinTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    pinSwipeStartRef.current = clientX;
+    pinSwipeDraggingRef.current = false;
+    if (pinBannerRef.current) {
+      pinBannerRef.current.style.transition = 'none';
+    }
+  };
+
+  const handlePinTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
+    if (pinSwipeStartRef.current === null || !pinBannerRef.current) return;
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const diff = clientX - pinSwipeStartRef.current;
+    
+    if (Math.abs(diff) > 10) {
+      pinSwipeDraggingRef.current = true;
+    }
+    
+    // Allow sliding only left (diff < 0)
+    if (diff < 0) {
+      // Add a slight resistance curve
+      const offset = diff > -150 ? diff : -150 - Math.sqrt(Math.abs(diff + 150)) * 2;
+      pinBannerRef.current.style.transform = `translateX(${offset}px)`;
+      pinBannerRef.current.style.opacity = Math.max(0.3, 1 - Math.abs(offset) / 200).toString();
+    }
+  };
+
+  const handlePinTouchEnd = () => {
+    if (pinSwipeStartRef.current === null || !pinBannerRef.current) return;
+    
+    const transform = pinBannerRef.current.style.transform;
+    const match = transform.match(/translateX\(([-\d.]+)px\)/);
+    const offset = match ? parseFloat(match[1]) : 0;
+    
+    pinBannerRef.current.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s ease';
+    
+    if (offset < -75) {
+      pinBannerRef.current.style.transform = `translateX(-120%)`;
+      pinBannerRef.current.style.opacity = '0';
+      setTimeout(() => setShowUnpinConfirm(true), 150);
+      setTimeout(() => {
+        if (pinBannerRef.current) {
+          pinBannerRef.current.style.transform = 'translateX(0)';
+          pinBannerRef.current.style.opacity = '1';
+        }
+      }, 500); 
+    } else {
+      pinBannerRef.current.style.transform = 'translateX(0)';
+      pinBannerRef.current.style.opacity = '1';
+    }
+    
+    pinSwipeStartRef.current = null;
+    setTimeout(() => { pinSwipeDraggingRef.current = false; }, 50);
   };
 
   const handleRevealMessage = (msgId: string) => {
@@ -958,6 +1068,47 @@ export default function ChatUI({ user }: ChatUIProps) {
             </>
           )}
         </div>
+        
+        {/* Pinned Message */}
+        {pinnedMessage && !isKeyboardOpen && (
+           <div 
+             ref={pinBannerRef}
+             className="mx-2 max-w-5xl mx-auto w-[calc(100%-1rem)] bg-white/70 backdrop-blur-md rounded-[20px] shadow-sm border border-white/40 px-4 py-2 mt-1 mb-1 flex items-center justify-between shrink-0 relative z-20 pointer-events-auto cursor-pointer hover:bg-white/80 transition-transform select-none"
+             onClick={(e) => {
+               if (pinSwipeDraggingRef.current) {
+                 e.preventDefault();
+                 e.stopPropagation();
+                 return;
+               }
+               const el = document.getElementById(`msg-${pinnedMessage.id}`);
+               if (el) {
+                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                 setTimeout(() => {
+                   el.classList.add('bg-blue-100/50', 'ring-2', 'ring-blue-400');
+                   setTimeout(() => {
+                     el.classList.remove('bg-blue-100/50', 'ring-2', 'ring-blue-400');
+                   }, 2000);
+                 }, 300);
+               }
+             }}
+             onTouchStart={handlePinTouchStart}
+             onTouchMove={handlePinTouchMove}
+             onTouchEnd={handlePinTouchEnd}
+             onMouseDown={handlePinTouchStart}
+             onMouseMove={handlePinTouchMove}
+             onMouseUp={handlePinTouchEnd}
+             onMouseLeave={handlePinTouchEnd}
+           >
+             <div className="flex items-center space-x-3 overflow-hidden flex-1 pointer-events-none">
+               <Pin size={16} className="text-blue-500 shrink-0 fill-blue-500" />
+               <div className="flex flex-col overflow-hidden w-full">
+                 <span className="text-[11px] font-bold text-blue-600 tracking-wider mb-0.5">Pinned Message</span>
+                 <span className="text-[13px] text-slate-700 truncate w-full leading-tight">{pinnedMessage.text}</span>
+               </div>
+             </div>
+           </div>
+        )}
+
         {/* Search Bar - Absolute positioned over messages for speed and no layout shift */}
           <div 
             className={`absolute top-[75px] left-0 right-0 z-30 w-full max-w-5xl mx-auto px-4 pointer-events-none transition-all duration-150 ease-in-out ${showSearch ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}
@@ -1080,6 +1231,8 @@ export default function ChatUI({ user }: ChatUIProps) {
                     onToggleSelect={() => handleToggleSelect(msg.id)}
                     isExpanded={expandedMessageId === msg.id}
                     onToggleExpand={() => setExpandedMessageId(prev => prev === msg.id ? null : msg.id)}
+                    isPinned={pinnedMessage?.id === msg.id}
+                    onPinToggle={() => handlePinToggle(msg)}
                   />
                       </div>
                   </div>
@@ -1103,7 +1256,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 px-2 sm:px-4 pt-2 pb-[max(env(safe-area-inset-bottom),0.25rem)] bg-transparent z-20 relative">
+      <div className="shrink-0 px-2 sm:px-4 pt-2 pb-1 !bg-transparent !border-none !shadow-none z-20 relative">
         
         {showEmojiPicker && (
           <div ref={emojiPickerRef} className="absolute bottom-[70px] left-2 sm:left-4 z-30 animate-pop-in">
@@ -1140,7 +1293,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         )}
 
         <form onSubmit={handleSend} className="flex items-end space-x-2 max-w-4xl mx-auto relative z-20 pointer-events-auto">
-          <div className="flex-1 flex items-end bg-white/60 backdrop-blur-md border border-white/50 rounded-3xl overflow-hidden shadow-sm px-2">
+          <div className="flex-1 flex items-end bg-white/80 backdrop-blur-md border border-white/50 rounded-3xl overflow-hidden shadow-sm px-2">
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -1249,6 +1402,36 @@ export default function ChatUI({ user }: ChatUIProps) {
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unpin Confirm Modal */}
+      {showUnpinConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-scale-up">
+            <div className="p-5 text-center">
+              <h3 className="text-lg font-semibold text-slate-800 mb-2">Unpin this message?</h3>
+              <p className="text-sm text-slate-500">The message will no longer be pinned at the top of the chat for everyone.</p>
+            </div>
+            <div className="flex flex-col border-t border-slate-100">
+              <button onClick={confirmUnpin} className="p-4 text-blue-600 font-semibold hover:bg-slate-50 transition-colors border-b border-slate-100">
+                Unpin Message
+              </button>
+              <button onClick={() => setShowUnpinConfirm(false)} className="p-4 text-slate-600 font-medium hover:bg-slate-50 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pin Error Toast */}
+      {showPinError && (
+        <div className="fixed top-[100px] left-1/2 -translate-x-1/2 z-[100] animate-slide-up">
+          <div className="bg-slate-800/95 backdrop-blur-md text-white px-5 py-3 rounded-full shadow-lg border border-slate-700/50 flex items-center space-x-3">
+            <Info size={18} className="text-amber-400" />
+            <span className="text-sm font-medium tracking-wide">Cannot pin two messages. Unpin first.</span>
           </div>
         </div>
       )}

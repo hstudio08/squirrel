@@ -11,6 +11,8 @@ service cloud.firestore {
 
     match /conversations/{conversationId} {
       allow read: if isAuthorizedUser();
+      allow create: if isAuthorizedUser();
+      allow update: if isAuthorizedUser() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinnedMessage']);
       
       match /messages/{messageId} {
         allow read: if isAuthorizedUser();
