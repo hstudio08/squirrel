@@ -26,7 +26,7 @@ import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, Search, Pin, Camera } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, ChevronUp, Search, Pin, Camera } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import ImageEditor from './ImageEditor';
 import CameraCapture from './CameraCapture';
@@ -36,34 +36,15 @@ interface ChatUIProps {
 }
 
 const OnlineIndicator = () => {
-  const [showText, setShowText] = useState(true);
-  useEffect(() => {
-    const interval = setInterval(() => setShowText(prev => !prev), 2000);
-    return () => clearInterval(interval);
-  }, []);
   return (
-    <div className="flex items-center justify-end h-[14px]">
-      {showText ? (
-        <span className="text-[11px] font-bold text-blue-500 animate-fade-in">Online</span>
-      ) : (
-        <div className="flex space-x-1 animate-fade-in items-center h-full">
-          <div className="w-1.5 h-1.5 bg-blue-500 rounded-sm animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]" style={{animationDelay: '0ms'}}></div>
-          <div className="w-1.5 h-1.5 bg-blue-500 rounded-sm animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]" style={{animationDelay: '300ms'}}></div>
-          <div className="w-1.5 h-1.5 bg-blue-500 rounded-sm animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]" style={{animationDelay: '600ms'}}></div>
-        </div>
-      )}
-
+    <div className="flex items-center justify-end h-[14px] space-x-1.5">
+      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]"></div>
+      <span className="text-[11px] font-bold text-blue-500">Online</span>
     </div>
   );
 };
 
 const OfflineIndicator = ({ timestamp }: { timestamp: number | null }) => {
-  const [showText, setShowText] = useState(true);
-  useEffect(() => {
-    const interval = setInterval(() => setShowText(prev => !prev), 2000);
-    return () => clearInterval(interval);
-  }, []);
-
   if (!timestamp) {
     return (
       <div className="flex items-center justify-end h-[14px]">
@@ -73,17 +54,23 @@ const OfflineIndicator = ({ timestamp }: { timestamp: number | null }) => {
   }
 
   const date = new Date(timestamp);
-  const formattedDate = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} | ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  const now = new Date();
+  
+  let formattedDate = "";
+  if (date.toDateString() === now.toDateString()) {
+    formattedDate = `today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  } else {
+    formattedDate = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+  }
 
   return (
     <div className="flex items-center justify-end h-[14px]">
-      <span className="text-[11px] font-semibold text-slate-500 animate-fade-in truncate text-right">
-        {showText ? 'Offline' : formattedDate}
+      <span className="text-[11px] font-semibold text-slate-500 truncate text-right">
+        Offline - {formattedDate}
       </span>
     </div>
   );
 };
-
 
 // Secure LocalStorage Cache
 const secureCache = {
@@ -161,6 +148,10 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
     const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<string[]>([]);
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [enterToSend, setEnterToSend] = useState(true);
   const [clearedAt, setClearedAt] = useState<number>(0);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -168,12 +159,74 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [expandedMessageId, setExpandedMessageId] = useState<string | null>(null);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
+  const [isClientOffline, setIsClientOffline] = useState(false);
+  const [hideOfflineBanner, setHideOfflineBanner] = useState(false);
+  
+  useEffect(() => {
+    const handleOffline = () => {
+      setIsClientOffline(true);
+      setHideOfflineBanner(false);
+    };
+    const handleOnline = () => setIsClientOffline(false);
+    
+    setIsClientOffline(typeof navigator !== 'undefined' && !navigator.onLine);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []);
 
   const isTypingRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTypingWriteRef = useRef<number>(0); // throttle RTDB writes
 
+  
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setCurrentSearchIndex(-1);
+      return;
+    }
+    const query = searchQuery.toLowerCase();
+    const results = messages
+      .filter(msg => msg.text?.toLowerCase().includes(query))
+      .map(msg => msg.id);
+    
+    setSearchResults(results);
+    if (results.length > 0) {
+      setCurrentSearchIndex(results.length - 1);
+    } else {
+      setCurrentSearchIndex(-1);
+    }
+  }, [searchQuery, messages]);
+
+  useEffect(() => {
+    if (currentSearchIndex >= 0 && searchResults.length > 0) {
+      const msgId = searchResults[currentSearchIndex];
+      if (msgId) {
+        // use msg- prefix as expected by the JSX
+        const el = document.getElementById(`msg-${msgId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    }
+  }, [currentSearchIndex, searchResults]);
+
+  const handlePrevSearch = () => {
+    if (searchResults.length === 0) return;
+    setCurrentSearchIndex(prev => (prev > 0 ? prev - 1 : searchResults.length - 1));
+  };
+
+  const handleNextSearch = () => {
+    if (searchResults.length === 0) return;
+    setCurrentSearchIndex(prev => (prev < searchResults.length - 1 ? prev + 1 : 0));
+  };
+
   const { signOut } = useAuth();
+
 
   const playNotificationSound = () => {
     try {
@@ -706,13 +759,15 @@ export default function ChatUI({ user }: ChatUIProps) {
   };
 
   const handleRevealMessage = (msgId: string) => {
-    setRevealedMessages(prev => {
-      if (prev.includes(msgId)) return prev;
-      const newRevealed = [...prev, msgId];
-      if (newRevealed.length > 2) newRevealed.shift();
-      return newRevealed;
-    });
-  };
+      setRevealedMessages(prev => {
+        if (prev.includes(msgId)) {
+          return prev.filter(id => id !== msgId);
+        }
+        const newRevealed = [...prev, msgId];
+        if (newRevealed.length > 2) newRevealed.shift();
+        return newRevealed;
+      });
+    };
 
   const handleSend = async (e: FormEvent) => {
     e.preventDefault();
@@ -797,6 +852,19 @@ export default function ChatUI({ user }: ChatUIProps) {
 
     return (
     <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
+      {isClientOffline && !hideOfflineBanner && (
+        <div className="fixed top-[75px] left-1/2 -translate-x-1/2 bg-red-500/80 backdrop-blur-xl text-white text-[12px] font-medium py-1.5 px-3.5 rounded-full shadow-md border border-red-400/20 flex items-center justify-center space-x-2 z-[9999] animate-pop-in">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"></path><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"></path><line x1="2" y1="2" x2="22" y2="22"></line></svg>
+          <span className="whitespace-nowrap leading-none mt-px tracking-wide">No Internet Connection</span>
+          <div className="w-px h-3 bg-white/30 mx-1"></div>
+          <button 
+            onClick={() => setHideOfflineBanner(true)}
+            className="p-0.5 hover:bg-white/20 rounded-full transition-colors shrink-0 -mr-1"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
         {/* Background Watermark */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
           <h1 className="text-7xl sm:text-9xl font-black text-slate-900/[0.04] tracking-widest uppercase select-none" style={{ fontFamily: 'var(--font-geist-sans)' }}>
@@ -832,6 +900,19 @@ export default function ChatUI({ user }: ChatUIProps) {
                 >
                   <Ghost size={18} />
                 </button>
+                  <button
+                    onClick={() => {
+                      setShowSearch(!showSearch);
+                      if (!showSearch) {
+                        setTimeout(() => searchInputRef.current?.focus(), 100);
+                      } else {
+                        setSearchQuery('');
+                      }
+                    }}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${showSearch ? 'bg-blue-500 text-white shadow-md' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 shadow-sm'}`}
+                  >
+                    {showSearch ? <X size={18} /> : <Search size={18} />}
+                  </button>
                 
               </div>
 
@@ -848,16 +929,54 @@ export default function ChatUI({ user }: ChatUIProps) {
                   )}
                 </div>
                 <button 
-                  onClick={signOut}
-                  className="px-4 py-1.5 text-[13px] font-bold text-white bg-red-500/90 hover:bg-red-500 rounded-full shadow-sm transition-all whitespace-nowrap shrink-0"
-                >
-                  Sign Out
-                </button>
+                    onClick={signOut}
+                    className={`px-4 py-1.5 text-[13px] font-bold text-white rounded-full shadow-sm transition-all whitespace-nowrap shrink-0 ${otherUserStatus?.state === 'online' ? 'bg-green-500/90 hover:bg-green-500' : 'bg-red-500/90 hover:bg-red-500'}`}
+                  >
+                    Sign Out
+                  </button>
               </div>
             </>
           )}
         </div>
-        {/* Messages */}
+        {/* Search Bar - Absolute positioned over messages for speed and no layout shift */}
+          <div 
+            className={`absolute top-[75px] left-0 right-0 z-30 w-full max-w-5xl mx-auto px-4 pointer-events-none transition-all duration-150 ease-in-out ${showSearch ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}
+          >
+            <div className="bg-[#efeae2] border border-slate-300 shadow-md rounded-2xl p-2 flex items-center space-x-2 pointer-events-auto">
+              <div className="flex-1 bg-white rounded-xl flex items-center px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
+                <Search size={16} className="text-slate-400 mr-2 shrink-0" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search loaded messages..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400"
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              {searchQuery && (
+                <div className="flex items-center space-x-1 shrink-0 bg-white rounded-xl p-1">
+                  <span className="text-xs font-semibold text-slate-500 px-2 min-w-[40px] text-center">
+                    {searchResults.length > 0 ? currentSearchIndex + 1 : 0}/{searchResults.length}
+                  </span>
+                  <div className="w-px h-4 bg-slate-300 mx-1"></div>
+                  <button onClick={handlePrevSearch} disabled={searchResults.length === 0} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
+                    <ChevronUp size={16} />
+                  </button>
+                  <button onClick={handleNextSearch} disabled={searchResults.length === 0} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
+                    <ChevronDown size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Messages */}
       <div 
         ref={scrollContainerRef}
         onScroll={(e) => {
@@ -873,7 +992,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             onClick={() => {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
             }}
-            className="fixed bottom-[80px] right-6 sm:right-10 z-[100] p-3 bg-white/90 backdrop-blur-md rounded-full shadow-[0_4px_15px_rgba(0,0,0,0.1)] border border-slate-200 text-slate-700 hover:text-blue-500 hover:scale-105 transition-all cursor-pointer animate-pop-in"
+            className={`fixed right-6 sm:right-10 z-[100] p-3 bg-white/90 backdrop-blur-md rounded-full shadow-[0_4px_15px_rgba(0,0,0,0.1)] border border-slate-200 text-slate-700 hover:text-blue-500 hover:scale-105 transition-all duration-300 cursor-pointer animate-pop-in ${replyingTo ? 'bottom-[145px]' : 'bottom-[80px]'}`}
           >
             <ChevronDown size={22} strokeWidth={2.5} />
           </button>
@@ -920,7 +1039,8 @@ export default function ChatUI({ user }: ChatUIProps) {
                     </div>
                   )}
                   <div className={isNewSenderGroup ? "mt-2" : ""}>
-                    <MessageItem 
+                    <div id={`msg-${msg.id}`} className={`transition-all duration-300 ${searchResults.includes(msg.id) ? (searchResults[currentSearchIndex] === msg.id ? 'bg-amber-200/40 ring-2 ring-amber-400 rounded-lg shadow-sm px-1 py-1' : 'bg-amber-100/20 rounded-lg px-1 py-1') : ''}`}>
+                        <MessageItem searchQuery={searchQuery} 
                     message={msg} 
                     isMine={msg.senderId === user.uid} 
                     user={user}
@@ -941,6 +1061,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                     isExpanded={expandedMessageId === msg.id}
                     onToggleExpand={() => setExpandedMessageId(prev => prev === msg.id ? null : msg.id)}
                   />
+                      </div>
                   </div>
                 </React.Fragment>
               );
@@ -966,7 +1087,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         
         {showEmojiPicker && (
           <div ref={emojiPickerRef} className="absolute bottom-[70px] left-2 sm:left-4 z-30 animate-pop-in">
-            <EmojiPicker 
+            <EmojiPicker emojiStyle={"native" as any} 
               onEmojiClick={onEmojiClick} 
               theme={Theme.LIGHT}
               lazyLoadEmojis

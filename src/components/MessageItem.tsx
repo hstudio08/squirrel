@@ -28,6 +28,7 @@ interface MessageItemProps {
   onToggleSelect?: () => void;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
+  searchQuery?: string;
 }
 
 const formatTime = (timestamp: any) => {
@@ -41,10 +42,23 @@ const formatTime = (timestamp: any) => {
 };
 
 export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose, otherEmail, selectionMode = false, isSelected = false, onToggleSelect, isExpanded,
-  onToggleExpand
-}: MessageItemProps) {
+    onToggleExpand,
+    searchQuery
+  }: MessageItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const renderTextWithHighlights = (text: string, query?: string) => {
+    if (!query || !query.trim() || !text) return text;
+    
+    const safeQuery = Array.from(query).map(c => /[.*+?^${}()|[\]\\]/.test(c) ? '\\' + c : c).join('');
+    const parts = text.split(new RegExp(`(${safeQuery})`, 'gi'));
+    
+    return parts.map((part, index) => 
+      part.toLowerCase() === query.toLowerCase() 
+        ? <span key={index} className='bg-amber-300 text-amber-900 rounded-[2px] font-medium'>{part}</span> 
+        : part
+    );
+  };
     
     const getMaskedEmail = (email: string) => {
       if (!email) return '';
