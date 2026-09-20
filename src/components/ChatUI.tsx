@@ -31,6 +31,7 @@ import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Co
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import ImageEditor from './ImageEditor';
 import CameraCapture from './CameraCapture';
+import imageCompression from 'browser-image-compression';
 
 interface ChatUIProps {
   user: User;
@@ -108,7 +109,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
-  const [messageLimit, setMessageLimit] = useState(10);
+  const [messageLimit, setMessageLimit] = useState(30);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [showCamera, setShowCamera] = useState(false);
@@ -723,8 +724,15 @@ export default function ChatUI({ user }: ChatUIProps) {
     setSelectedImageFile(null);
     setIsUploadingImage(true);
     try {
+      const options = {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      };
+      const compressedFile = await imageCompression(file, options);
+      
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', compressedFile);
       formData.append('upload_preset', 'Musify');
       formData.append('cloud_name', 'msg8rv36');
       
