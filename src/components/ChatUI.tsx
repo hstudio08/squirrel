@@ -26,9 +26,10 @@ import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, Search, Pin } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, Search, Pin, Camera } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import ImageEditor from './ImageEditor';
+import CameraCapture from './CameraCapture';
 
 interface ChatUIProps {
   user: User;
@@ -122,6 +123,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [messageLimit, setMessageLimit] = useState(10);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [showCamera, setShowCamera] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -405,7 +407,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       if (!user?.uid) return;
       const cacheKey = `sq_c_${chatId}_${user.uid}`;
 
-      // ── STEP 1: Paint cached messages INSTANTLY (zero Firestore reads) ──
+      // ΓöÇΓöÇ STEP 1: Paint cached messages INSTANTLY (zero Firestore reads) ΓöÇΓöÇ
       if (!initialLoadDone.current) {
         const cached = secureCache.get(cacheKey, user.uid);
         if (cached && Array.isArray(cached) && cached.length > 0) {
@@ -415,7 +417,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         }
       }
 
-      // ── STEP 2: Live Firestore subscription (only last 10 messages) ──
+      // ΓöÇΓöÇ STEP 2: Live Firestore subscription (only last 10 messages) ΓöÇΓöÇ
       const q = query(
         collection(db, `conversations/${chatId}/messages`),
         orderBy('createdAt', 'desc'),
@@ -491,7 +493,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   
         const liveMessages = fetchedMessages.reverse();
 
-        // ── STEP 3: Merge live data with cached older messages ──
+        // ΓöÇΓöÇ STEP 3: Merge live data with cached older messages ΓöÇΓöÇ
         setMessages(prev => {
           const mergedMap = new Map<string, Message>();
           // Put cached older messages in first
@@ -505,7 +507,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             return tA - tB;
           });
 
-          // ── STEP 4: Persist merged list to cache (serialise Timestamps → ms) ──
+          // ΓöÇΓöÇ STEP 4: Persist merged list to cache (serialise Timestamps ΓåÆ ms) ΓöÇΓöÇ
           setTimeout(() => {
             try {
               const toCache = merged.map(m => ({
@@ -631,10 +633,10 @@ export default function ChatUI({ user }: ChatUIProps) {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('upload_preset', 'Obsidian');
-      formData.append('cloud_name', 'dislib3k');
+      formData.append('upload_preset', 'Musify');
+      formData.append('cloud_name', 'msg8rv36');
       
-      const res = await fetch(`https://api.cloudinary.com/v1_1/dislib3k/image/upload`, {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/msg8rv36/image/upload`, {
         method: 'POST',
         body: formData
       });
@@ -795,6 +797,12 @@ export default function ChatUI({ user }: ChatUIProps) {
 
     return (
     <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
+        {/* Background Watermark */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+          <h1 className="text-7xl sm:text-9xl font-black text-slate-900/[0.04] tracking-widest uppercase select-none" style={{ fontFamily: 'var(--font-geist-sans)' }}>
+            SQUIRREL
+          </h1>
+        </div>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-2 bg-white/40 backdrop-blur-xl rounded-[32px] shadow-[0_4px_30px_rgba(0,0,0,0.1)] border border-white/30 shrink-0 z-20 pt-[max(env(safe-area-inset-top),0.5rem)] relative mx-2 mt-2 max-w-5xl mx-auto w-[calc(100%-1rem)] mb-1">
           {selectionMode ? (
@@ -971,7 +979,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         )}
 
         {replyingTo && (
-          <div className="max-w-4xl mx-auto mb-2 flex items-center bg-[#e2e8f0] rounded-lg p-2 shadow-sm border-l-4 border-teal-500 animate-slide-up relative z-10">
+          <div className="max-w-4xl mx-auto mb-2 flex items-center bg-[#e2e8f0] rounded-lg p-2 shadow-sm border-l-4 border-teal-500 animate-slide-up relative z-10 pointer-events-auto">
             <div className="flex-1 overflow-hidden pr-2">
               <p className="text-[12px] font-semibold text-teal-600 mb-0.5">
                 {replyingTo.senderId === user.uid ? 'You' : otherEmail}
@@ -990,7 +998,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           </div>
         )}
 
-        <form onSubmit={handleSend} className="flex items-end space-x-2 max-w-4xl mx-auto relative z-20">
+        <form onSubmit={handleSend} className="flex items-end space-x-2 max-w-4xl mx-auto relative z-20 pointer-events-auto">
           <div className="flex-1 flex items-end bg-white/60 backdrop-blur-md border border-white/50 rounded-3xl overflow-hidden shadow-sm px-2">
             <button
               type="button"
@@ -1048,6 +1056,16 @@ export default function ChatUI({ user }: ChatUIProps) {
         </form>
       </div>
 
+      {showCamera && (
+        <CameraCapture 
+          onCapture={(file) => {
+            setSelectedImageFile(file);
+            setShowCamera(false);
+          }} 
+          onClose={() => setShowCamera(false)} 
+        />
+      )}
+      
       {showBulkDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-scale-up">

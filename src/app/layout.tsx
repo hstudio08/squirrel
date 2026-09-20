@@ -40,7 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased dark`}>
       <head>
-        <link rel="manifest" href="/manifest.json" />
+        
       </head>
       <body className="bg-black text-white overscroll-none">
         {children}
