@@ -1103,7 +1103,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 px-2 sm:px-4 py-3 bg-white/30 backdrop-blur-xl border-t border-white/40 pb-[max(env(safe-area-inset-bottom),0.75rem)] z-20">
+      <div className="shrink-0 px-2 sm:px-4 pt-2 pb-[max(env(safe-area-inset-bottom),0.25rem)] bg-transparent z-20 relative">
         
         {showEmojiPicker && (
           <div ref={emojiPickerRef} className="absolute bottom-[70px] left-2 sm:left-4 z-30 animate-pop-in">
