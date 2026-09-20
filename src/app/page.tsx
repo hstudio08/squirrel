@@ -143,10 +143,7 @@ export default function AIHubLandingPage() {
       {/* Header */}
       <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? 'bg-white/90 backdrop-blur-md border-b border-slate-200 py-3 shadow-sm' : 'bg-transparent py-4 md:py-6'}`}>
         <div className="max-w-7xl mx-auto px-4 md:px-6 flex items-center justify-between">
-          <div 
-            className="flex items-center space-x-2 cursor-pointer select-none" 
-            onClick={handleSecretClick}
-          >
+          <div className="flex items-center space-x-2">
             <div className="w-8 h-8 md:w-10 md:h-10 bg-slate-900 rounded-lg flex items-center justify-center">
               <Bot className="w-5 h-5 md:w-6 md:h-6 text-white" />
             </div>
@@ -196,7 +193,10 @@ export default function AIHubLandingPage() {
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
             <span>Now supporting 25+ foundational models</span>
           </div>
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-slate-900 tracking-tight leading-[1.1] mb-6 md:mb-8">
+          <h1 
+            onClick={handleSecretClick} 
+            className="text-4xl md:text-6xl lg:text-7xl font-black text-slate-900 tracking-tight leading-[1.1] mb-6 md:mb-8 cursor-pointer select-none"
+          >
             One Unified API.<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
               Infinite Intelligence.
