@@ -223,25 +223,44 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
 
       const [translateX, setTranslateX] = useState(0);
   const dragStartX = useRef<number | null>(null);
+  const dragStartY = useRef<number | null>(null);
+  const isVerticalScroll = useRef<boolean>(false);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!e.isPrimary) return;
     dragStartX.current = e.clientX;
+    dragStartY.current = e.clientY;
+    isVerticalScroll.current = false;
     startPress();
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!e.isPrimary || dragStartX.current === null) return;
+    if (!e.isPrimary || dragStartX.current === null || dragStartY.current === null) return;
+    
+    if (isVerticalScroll.current) return;
     
     const diffX = e.clientX - dragStartX.current;
+    const diffY = e.clientY - dragStartY.current;
     
-    if (Math.abs(diffX) > 10) {
+    if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
       cancelPress();
+      
+      // If movement is predominantly vertical, ignore horizontal slide
+      if (Math.abs(diffY) > Math.abs(diffX)) {
+        isVerticalScroll.current = true;
+        setTranslateX(0);
+        return;
+      }
     }
     
-    if (diffX > 0 && !message.isDeletedForEveryone && !isEditing) {
-      const visualX = diffX < 60 ? diffX : 60 + (diffX - 60) * 0.2;
-      setTranslateX(Math.min(visualX, 80));
+    if (!message.isDeletedForEveryone && !isEditing) {
+      if (diffX > 0 && onReply) {
+        const visualX = diffX < 60 ? diffX : 60 + (diffX - 60) * 0.2;
+        setTranslateX(Math.min(visualX, 80));
+      } else if (diffX < 0 && isAnonymousMode && !isLastMessage) {
+        const visualX = diffX > -60 ? diffX : -60 + (diffX + 60) * 0.2;
+        setTranslateX(Math.max(visualX, -80));
+      }
     }
   };
 
@@ -281,14 +300,17 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
       if (window.navigator.vibrate) {
         window.navigator.vibrate(50);
       }
+    } else if (translateX < -50 && isAnonymousMode && !isLastMessage && onReveal && !message.isDeletedForEveryone && !isEditing) {
+      onReveal();
+      if (window.navigator.vibrate) {
+        window.navigator.vibrate(50);
+      }
     } else if (Math.abs(translateX) < 10) {
       // Single tap on the bubble itself (not on a popup)
       if (!isActiveReaction && !showOptions && !showDeleteConfirm) {
         if (selectionMode && onToggleSelect) {
             onToggleSelect();
-          } else if (shouldMask && onReveal) {
-            onReveal();
-          }
+        }
       } else {
         // Tapped outside popup — close everything
         if (onReactClose) onReactClose();
@@ -378,7 +400,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
             ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] cursor-pointer'
             : 'bg-white text-[#111b21] rounded-tl-[4px] border-white cursor-pointer'
         } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''} `}
-        onClick={() => { if (selectionMode && onToggleSelect) { onToggleSelect(); return; } if (shouldMask && onReveal) onReveal(); }}
+        onClick={() => { if (selectionMode && onToggleSelect) { onToggleSelect(); return; } }}
       >
         {/* Pinned Indicator */}
         {message.isPinned && (
