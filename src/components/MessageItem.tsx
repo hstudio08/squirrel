@@ -5,8 +5,39 @@ import { Message } from '@/types/chat';
 import { doc, updateDoc, deleteDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Edit2, Trash2, X, Check, Pin, Plus, CheckCheck, Copy, Circle, CheckCircle2 } from 'lucide-react';
-import EmojiPicker from 'emoji-picker-react';
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
+import ImageEditor from './ImageEditor';
 import { User } from 'firebase/auth';
+
+const formatMessageText = (text: string) => {
+  if (!text) return text;
+  
+  // Regex to match **bold**, __underline__, ~~strike~~, *bold*, _italic_, ~strike~
+  const regex = /(\*\*.+?\*\*|__.+?__|~~.+?~~|\*.+?\*|_.+?_|~.+?~)/g;
+  const parts = text.split(regex);
+  
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('__') && part.endsWith('__') && part.length > 4) {
+      return <u key={index}>{part.slice(2, -2)}</u>;
+    }
+    if (part.startsWith('~~') && part.endsWith('~~') && part.length > 4) {
+      return <del key={index}>{part.slice(2, -2)}</del>;
+    }
+    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+      return <strong key={index}>{part.slice(1, -1)}</strong>; // WhatsApp style bold
+    }
+    if (part.startsWith('_') && part.endsWith('_') && part.length > 2) {
+      return <em key={index}>{part.slice(1, -1)}</em>; // WhatsApp style italic
+    }
+    if (part.startsWith('~') && part.endsWith('~') && part.length > 2) {
+      return <del key={index}>{part.slice(1, -1)}</del>; // WhatsApp style strikethrough
+    }
+    return part;
+  });
+};
 
 interface MessageItemProps {
   message: Message;
@@ -657,7 +688,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
                   <span className="italic font-light text-[14px] text-black/50 tracking-wide">This message was deleted</span>
                 </>
               ) : (
-                message.text
+                formatMessageText(message.text)
               )}
             </p>
             <div className="flex items-center justify-end space-x-1 mt-0.5 self-end float-right">
