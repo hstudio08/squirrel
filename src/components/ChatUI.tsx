@@ -37,16 +37,38 @@ interface ChatUIProps {
   user: User;
 }
 
-const OnlineIndicator = () => {
-  return (
-    <div className="flex items-center justify-end h-[14px] space-x-1.5">
-      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]"></div>
-      <span className="text-[11px] font-bold text-blue-500">Online</span>
-    </div>
-  );
-};
+const StatusIndicator = ({ state, timestamp, isTyping }: { state: string | undefined, timestamp: number | null, isTyping: boolean }) => {
+  const [toggle, setToggle] = useState(false);
 
-const OfflineIndicator = ({ timestamp }: { timestamp: number | null }) => {
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setToggle(prev => !prev);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (state === 'online') {
+    if (isTyping) {
+      return (
+        <div className="grid h-[14px] place-items-end">
+          <div className={`col-start-1 row-start-1 flex items-center space-x-1.5 transition-opacity duration-500 ease-in-out ${toggle ? 'opacity-100' : 'opacity-0'}`}>
+            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]"></div>
+            <span className="text-[11px] font-bold text-blue-500">Online</span>
+          </div>
+          <div className={`col-start-1 row-start-1 flex items-center transition-opacity duration-500 ease-in-out ${!toggle ? 'opacity-100' : 'opacity-0'}`}>
+            <span className="text-[11px] font-bold text-blue-500 italic">Typing...</span>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center justify-end h-[14px] space-x-1.5">
+        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]"></div>
+        <span className="text-[11px] font-bold text-blue-500">Online</span>
+      </div>
+    );
+  }
+
   if (!timestamp) {
     return (
       <div className="flex items-center justify-end h-[14px]">
@@ -56,20 +78,16 @@ const OfflineIndicator = ({ timestamp }: { timestamp: number | null }) => {
   }
 
   const date = new Date(timestamp);
-  const now = new Date();
-  
-  let formattedDate = "";
-  if (date.toDateString() === now.toDateString()) {
-    formattedDate = `today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  } else {
-    formattedDate = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
-  }
+  const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()} | ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
   return (
-    <div className="flex items-center justify-end h-[14px]">
-      <span className="text-[11px] font-semibold text-slate-500 truncate text-right">
-        Offline - {formattedDate}
-      </span>
+    <div className="grid h-[14px] place-items-end">
+      <div className={`col-start-1 row-start-1 flex items-center transition-opacity duration-500 ease-in-out ${toggle ? 'opacity-100' : 'opacity-0'}`}>
+        <span className="text-[11px] font-semibold text-slate-500 truncate text-right">Offline</span>
+      </div>
+      <div className={`col-start-1 row-start-1 flex items-center transition-opacity duration-500 ease-in-out ${!toggle ? 'opacity-100' : 'opacity-0'}`}>
+        <span className="text-[11px] font-semibold text-slate-500 truncate text-right whitespace-nowrap">{formattedDate}</span>
+      </div>
     </div>
   );
 };
@@ -356,20 +374,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     return () => unsubscribe();
   }, [otherUid]);
 
-  const formatLastSeen = (timestamp: number | null) => {
-    if (!timestamp) return 'Offline';
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    if (diff < 60000) return 'Offline ? Last seen just now';
-    if (date.toDateString() === now.toDateString()) {
-      return `Offline ? Last seen today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    }
-    return `Offline ? Last seen on ${date.toLocaleDateString()}`;
-  };
-
-  const statusText = otherUserStatus?.state === 'online' ? 'Online' : formatLastSeen(otherUserStatus?.last_changed || null);
-  
+    
   
   useEffect(() => {
     const setupNotifications = async () => {
@@ -1060,11 +1065,11 @@ export default function ChatUI({ user }: ChatUIProps) {
                   <h1 className="text-[14px] font-bold text-slate-800 truncate w-full text-right tracking-wide leading-tight">
                     {getMaskedEmail(otherEmail)}
                   </h1>
-                  {otherUserStatus?.state === 'online' ? (
-                    <OnlineIndicator />
-                  ) : (
-                    <OfflineIndicator timestamp={otherUserStatus?.last_changed || null} />
-                  )}
+                  <StatusIndicator 
+                    state={otherUserStatus?.state} 
+                    timestamp={otherUserStatus?.last_changed || null} 
+                    isTyping={isOtherTyping} 
+                  />
                 </div>
                 <button 
                     onClick={signOut}
