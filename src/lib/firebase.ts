@@ -6,13 +6,13 @@ import { getDatabase } from "firebase/database";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBdKD1WqxBrVRh89NmwAfBIU3TpfxcBraM",
-  authDomain: "squirrel-4f5a6.firebaseapp.com",
-  projectId: "squirrel-4f5a6",
-  storageBucket: "squirrel-4f5a6.firebasestorage.app",
-  messagingSenderId: "794362383109",
-  appId: "1:794362383109:web:9caa2cf76ecffea1b0c56c",
-  databaseURL: "https://squirrel-4f5a6-default-rtdb.firebaseio.com"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL
 };
 
 // Initialize Firebase
