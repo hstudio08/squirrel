@@ -250,7 +250,15 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
       cancelPress();
       
       if (longPressTriggered.current) {
-        longPressTriggered.current = false;
+        if (e.type === 'pointerup') {
+          longPressTriggered.current = false;
+        }
+        setTranslateX(0);
+        dragStartX.current = null;
+        return;
+      }
+      
+      if (e.type === 'pointerleave' || e.type === 'pointercancel') {
         setTranslateX(0);
         dragStartX.current = null;
         return;
