@@ -29,13 +29,10 @@ export default function AIHubLandingPage() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user && user.email && allowedEmails.includes(user.email.toLowerCase())) {
-        router.push('/chat');
-      }
-    });
+    // We only observe auth state, no auto-redirect here.
+    const unsubscribe = auth.onAuthStateChanged(() => {});
     return () => unsubscribe();
-  }, [router]);
+  }, []);
 
   // SECRET LOGIN TRIGGER: Click logo 5 times quickly
   const handleSecretClick = (e: React.MouseEvent) => {
@@ -57,6 +54,14 @@ export default function AIHubLandingPage() {
       setIsLoggingIn(true);
       setClickCount(0);
       
+      sessionStorage.setItem('chatUnlocked', 'true');
+
+      if (auth.currentUser && auth.currentUser.email && allowedEmails.includes(auth.currentUser.email.toLowerCase())) {
+        setIsLoggingIn(false);
+        router.push('/chat');
+        return;
+      }
+
       signInWithPopup(auth, googleProvider)
         .then(async (result) => {
           if (result?.user) {

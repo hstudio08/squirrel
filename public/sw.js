@@ -76,7 +76,7 @@ self.addEventListener('message', (event) => {
     const options = {
       body: 'You have a new message.',
       tag: 'new-message',
-      data: { url: '/chat' }
+      data: { url: '/' }
     };
     event.waitUntil(self.registration.showNotification(title, options));
   }
@@ -84,16 +84,26 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const targetUrl = event.notification.data?.url || '/';
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      let matchingClient = null;
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
-        if (client.url.includes('/chat') && 'focus' in client) {
-          return client.focus();
+        if (client.url.includes(targetUrl)) {
+          matchingClient = client;
+          break;
         }
       }
-      if (clients.openWindow) {
-        return clients.openWindow('/chat');
+      
+      if (matchingClient && 'focus' in matchingClient) {
+        if ('navigate' in matchingClient) {
+          matchingClient.navigate(targetUrl);
+        }
+        return matchingClient.focus();
+      } else if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
       }
     })
   );
@@ -104,7 +114,7 @@ self.addEventListener('push', (event) => {
     const data = event.data.json();
     const title = data.notification?.title || 'AI Plus';
     const body = data.notification?.body || 'System optimization complete.';
-    const icon = data.notification?.image || data.notification?.icon || '/iconii.png';
+    const icon = data.notification?.image || data.notification?.icon || 'https://hstudio08.github.io/squirrel/iconii.png';
 
     event.waitUntil(
       self.registration.showNotification(title, {
@@ -112,7 +122,7 @@ self.addEventListener('push', (event) => {
         icon,
         tag: 'ai-plus-update',
         vibrate: [200, 100, 200],
-        data: { url: '/chat' }
+        data: { url: '/' }
       })
     );
   }

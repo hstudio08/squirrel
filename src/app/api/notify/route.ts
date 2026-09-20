@@ -50,9 +50,9 @@ export async function POST(req: NextRequest) {
       },
       webpush: {
         notification: {
-          icon: '/iconii.png',
+          icon: 'https://hstudio08.github.io/squirrel/iconii.png',
           vibrate: [200, 100, 200],
-          click_action: 'https://hstudio08.github.io/squirrel/chat'
+          click_action: 'https://hstudio08.github.io/squirrel/'
         }
       }
     });
