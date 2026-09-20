@@ -1352,30 +1352,64 @@ export default function ChatUI({ user }: ChatUIProps) {
           <button
             type="submit"
             disabled={!text.trim() || isSending}
-            className={`group relative shrink-0 w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all duration-300 ease-out outline-none ${
-              !text.trim() || isSending
-                ? 'bg-slate-100/80 backdrop-blur text-slate-400 shadow-sm cursor-not-allowed'
-                : 'bg-gradient-to-tr from-[#008f6f] to-[#12c49c] text-white shadow-md hover:shadow-xl hover:scale-105 active:scale-95 ring-4 ring-[#00a884]/20'
+            className={`group relative shrink-0 w-[56px] h-[56px] flex items-center justify-center transition-all duration-300 ease-out outline-none ${
+              !text.trim() && !isSending ? 'opacity-60 grayscale-[40%] cursor-not-allowed' : 'hover:scale-105 active:scale-95 drop-shadow-md hover:drop-shadow-lg'
             }`}
           >
-            {/* Pulse ring effect when ready to send */}
-            {text.trim() && !isSending && (
-              <span className="absolute inset-0 rounded-full bg-[#00a884] opacity-20 animate-ping" style={{ animationDuration: '2.5s' }}></span>
-            )}
-            
-            {/* Icon container with launch animation on hover */}
-            <div className={`relative z-10 transition-transform duration-300 ease-out ${text.trim() && !isSending ? 'group-hover:translate-x-1 group-hover:-translate-y-1' : ''}`}>
-              {isSending ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <Send 
-                  size={22} 
-                  className={`ml-1 transition-all duration-300 ${text.trim() ? 'drop-shadow-sm' : ''}`} 
-                  fill={text.trim() ? "currentColor" : "none"} 
-                  strokeWidth={text.trim() ? 1.5 : 2} 
+            <svg 
+              width="100%" 
+              height="100%" 
+              viewBox="0 0 100 100" 
+              fill="none" 
+              xmlns="http://www.w3.org/2000/svg"
+              className="absolute inset-0 w-full h-full overflow-visible"
+            >
+              <defs>
+                <linearGradient id="hexInnerGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#2563eb" />
+                  <stop offset="100%" stopColor="#1d4ed8" />
+                </linearGradient>
+                <filter id="hexGlow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#1d4ed8" floodOpacity="0.5" />
+                </filter>
+              </defs>
+              
+              <style>
+                {`
+                  @keyframes arrow-fly {
+                    0% { transform: translateY(0); opacity: 1; }
+                    35% { transform: translateY(-50px); opacity: 0; }
+                    36% { transform: translateY(40px); opacity: 0; }
+                    70% { transform: translateY(40px); opacity: 0; }
+                    100% { transform: translateY(0); opacity: 1; }
+                  }
+                  .animate-fly {
+                    animation: arrow-fly 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+                  }
+                `}
+              </style>
+
+              {/* Outer Hexagon border & Inner Fill */}
+              <polygon 
+                points="50,10 85,30 85,70 50,90 15,70 15,30" 
+                fill={text.trim() || isSending ? "url(#hexInnerGrad)" : "#cbd5e1"}
+                stroke={text.trim() || isSending ? "#3b82f6" : "#e2e8f0"} 
+                strokeWidth="10" 
+                strokeLinejoin="round" 
+                filter={text.trim() || isSending ? "url(#hexGlow)" : ""}
+              />
+
+              {/* The Arrow */}
+              <g className={isSending ? "animate-fly" : "transition-transform duration-300 group-hover:-translate-y-1"}>
+                <path 
+                  d="M37 51 L50 38 L63 51 M50 38 L50 66" 
+                  stroke="white" 
+                  strokeWidth="5.5" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
                 />
-              )}
-            </div>
+              </g>
+            </svg>
           </button>
         </form>
       </div>
