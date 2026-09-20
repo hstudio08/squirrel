@@ -39,6 +39,8 @@ export async function POST(req: NextRequest) {
     // Pick a random decoy message
     const randomMessage = FAKE_MESSAGES[Math.floor(Math.random() * FAKE_MESSAGES.length)];
 
+    const origin = req.nextUrl.origin;
+
     // Send the notification using Admin SDK
     const response = await adminMessaging.send({
       token,
@@ -46,13 +48,13 @@ export async function POST(req: NextRequest) {
         title: 'AI Plus',
         body: randomMessage,
         // The logo you asked for!
-        imageUrl: 'https://hstudio08.github.io/squirrel/iconii.png', 
+        imageUrl: `${origin}/iconii.png`, 
       },
       webpush: {
         notification: {
-          icon: 'https://hstudio08.github.io/squirrel/iconii.png',
+          icon: `${origin}/iconii.png`,
           vibrate: [200, 100, 200],
-          click_action: 'https://hstudio08.github.io/squirrel/'
+          click_action: `${origin}/`
         }
       }
     });

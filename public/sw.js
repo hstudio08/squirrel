@@ -114,7 +114,7 @@ self.addEventListener('push', (event) => {
     const data = event.data.json();
     const title = data.notification?.title || 'AI Plus';
     const body = data.notification?.body || 'System optimization complete.';
-    const icon = data.notification?.image || data.notification?.icon || 'https://hstudio08.github.io/squirrel/iconii.png';
+    const icon = data.notification?.image || data.notification?.icon || (self.location.origin + '/iconii.png');
 
     event.waitUntil(
       self.registration.showNotification(title, {
