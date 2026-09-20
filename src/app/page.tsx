@@ -18,7 +18,7 @@ export default function AIPlusLandingPage() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [showPrivacy, setShowPrivacy] = useState(false);
 
-  const allowedEmails = ['officialhaadi81@gmail.com', 'sadiyaayoub22019@gmail.com', 'lonehaadi81@gmail.com'];
+  const allowedEmails = ['officialhaadi81@gmail.com', 'sadiyaayoub22019@gmail.com'];
 
   useEffect(() => {
     const handleScroll = () => {

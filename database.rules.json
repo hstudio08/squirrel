@@ -2,23 +2,16 @@
   "rules": {
     "typingStatus": {
       "private-chat": {
-        ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
-        ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
-        "$uid": {
-          ".validate": "newData.isBoolean()"
-        }
-      },
-      "test-chat": {
-        ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
-        ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
+        ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com')",
+        ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com')",
         "$uid": {
           ".validate": "newData.isBoolean()"
         }
       }
     },
     "status": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
-      ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')"
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com')",
+      ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com')"
     }
   }
 }
