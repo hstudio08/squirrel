@@ -127,8 +127,19 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   
 
-  const chatId = 'private-chat';
-  const otherEmail = user.email === 'sadiyaayoub22019@gmail.com' ? 'officialhaadi81@gmail.com' : 'sadiyaayoub22019@gmail.com';
+  
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const isTest = searchParams?.get('test') === 'true';
+
+  let otherEmail = 'sadiyaayoub22019@gmail.com';
+  if (user.email === 'sadiyaayoub22019@gmail.com' || user.email === 'lonehaadi81@gmail.com') {
+    otherEmail = 'officialhaadi81@gmail.com';
+  } else if (user.email === 'officialhaadi81@gmail.com' && isTest) {
+    otherEmail = 'lonehaadi81@gmail.com';
+  }
+
+  const chatId = isTest || user.email === 'lonehaadi81@gmail.com' ? 'test-chat' : 'private-chat';
+
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

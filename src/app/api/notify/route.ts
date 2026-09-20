@@ -29,7 +29,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    
     const userData = userDoc.data();
+
+    // SAFETY CHECK: Never send to Sadiya during testing
+    if (userData?.email === 'sadiyaayoub22019@gmail.com') {
+      console.log('SAFETY: Blocked notification to Sadiya');
+      return NextResponse.json({ success: true, message: 'Simulated (disabled for Sadiya)' });
+    }
+
     const token = userData?.fcmToken;
 
     if (!token) {
