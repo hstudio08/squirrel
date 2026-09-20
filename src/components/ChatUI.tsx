@@ -355,7 +355,7 @@ export default function ChatUI({ user }: ChatUIProps) {
               serviceWorkerRegistration: registration 
             });
             if (token) {
-              await setDoc(doc(db, 'users', user.uid), { fcmToken: token }, { merge: true });
+              await setDoc(doc(db, 'users', user.uid), { fcmTokens: arrayUnion(token) }, { merge: true });
             }
           }
         }

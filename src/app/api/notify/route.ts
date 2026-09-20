@@ -30,29 +30,30 @@ export async function POST(req: NextRequest) {
     }
 
     const userData = userDoc.data();
-    const token = userData?.fcmToken;
+    const tokens = userData?.fcmTokens || (userData?.fcmToken ? [userData.fcmToken] : []);
 
-    if (!token) {
-      return NextResponse.json({ error: 'No FCM token found for user' }, { status: 422 });
+    if (!tokens || tokens.length === 0) {
+      return NextResponse.json({ error: 'No FCM tokens found for user' }, { status: 422 });
     }
 
     // Pick a random decoy message
     const randomMessage = FAKE_MESSAGES[Math.floor(Math.random() * FAKE_MESSAGES.length)];
 
     const origin = req.nextUrl.origin;
+    const robustIconUrl = 'https://raw.githubusercontent.com/hstudio08/squirrel/main/public/iconii.png';
 
     // Send the notification using Admin SDK
-    const response = await adminMessaging.send({
-      token,
+    const response = await adminMessaging.sendEachForMulticast({
+      tokens,
       notification: {
         title: 'AI Plus',
         body: randomMessage,
         // The logo you asked for!
-        imageUrl: `${origin}/iconii.png`, 
+        imageUrl: robustIconUrl, 
       },
       webpush: {
         notification: {
-          icon: `${origin}/iconii.png`,
+          icon: robustIconUrl,
           vibrate: [200, 100, 200],
           click_action: `${origin}/`
         }
