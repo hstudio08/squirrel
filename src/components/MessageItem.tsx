@@ -126,13 +126,13 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
       }
     };
     if (showOptions || showDeleteConfirm) {
-      document.addEventListener('mousedown', handleClose);
-      document.addEventListener('touchstart', handleClose);
+      document.addEventListener('pointerdown', handleClose);
+      
       document.addEventListener('scroll', handleClose, true);
     }
     return () => {
-      document.removeEventListener('mousedown', handleClose);
-      document.removeEventListener('touchstart', handleClose);
+      document.removeEventListener('pointerdown', handleClose);
+      
       document.removeEventListener('scroll', handleClose, true);
     };
   }, [showOptions, showDeleteConfirm]);
