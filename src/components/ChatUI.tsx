@@ -1110,12 +1110,26 @@ export default function ChatUI({ user }: ChatUIProps) {
                     isTyping={isOtherTyping} 
                   />
                 </div>
-                <button 
+                  <button 
                     onClick={signOut}
                     className={`px-4 py-1.5 text-[13px] font-bold text-white rounded-full shadow-sm transition-all whitespace-nowrap shrink-0 ${otherUserStatus?.state === 'online' ? 'bg-green-500/90 hover:bg-green-500' : 'bg-red-500/90 hover:bg-red-500'}`}
                   >
                     Sign Out
                   </button>
+                  {user.email === 'officialhaadi81@gmail.com' && (
+                    <button 
+                      onClick={() => {
+                        if (otherUid) {
+                          const otherStatusRef = ref(rtdb, `/status/${otherUid}`);
+                          set(otherStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
+                        }
+                      }}
+                      title="Force Offline Reset"
+                      className="px-2 py-1.5 text-[10px] font-bold text-slate-400 bg-slate-100 rounded hover:bg-slate-200 transition-colors shrink-0"
+                    >
+                      RESET
+                    </button>
+                  )}
               </div>
             </>
           )}
