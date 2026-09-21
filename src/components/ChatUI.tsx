@@ -1095,69 +1095,72 @@ export default function ChatUI({ user }: ChatUIProps) {
               <div className="flex items-center relative">
                 <button 
                   onClick={() => setShowMenu(!showMenu)}
-                  className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${showMenu ? 'bg-slate-200 text-slate-800' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
                 >
                   <MoreVertical size={20} />
                 </button>
-                {showMenu && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                    <div className="absolute left-0 top-12 z-50 min-w-[180px] bg-white rounded-xl shadow-xl border border-slate-100 py-1 overflow-hidden animate-pop-in">
-                      {user.email === 'officialhaadi81@gmail.com' && (
-                        <button 
-                          onClick={() => {
-                            if (otherUid) {
-                              const otherStatusRef = ref(rtdb, `/status/${otherUid}`);
-                              set(otherStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
-                            }
-                            setShowMenu(false);
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
-                        >
-                          <RotateCcw size={16} className="mr-2" />
-                          Reset Status
-                        </button>
-                      )}
-                      
-                      <button 
-                        onClick={() => {
-                          setShowSearch(!showSearch);
-                          if (!showSearch) {
-                            setTimeout(() => searchInputRef.current?.focus(), 100);
-                          } else {
-                            setSearchQuery('');
-                          }
-                          setShowMenu(false);
-                        }}
-                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
-                      >
-                        {showSearch ? <X size={16} className="mr-2" /> : <Search size={16} className="mr-2" />}
-                        {showSearch ? 'Close Search' : 'Search Messages'}
-                      </button>
+                
+                <div 
+                  className={`fixed inset-0 z-40 transition-opacity duration-200 ${showMenu ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`} 
+                  onClick={() => setShowMenu(false)} 
+                />
+                
+                <div 
+                  className={`absolute left-0 top-12 z-50 min-w-[180px] bg-white rounded-xl shadow-xl border border-slate-100 py-1 overflow-hidden transition-all duration-200 origin-top-left ${showMenu ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible pointer-events-none'}`}
+                >
+                  {user.email === 'officialhaadi81@gmail.com' && (
+                    <button 
+                      onClick={() => {
+                        if (otherUid) {
+                          const otherStatusRef = ref(rtdb, `/status/${otherUid}`);
+                          set(otherStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
+                        }
+                        setShowMenu(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
+                    >
+                      <RotateCcw size={16} className="mr-2" />
+                      Reset Status
+                    </button>
+                  )}
+                  
+                  <button 
+                    onClick={() => {
+                      setShowSearch(!showSearch);
+                      if (!showSearch) {
+                        setTimeout(() => searchInputRef.current?.focus(), 100);
+                      } else {
+                        setSearchQuery('');
+                      }
+                      setShowMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
+                  >
+                    {showSearch ? <X size={16} className="mr-2" /> : <Search size={16} className="mr-2" />}
+                    {showSearch ? 'Close Search' : 'Search Messages'}
+                  </button>
 
-                      <button 
-                        onClick={() => {
-                          setIsAnonymousMode(!isAnonymousMode);
-                          setShowMenu(false);
-                        }}
-                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
-                      >
-                        <Ghost size={16} className="mr-2" />
-                        {isAnonymousMode ? 'Disable Privacy' : 'Enable Privacy'}
-                      </button>
+                  <button 
+                    onClick={() => {
+                      setIsAnonymousMode(!isAnonymousMode);
+                      setShowMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
+                  >
+                    <Ghost size={16} className="mr-2" />
+                    {isAnonymousMode ? 'Disable Privacy' : 'Enable Privacy'}
+                  </button>
 
-                      <div className="h-px bg-slate-100 my-1" />
-                      
-                      <button 
-                        onClick={handleClearChat}
-                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-medium transition-colors flex items-center"
-                      >
-                        <Trash2 size={16} className="mr-2" />
-                        Clear Chat
-                      </button>
-                    </div>
-                  </>
-                )}
+                  <div className="h-px bg-slate-100 my-1" />
+                  
+                  <button 
+                    onClick={handleClearChat}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-medium transition-colors flex items-center"
+                  >
+                    <Trash2 size={16} className="mr-2" />
+                    Clear Chat
+                  </button>
+                </div>
               </div>
 
               {/* Right Side: Profile & SignOut */}
