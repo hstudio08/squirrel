@@ -1091,45 +1091,77 @@ export default function ChatUI({ user }: ChatUIProps) {
             </div>
           ) : (
             <>
-              {/* Left Side: Ghost & Settings */}
-              <div className="flex items-center">
+              {/* Left Side: Menu */}
+              <div className="flex items-center relative">
                 <button 
-                  onClick={() => setIsAnonymousMode(!isAnonymousMode)}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mr-2 transition-colors ${isAnonymousMode ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 shadow-sm'}`}
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
                 >
-                  <Ghost size={18} />
+                  <MoreVertical size={20} />
                 </button>
-                <button
-                  onClick={() => {
-                    setShowSearch(!showSearch);
-                    if (!showSearch) {
-                      setTimeout(() => searchInputRef.current?.focus(), 100);
-                    } else {
-                      setSearchQuery('');
-                    }
-                  }}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mr-2 transition-colors ${showSearch ? 'bg-blue-500 text-white shadow-md' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 shadow-sm'}`}
-                >
-                  {showSearch ? <X size={18} /> : <Search size={18} />}
-                </button>
-                {user.email === 'officialhaadi81@gmail.com' && (
-                  <button 
-                    onClick={() => {
-                      if (otherUid) {
-                        const otherStatusRef = ref(rtdb, `/status/${otherUid}`);
-                        set(otherStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
-                      }
-                    }}
-                    title="Force Offline Reset"
-                    className="w-10 h-10 flex items-center justify-center rounded-full shrink-0 bg-white/40 backdrop-blur-md border border-white/60 text-slate-700 hover:bg-white/60 hover:text-blue-600 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.08)] active:scale-95"
-                  >
-                    <RotateCcw size={18} />
-                  </button>
+                {showMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                    <div className="absolute left-0 top-12 z-50 min-w-[180px] bg-white rounded-xl shadow-xl border border-slate-100 py-1 overflow-hidden animate-pop-in">
+                      {user.email === 'officialhaadi81@gmail.com' && (
+                        <button 
+                          onClick={() => {
+                            if (otherUid) {
+                              const otherStatusRef = ref(rtdb, `/status/${otherUid}`);
+                              set(otherStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
+                            }
+                            setShowMenu(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
+                        >
+                          <RotateCcw size={16} className="mr-2" />
+                          Reset Status
+                        </button>
+                      )}
+                      
+                      <button 
+                        onClick={() => {
+                          setShowSearch(!showSearch);
+                          if (!showSearch) {
+                            setTimeout(() => searchInputRef.current?.focus(), 100);
+                          } else {
+                            setSearchQuery('');
+                          }
+                          setShowMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
+                      >
+                        {showSearch ? <X size={16} className="mr-2" /> : <Search size={16} className="mr-2" />}
+                        {showSearch ? 'Close Search' : 'Search Messages'}
+                      </button>
+
+                      <button 
+                        onClick={() => {
+                          setIsAnonymousMode(!isAnonymousMode);
+                          setShowMenu(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
+                      >
+                        <Ghost size={16} className="mr-2" />
+                        {isAnonymousMode ? 'Disable Privacy' : 'Enable Privacy'}
+                      </button>
+
+                      <div className="h-px bg-slate-100 my-1" />
+                      
+                      <button 
+                        onClick={handleClearChat}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-medium transition-colors flex items-center"
+                      >
+                        <Trash2 size={16} className="mr-2" />
+                        Clear Chat
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
 
               {/* Right Side: Profile & SignOut */}
-              <div className="flex items-center justify-end flex-1 min-w-0 ml-2 space-x-2">
+              <div className="flex items-center justify-end flex-1 min-w-0 ml-4 space-x-3">
                 <div className="flex flex-col items-end overflow-hidden">
                   <h1 className="text-[14px] font-bold text-slate-800 truncate w-full text-right tracking-wide leading-tight">
                     {getMaskedEmail(otherEmail)}
@@ -1140,36 +1172,12 @@ export default function ChatUI({ user }: ChatUIProps) {
                     isTyping={isOtherTyping} 
                   />
                 </div>
-                <div className="relative">
-                  <button 
-                    onClick={() => setShowMenu(!showMenu)}
-                    className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-                  >
-                    <MoreVertical size={20} />
-                  </button>
-                  {showMenu && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                      <div className="absolute right-0 top-12 z-50 min-w-[150px] bg-white rounded-xl shadow-xl border border-slate-100 py-1 overflow-hidden animate-pop-in">
-                        <button 
-                          onClick={handleClearChat}
-                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-medium transition-colors flex items-center"
-                        >
-                          <Trash2 size={16} className="mr-2" />
-                          Clear Chat
-                        </button>
-                        <div className="h-px bg-slate-100 my-1" />
-                        <button 
-                          onClick={() => { setShowMenu(false); signOut(); }}
-                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
-                        >
-                          <X size={16} className="mr-2" />
-                          Sign Out
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                <button 
+                  onClick={signOut}
+                  className={`px-4 py-1.5 text-[13px] font-bold text-white rounded-full shadow-sm transition-all whitespace-nowrap shrink-0 ${otherUserStatus?.state === 'online' ? 'bg-green-500/90 hover:bg-green-500' : 'bg-red-500/90 hover:bg-red-500'}`}
+                >
+                  Sign Out
+                </button>
               </div>
             </>
           )}
