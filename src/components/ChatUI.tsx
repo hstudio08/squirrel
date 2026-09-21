@@ -27,7 +27,7 @@ import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, ChevronUp, Search, Pin, Camera } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, ChevronUp, Search, Pin, Camera, MoreVertical, RotateCcw } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import ImageEditor from './ImageEditor';
 import CameraCapture from './CameraCapture';
@@ -151,6 +151,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const pinBannerRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [bottomReadMessageId, setBottomReadMessageId] = useState<string | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
 
   const shouldScrollToTopAfterLoad = useRef(false);
 
@@ -691,7 +692,6 @@ export default function ChatUI({ user }: ChatUIProps) {
           const docRef = doc(db, `conversations/${chatId}/messages`, id);
           if (forEveryone) {
             return updateDoc(docRef, { 
-              text: '', 
               isDeletedForEveryone: true,
               editedAt: rtdbServerTimestamp()
             });
@@ -706,6 +706,23 @@ export default function ChatUI({ user }: ChatUIProps) {
     setSelectionMode(false);
     setSelectedMessages(new Set());
     setShowBulkDeleteModal(false);
+  };
+
+  const handleClearChat = async () => {
+    if (confirm('Are you sure you want to clear the entire chat? This will hide all messages for you.')) {
+      try {
+        const batch = writeBatch(db);
+        visibleMessages.forEach(msg => {
+          batch.update(doc(db, `conversations/${chatId}/messages`, msg.id), {
+            deletedFor: arrayUnion(user.uid)
+          });
+        });
+        await batch.commit();
+        setShowMenu(false);
+      } catch (err) {
+        console.error('Failed to clear chat', err);
+      }
+    }
   };
 
   const loadMore = () => {
@@ -1082,24 +1099,37 @@ export default function ChatUI({ user }: ChatUIProps) {
                 >
                   <Ghost size={18} />
                 </button>
-                  <button
+                <button
+                  onClick={() => {
+                    setShowSearch(!showSearch);
+                    if (!showSearch) {
+                      setTimeout(() => searchInputRef.current?.focus(), 100);
+                    } else {
+                      setSearchQuery('');
+                    }
+                  }}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mr-2 transition-colors ${showSearch ? 'bg-blue-500 text-white shadow-md' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 shadow-sm'}`}
+                >
+                  {showSearch ? <X size={18} /> : <Search size={18} />}
+                </button>
+                {user.email === 'officialhaadi81@gmail.com' && (
+                  <button 
                     onClick={() => {
-                      setShowSearch(!showSearch);
-                      if (!showSearch) {
-                        setTimeout(() => searchInputRef.current?.focus(), 100);
-                      } else {
-                        setSearchQuery('');
+                      if (otherUid) {
+                        const otherStatusRef = ref(rtdb, `/status/${otherUid}`);
+                        set(otherStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
                       }
                     }}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${showSearch ? 'bg-blue-500 text-white shadow-md' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 shadow-sm'}`}
+                    title="Force Offline Reset"
+                    className="w-10 h-10 flex items-center justify-center rounded-full shrink-0 bg-white/40 backdrop-blur-md border border-white/60 text-slate-700 hover:bg-white/60 hover:text-blue-600 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.08)] active:scale-95"
                   >
-                    {showSearch ? <X size={18} /> : <Search size={18} />}
+                    <RotateCcw size={18} />
                   </button>
-                
+                )}
               </div>
 
               {/* Right Side: Profile & SignOut */}
-              <div className="flex items-center justify-end flex-1 min-w-0 ml-4 space-x-3">
+              <div className="flex items-center justify-end flex-1 min-w-0 ml-2 space-x-2">
                 <div className="flex flex-col items-end overflow-hidden">
                   <h1 className="text-[14px] font-bold text-slate-800 truncate w-full text-right tracking-wide leading-tight">
                     {getMaskedEmail(otherEmail)}
@@ -1110,26 +1140,36 @@ export default function ChatUI({ user }: ChatUIProps) {
                     isTyping={isOtherTyping} 
                   />
                 </div>
+                <div className="relative">
                   <button 
-                    onClick={signOut}
-                    className={`px-4 py-1.5 text-[13px] font-bold text-white rounded-full shadow-sm transition-all whitespace-nowrap shrink-0 ${otherUserStatus?.state === 'online' ? 'bg-green-500/90 hover:bg-green-500' : 'bg-red-500/90 hover:bg-red-500'}`}
+                    onClick={() => setShowMenu(!showMenu)}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
                   >
-                    Sign Out
+                    <MoreVertical size={20} />
                   </button>
-                  {user.email === 'officialhaadi81@gmail.com' && (
-                    <button 
-                      onClick={() => {
-                        if (otherUid) {
-                          const otherStatusRef = ref(rtdb, `/status/${otherUid}`);
-                          set(otherStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
-                        }
-                      }}
-                      title="Force Offline Reset"
-                      className="px-2 py-1.5 text-[10px] font-bold text-slate-400 bg-slate-100 rounded hover:bg-slate-200 transition-colors shrink-0"
-                    >
-                      RESET
-                    </button>
+                  {showMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                      <div className="absolute right-0 top-12 z-50 min-w-[150px] bg-white rounded-xl shadow-xl border border-slate-100 py-1 overflow-hidden animate-pop-in">
+                        <button 
+                          onClick={handleClearChat}
+                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-medium transition-colors flex items-center"
+                        >
+                          <Trash2 size={16} className="mr-2" />
+                          Clear Chat
+                        </button>
+                        <div className="h-px bg-slate-100 my-1" />
+                        <button 
+                          onClick={() => { setShowMenu(false); signOut(); }}
+                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
+                        >
+                          <X size={16} className="mr-2" />
+                          Sign Out
+                        </button>
+                      </div>
+                    </>
                   )}
+                </div>
               </div>
             </>
           )}
@@ -1234,7 +1274,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             onClick={() => {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
             }}
-            className={`fixed right-6 sm:right-10 z-[100] p-3 rounded-full cursor-pointer animate-pop-in transition-all duration-300 ease-out bg-white border border-slate-200 shadow-md text-slate-700 hover:text-blue-600 hover:bg-slate-50 hover:scale-105 active:scale-95 ${replyingTo ? 'bottom-[145px]' : 'bottom-[90px]'}`}
+            className={`fixed right-6 sm:right-10 z-[100] p-3 rounded-full cursor-pointer animate-pop-in transition-all duration-300 ease-out bg-white/40 backdrop-blur-md backdrop-saturate-150 border border-white/60 shadow-[0_4px_12px_rgba(0,0,0,0.08)] text-slate-700 hover:text-blue-600 hover:bg-white/60 hover:scale-105 active:scale-95 ${replyingTo ? 'bottom-[145px]' : 'bottom-[90px]'}`}
           >
             {unreadCountWhileScrolled > 0 && (
               <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[11px] font-bold px-1.5 py-0.5 min-w-[20px] h-[20px] flex items-center justify-center rounded-full shadow-sm animate-pop-in border border-white/50">
@@ -1430,64 +1470,17 @@ export default function ChatUI({ user }: ChatUIProps) {
           <button
             type="submit"
             disabled={!text.trim() || isSending}
-            className={`group relative shrink-0 w-[56px] h-[56px] flex items-center justify-center transition-all duration-300 ease-out outline-none ${
-              !text.trim() && !isSending ? 'opacity-60 grayscale-[40%] cursor-not-allowed' : 'hover:scale-105 active:scale-95 drop-shadow-md hover:drop-shadow-lg'
+            className={`group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-all duration-300 ease-out outline-none ${
+              !text.trim() && !isSending 
+                ? 'bg-slate-100/50 backdrop-blur-sm border border-slate-200/50 text-slate-400 cursor-not-allowed opacity-70' 
+                : 'bg-blue-500/80 backdrop-blur-md backdrop-saturate-150 border border-blue-400/50 text-white shadow-[0_4px_16px_rgba(59,130,246,0.25)] hover:bg-blue-500/90 hover:scale-105 active:scale-95'
             }`}
           >
-            <svg 
-              width="100%" 
-              height="100%" 
-              viewBox="0 0 100 100" 
-              fill="none" 
-              xmlns="http://www.w3.org/2000/svg"
-              className="absolute inset-0 w-full h-full overflow-visible"
-            >
-              <defs>
-                <linearGradient id="hexInnerGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#2563eb" />
-                  <stop offset="100%" stopColor="#1d4ed8" />
-                </linearGradient>
-                <filter id="hexGlow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#1d4ed8" floodOpacity="0.5" />
-                </filter>
-              </defs>
-              
-              <style>
-                {`
-                  @keyframes arrow-fly {
-                    0% { transform: translateY(0); opacity: 1; }
-                    35% { transform: translateY(-50px); opacity: 0; }
-                    36% { transform: translateY(40px); opacity: 0; }
-                    70% { transform: translateY(40px); opacity: 0; }
-                    100% { transform: translateY(0); opacity: 1; }
-                  }
-                  .animate-fly {
-                    animation: arrow-fly 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-                  }
-                `}
-              </style>
-
-              {/* Outer Hexagon border & Inner Fill */}
-              <polygon 
-                points="50,10 85,30 85,70 50,90 15,70 15,30" 
-                fill={text.trim() || isSending ? "url(#hexInnerGrad)" : "#cbd5e1"}
-                stroke={text.trim() || isSending ? "#3b82f6" : "#e2e8f0"} 
-                strokeWidth="10" 
-                strokeLinejoin="round" 
-                filter={text.trim() || isSending ? "url(#hexGlow)" : ""}
-              />
-
-              {/* The Arrow */}
-              <g className={isSending ? "animate-fly" : "transition-transform duration-300 group-hover:-translate-y-1"}>
-                <path 
-                  d="M37 51 L50 38 L63 51 M50 38 L50 66" 
-                  stroke="white" 
-                  strokeWidth="5.5" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
-                />
-              </g>
-            </svg>
+            {isSending ? (
+              <Loader2 size={20} className="animate-spin" strokeWidth={2.5} />
+            ) : (
+              <Send size={20} strokeWidth={2.5} className="ml-0.5 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-transform duration-300" />
+            )}
           </button>
         </form>
         </div>

@@ -189,8 +189,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     try {
       const messageRef = doc(db, `conversations/${chatId}/messages`, message.id);
       await updateDoc(messageRef, {
-        isDeletedForEveryone: true,
-        text: ''
+        isDeletedForEveryone: true
       });
     } catch (err) {
       console.error('Failed to delete message', err);
