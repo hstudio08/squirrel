@@ -346,7 +346,11 @@ export default function ChatUI({ user }: ChatUIProps) {
     const unsubscribe = onValue(connectedRef, (snap) => {
       if (snap.val() === true) {
         onDisconnect(myStatusRef).set({ state: 'offline', last_changed: rtdbServerTimestamp() }).then(() => {
-          set(myStatusRef, { state: 'online', last_changed: rtdbServerTimestamp() });
+          if (document.visibilityState !== 'hidden') {
+            set(myStatusRef, { state: 'online', last_changed: rtdbServerTimestamp() });
+          } else {
+            set(myStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
+          }
         });
       }
     });
