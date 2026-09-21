@@ -297,7 +297,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
         return;
       }
       
-      if (e.type === 'pointerleave' || e.type === 'pointercancel') {
+      if ((e.type === 'pointerleave' || e.type === 'pointercancel') && Math.abs(translateX) < 50) {
         setTranslateX(0);
         dragStartX.current = null;
         return;
@@ -428,7 +428,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
               onReactOpen();
             }
           }}
-          className={`relative max-w-[85%] sm:max-w-[70%] rounded-[22px] px-2.5 pt-1.5 pb-1 shadow-sm border ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
+          className={`relative max-w-[85%] sm:max-w-[70%] rounded-[22px] px-2.5 pt-1.5 pb-1 shadow-sm border ${Math.abs(translateX) > 0 ? 'select-none' : ''} ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
           isMine
             ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] cursor-pointer'
             : 'bg-white text-[#111b21] rounded-tl-[4px] border-white cursor-pointer'

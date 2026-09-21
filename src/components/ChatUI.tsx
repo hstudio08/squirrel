@@ -3,7 +3,7 @@ import { getToken } from 'firebase/messaging';
 import { getFirebaseMessaging } from '@/lib/firebase';
 
 
-import React, { useState, useEffect, useRef, useLayoutEffect, FormEvent } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, FormEvent, useMemo } from 'react';
 import { User } from 'firebase/auth';
 import { db, rtdb } from '@/lib/firebase';
 import { 
@@ -150,7 +150,8 @@ export default function ChatUI({ user }: ChatUIProps) {
   const pinSwipeDraggingRef = useRef<boolean>(false);
   const pinBannerRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
-  
+  const [bottomReadMessageId, setBottomReadMessageId] = useState<string | null>(null);
+
   const shouldScrollToTopAfterLoad = useRef(false);
 
   useLayoutEffect(() => {
@@ -999,15 +1000,28 @@ export default function ChatUI({ user }: ChatUIProps) {
     return time > clearedAt;
   });
 
+  useEffect(() => {
+    if (!showScrollBottom && visibleMessages.length > 0) {
+      setBottomReadMessageId(visibleMessages[visibleMessages.length - 1].id);
+    }
+  }, [showScrollBottom, visibleMessages]);
+
+  const unreadCountWhileScrolled = useMemo(() => {
+    if (!showScrollBottom || !bottomReadMessageId || visibleMessages.length === 0) return 0;
+    const readIndex = visibleMessages.findIndex(m => m.id === bottomReadMessageId);
+    if (readIndex === -1) return 0;
+    let count = 0;
+    for (let i = readIndex + 1; i < visibleMessages.length; i++) {
+      if (visibleMessages[i].senderId !== user?.uid) count++;
+    }
+    return count;
+  }, [bottomReadMessageId, visibleMessages, showScrollBottom, user?.uid]);
+
   const daysCount = new Set(visibleMessages.map(m => {
     if (!m.createdAt) return '';
     const date = m.createdAt.toDate ? m.createdAt.toDate() : new Date(typeof m.createdAt === 'number' ? m.createdAt : (m.createdAt as any).seconds ? (m.createdAt as any).seconds * 1000 : m.createdAt as any);
     return date.toDateString();
   }).filter(Boolean)).size;
-
-  if (selectedImageFile) {
-      return <ImageEditor file={selectedImageFile} onCancel={() => setSelectedImageFile(null)} onSend={handleSendEditedImage} />;
-    }
 
     return (
     <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
@@ -1202,8 +1216,13 @@ export default function ChatUI({ user }: ChatUIProps) {
             onClick={() => {
               messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
             }}
-            className={`fixed right-6 sm:right-10 z-[100] p-3 rounded-full cursor-pointer animate-pop-in will-change-transform transform-gpu transition-all duration-300 ease-out bg-white/20 backdrop-blur-md backdrop-saturate-150 border border-white/40 shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] text-slate-700 hover:text-blue-600 hover:bg-white/30 hover:scale-105 active:scale-95 ${replyingTo ? 'bottom-[145px]' : 'bottom-[80px]'}`}
+            className={`fixed right-6 sm:right-10 z-[100] p-3 rounded-full cursor-pointer animate-pop-in transition-all duration-300 ease-out bg-white border border-slate-200 shadow-md text-slate-700 hover:text-blue-600 hover:bg-slate-50 hover:scale-105 active:scale-95 ${replyingTo ? 'bottom-[145px]' : 'bottom-[90px]'}`}
           >
+            {unreadCountWhileScrolled > 0 && (
+              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[11px] font-bold px-1.5 py-0.5 min-w-[20px] h-[20px] flex items-center justify-center rounded-full shadow-sm animate-pop-in border border-white/50">
+                {unreadCountWhileScrolled}
+              </span>
+            )}
             <ChevronDown size={22} strokeWidth={2.5} />
           </button>
         )}
@@ -1291,11 +1310,13 @@ export default function ChatUI({ user }: ChatUIProps) {
           </div>
         )}
         
+        <div className="shrink-0 h-[80px]" />
         <div ref={messagesEndRef} className="h-1 w-full shrink-0" />
       </div>
 
-      {/* Composer */}
-      <div className="shrink-0 px-2 sm:px-4 pt-2 pb-1 !bg-transparent !border-none !shadow-none z-20 relative">
+      {/* Floating Composer */}
+      <div className="absolute bottom-[env(safe-area-inset-bottom,0px)] pb-3 pt-2 left-0 right-0 z-40 pointer-events-none flex justify-center px-2 sm:px-4 w-full will-change-transform transform-gpu">
+        <div className="w-full max-w-4xl relative pointer-events-auto flex flex-col">
         
         {showEmojiPicker && (
           <div ref={emojiPickerRef} className="absolute bottom-[70px] left-2 sm:left-4 z-30 animate-pop-in">
@@ -1331,8 +1352,8 @@ export default function ChatUI({ user }: ChatUIProps) {
           </div>
         )}
 
-        <form onSubmit={handleSend} className="flex items-end space-x-2 max-w-4xl mx-auto relative z-20 pointer-events-auto">
-          <div className="flex-1 flex items-end bg-white/80 backdrop-blur-md border border-white/50 rounded-3xl overflow-hidden shadow-sm px-2">
+        <form onSubmit={handleSend} className="flex items-end space-x-2 max-w-4xl mx-auto relative z-20 pointer-events-auto w-full">
+          <div className="flex-1 flex items-end bg-white border border-slate-200 shadow-sm rounded-[32px] overflow-hidden px-2">
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -1451,6 +1472,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             </svg>
           </button>
         </form>
+        </div>
       </div>
 
       {showCamera && (
@@ -1463,6 +1485,11 @@ export default function ChatUI({ user }: ChatUIProps) {
         />
       )}
       
+      {selectedImageFile && (
+        <div className="fixed inset-0 z-[9999] bg-white flex flex-col animate-pop-in">
+          <ImageEditor file={selectedImageFile} onCancel={() => setSelectedImageFile(null)} onSend={handleSendEditedImage} />
+        </div>
+      )}
       {showBulkDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-scale-up">
