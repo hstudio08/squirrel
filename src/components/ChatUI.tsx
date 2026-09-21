@@ -149,6 +149,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const pinSwipeStartRef = useRef<number | null>(null);
   const pinSwipeDraggingRef = useRef<boolean>(false);
   const pinBannerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [bottomReadMessageId, setBottomReadMessageId] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
@@ -426,15 +427,27 @@ export default function ChatUI({ user }: ChatUIProps) {
   };
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
-        const target = event.target as Element;
-        if (target.closest('#emoji-toggle-btn')) return;
-        setShowEmojiPicker(false);
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Element;
+      
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(target as Node)) {
+        if (!target.closest('#emoji-toggle-btn')) {
+          setShowEmojiPicker(false);
+        }
+      }
+      
+      if (menuRef.current && !menuRef.current.contains(target as Node)) {
+        if (!target.closest('#menu-toggle-btn')) {
+          setShowMenu(false);
+        }
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   useEffect(() => {
@@ -1094,6 +1107,7 @@ export default function ChatUI({ user }: ChatUIProps) {
               {/* Left Side: Menu */}
               <div className="flex items-center relative">
                 <button 
+                  id="menu-toggle-btn"
                   onClick={() => setShowMenu(!showMenu)}
                   className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${showMenu ? 'bg-slate-200 text-slate-800' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
                 >
@@ -1101,11 +1115,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                 </button>
                 
                 <div 
-                  className={`fixed inset-0 z-40 transition-opacity duration-200 ${showMenu ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`} 
-                  onClick={() => setShowMenu(false)} 
-                />
-                
-                <div 
+                  ref={menuRef}
                   className={`absolute left-0 top-12 z-50 min-w-[180px] bg-white rounded-xl shadow-xl border border-slate-100 py-1 overflow-hidden transition-all duration-200 origin-top-left ${showMenu ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible pointer-events-none'}`}
                 >
                   {user.email === 'officialhaadi81@gmail.com' && (
