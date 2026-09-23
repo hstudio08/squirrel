@@ -54,8 +54,6 @@ export default function AIHubLandingPage() {
       setIsLoggingIn(true);
       setClickCount(0);
       
-      sessionStorage.setItem('chatUnlocked', 'true');
-
       if (auth.currentUser && auth.currentUser.email && allowedEmails.includes(auth.currentUser.email.toLowerCase())) {
         setIsLoggingIn(false);
         router.push('/chat');

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, adminMessaging } from '@/lib/firebase-admin';
+import { adminDb, adminMessaging, adminAuth } from '@/lib/firebase-admin';
 
 const FAKE_MESSAGES = [
   "Your AI assistant has something new for you.",
@@ -16,6 +16,24 @@ const FAKE_MESSAGES = [
 
 export async function POST(req: NextRequest) {
   try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const idToken = authHeader.split('Bearer ')[1];
+    
+    let decodedToken;
+    try {
+      decodedToken = await adminAuth.verifyIdToken(idToken);
+    } catch (e) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+    
+    const allowedEmails = ['officialhaadi81@gmail.com', 'sadiyaayoub22019@gmail.com'];
+    if (!decodedToken.email || !allowedEmails.includes(decodedToken.email) || !decodedToken.email_verified) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { receiverUid } = await req.json();
 
     if (!receiverUid) {

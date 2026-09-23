@@ -60,6 +60,15 @@ service cloud.firestore {
           // Case 4: Any user deletes for themselves
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletedFor'])
+            && request.resource.data.deletedFor is list
+            && (
+                 (!('deletedFor' in resource.data) && request.resource.data.deletedFor == [request.auth.uid])
+                 ||
+                 ('deletedFor' in resource.data && 
+                  request.resource.data.deletedFor.hasAll(resource.data.deletedFor) && 
+                  request.resource.data.deletedFor.size() == resource.data.deletedFor.size() + 1 && 
+                  request.resource.data.deletedFor[resource.data.deletedFor.size()] == request.auth.uid)
+               )
           ) ||
           // Case 5: Sender soft-deletes for everyone
           (
@@ -87,7 +96,7 @@ service cloud.firestore {
     
     match /users/{userId} {
       allow read: if isAuthorizedUser();
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if isAuthorizedUser() && request.auth.uid == userId;
     }
   }
 }

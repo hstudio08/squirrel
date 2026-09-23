@@ -787,12 +787,24 @@ export default function ChatUI({ user }: ChatUIProps) {
       };
       const compressedFile = await imageCompression(file, options);
       
+      const idToken = await user.getIdToken();
+      const sigRes = await fetch('/api/upload-signature', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      if (!sigRes.ok) throw new Error('Failed to get upload signature');
+      const { timestamp, signature } = await sigRes.json();
+
       const formData = new FormData();
       formData.append('file', compressedFile);
-      formData.append('upload_preset', 'Musify');
-      formData.append('cloud_name', 'msg8rv36');
+      formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || '');
+      formData.append('timestamp', timestamp.toString());
+      formData.append('upload_preset', 'Squirrel');
+      formData.append('signature', signature);
       
-      const res = await fetch(`https://api.cloudinary.com/v1_1/msg8rv36/image/upload`, {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/wusvh42x/image/upload`, {
         method: 'POST',
         body: formData
       });
@@ -818,9 +830,13 @@ export default function ChatUI({ user }: ChatUIProps) {
         
         // Trigger notification to the other user
         try {
+          const idToken = await user.getIdToken();
           fetch('/api/notify', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
             body: JSON.stringify({ receiverUid: otherUid })
           });
         } catch (e) {
@@ -997,9 +1013,13 @@ export default function ChatUI({ user }: ChatUIProps) {
         
         // Trigger notification to the other user
         try {
+          const idToken = await user.getIdToken();
           fetch('/api/notify', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
             body: JSON.stringify({ receiverUid: otherUid })
           });
         } catch (e) {

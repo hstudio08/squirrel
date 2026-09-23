@@ -8,17 +8,6 @@ import ChatUI from '@/components/ChatUI';
 export default function ChatPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [isUnlocked, setIsUnlocked] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (sessionStorage.getItem('chatUnlocked') === 'true') {
-        setIsUnlocked(true);
-      } else {
-        router.push('/');
-      }
-    }
-  }, [router]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -26,7 +15,7 @@ export default function ChatPage() {
     }
   }, [user, loading, router]);
 
-  if (loading || !user || !isUnlocked) {
+  if (loading || !user) {
     return (
       <main className="flex min-h-[100dvh] flex-col items-center justify-center bg-zinc-950 relative overflow-hidden">
         {/* Ambient background glow */}

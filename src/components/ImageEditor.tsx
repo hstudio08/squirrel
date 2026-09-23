@@ -14,6 +14,7 @@ export default function ImageEditor({ file, onCancel, onSend }: ImageEditorProps
   const [color, setColor] = useState("#ef4444");
   const [isCropMode, setIsCropMode] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string>("");
+  const [cropImageSize, setCropImageSize] = useState({ width: 0, height: 0 });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -197,6 +198,7 @@ export default function ImageEditor({ file, onCancel, onSend }: ImageEditorProps
               <button onClick={() => {
                 if (canvasRef.current) {
                   setCropImageSrc(canvasRef.current.toDataURL());
+                  setCropImageSize({ width: canvasRef.current.offsetWidth, height: canvasRef.current.offsetHeight });
                 }
                 setCrop({ unit: "%", width: 100, height: 100, x: 0, y: 0 });
                 setIsCropMode(true);
@@ -319,7 +321,7 @@ export default function ImageEditor({ file, onCancel, onSend }: ImageEditorProps
               <img 
                 src={cropImageSrc || undefined} 
                 className="max-w-full max-h-full object-contain rounded-md" 
-                style={{ width: canvasRef.current?.offsetWidth, height: canvasRef.current?.offsetHeight }}
+                style={cropImageSize.width ? { width: cropImageSize.width, height: cropImageSize.height } : undefined}
                 alt="Crop" 
               />
             </ReactCrop>
