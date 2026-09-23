@@ -13,6 +13,7 @@ const cspHeader = [
   "worker-src 'self' https://www.gstatic.com blob:",
   "base-uri 'self'",
   "form-action 'self'",
+  "frame-ancestors 'none'",
 ].join('; ');
 
 const nextConfig = {
@@ -60,6 +61,10 @@ const nextConfig = {
           {
             key: 'X-Frame-Options',
             value: 'DENY',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
           },
         ],
       },
