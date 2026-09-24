@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, adminMessaging, adminAuth } from '@/lib/firebase-admin';
 
 const FAKE_MESSAGES = [
   "Your AI assistant has something new for you.",
@@ -21,6 +20,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const idToken = authHeader.split('Bearer ')[1];
+    
+    const { adminDb, adminMessaging, adminAuth } = await import('@/lib/firebase-admin');
     
     let decodedToken;
     try {

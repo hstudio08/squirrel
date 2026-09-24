@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
 import crypto from 'crypto';
 
 const ALLOWED_EMAILS = [
@@ -14,6 +13,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { adminAuth } = await import('@/lib/firebase-admin');
     const idToken = authHeader.split('Bearer ')[1];
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const email = decodedToken.email?.toLowerCase();
