@@ -8,7 +8,7 @@ const cspHeader = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data: https://www.google.com https://www.gstatic.com https://cdn.jsdelivr.net https://images.unsplash.com https://res.cloudinary.com https://lh3.googleusercontent.com https://hstudio08.github.io",
   "connect-src 'self' https://cdn.jsdelivr.net https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firestore.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://api.cloudinary.com https://res.cloudinary.com https://*.firebaseapp.com https://apis.google.com https://www.googleapis.com https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com",
-  "frame-src 'self' https://squirrel-4f5a6.firebaseapp.com https://*.firebaseapp.com https://apis.google.com",
+  "frame-src 'self' https://squirrel-4f5a6.firebaseapp.com https://*.firebaseapp.com https://*.firebaseio.com https://apis.google.com",
   "object-src 'none'",
   "worker-src 'self' https://www.gstatic.com blob:",
   "base-uri 'self'",
