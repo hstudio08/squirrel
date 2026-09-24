@@ -12,11 +12,12 @@ import { User } from 'firebase/auth';
 const formatMessageText = (text: string) => {
   if (!text) return text;
   
-  // Regex to match **bold**, __underline__, ~~strike~~, *bold*, _italic_, ~strike~
-  const regex = /(\*\*.+?\*\*|__.+?__|~~.+?~~|\*.+?\*|_.+?_|~.+?~)/g;
+  // Regex to match **bold**, __underline__, ~~strike~~, *bold*, _italic_, ~strike~, and URLs
+  const regex = /(\*\*.+?\*\*|__.+?__|~~.+?~~|\*.+?\*|_.+?_|~.+?~|https?:\/\/[^\s]+)/g;
   const parts = text.split(regex);
   
   return parts.map((part, index) => {
+    if (!part) return null;
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return <strong key={index}>{part.slice(2, -2)}</strong>;
     }
@@ -34,6 +35,20 @@ const formatMessageText = (text: string) => {
     }
     if (part.startsWith('~') && part.endsWith('~') && part.length > 2) {
       return <del key={index}>{part.slice(1, -1)}</del>; // WhatsApp style strikethrough
+    }
+    if (part.match(/^https?:\/\/[^\s]+$/)) {
+      return (
+        <a 
+          key={index} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-blue-500 hover:underline break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
     }
     return part;
   });

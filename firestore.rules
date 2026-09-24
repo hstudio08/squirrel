@@ -105,7 +105,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthorizedUser();
       allow write: if isAuthorizedUser() && request.auth.uid == userId
-                   && request.resource.data.keys().hasOnly(['email', 'displayName', 'photoURL', 'lastSeen', 'uid'])
+                   && request.resource.data.keys().hasOnly(['email', 'displayName', 'photoURL', 'lastSeen', 'uid', 'fcmTokens', 'fcmToken'])
                    && (!('displayName' in request.resource.data) || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 100))
                    && (!('photoURL' in request.resource.data) || (request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 500));
     }
