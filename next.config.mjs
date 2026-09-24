@@ -17,6 +17,7 @@ const cspHeader = [
 ].join('; ');
 
 const nextConfig = {
+  serverExternalPackages: ['firebase-admin'],
   images: {
     remotePatterns: [
       {
