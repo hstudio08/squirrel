@@ -43,7 +43,7 @@ const formatMessageText = (text: string) => {
           href={part} 
           target="_blank" 
           rel="noopener noreferrer"
-          className="text-blue-500 hover:underline break-all"
+          className="text-blue-500 hover:underline break-all pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {part}
