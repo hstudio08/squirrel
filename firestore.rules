@@ -16,7 +16,11 @@ service cloud.firestore {
                     && (!('pinnedMessage' in request.resource.data) || (request.resource.data.pinnedMessage is string && request.resource.data.pinnedMessage.size() <= 2000));
       
       match /messages/{messageId} {
-        allow read: if isAuthorizedUser();
+        allow get: if isAuthorizedUser();
+        allow list: if isAuthorizedUser() && (
+          request.auth.token.email == "officialhaadi81@gmail.com" ||
+          request.query.limit <= 300
+        );
         
         allow create: if isAuthorizedUser()
                       && request.resource.data.keys().hasAll(['text', 'senderId', 'createdAt', 'seen'])
@@ -45,7 +49,7 @@ service cloud.firestore {
             && request.resource.data.seenAt == request.time
             && resource.data.senderId != request.auth.uid
           ) ||
-          // Case 2: Sender edits text
+          // Case 2: Sender edits text (within 10 minutes)
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'isEdited', 'editedAt'])
             && resource.data.senderId == request.auth.uid
@@ -54,6 +58,7 @@ service cloud.firestore {
             && request.resource.data.text.size() <= 2000
             && request.resource.data.isEdited == true
             && request.resource.data.editedAt == request.time
+            && request.time.toMillis() <= resource.data.createdAt.toMillis() + (10 * 60 * 1000)
           ) ||
           // Case 3: Any user pins/unpins
           (

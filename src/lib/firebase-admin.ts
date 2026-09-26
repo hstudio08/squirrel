@@ -10,6 +10,7 @@ if (!getApps().length) {
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       }),
+      databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL
     });
   } catch (error) {
     console.error('Firebase Admin initialization error', error);
@@ -17,7 +18,9 @@ if (!getApps().length) {
 }
 
 import { getAuth } from 'firebase-admin/auth';
+import { getDatabase } from 'firebase-admin/database';
 
 export const adminDb = getFirestore();
 export const adminMessaging = getMessaging();
 export const adminAuth = getAuth();
+export const adminRtdb = getDatabase();

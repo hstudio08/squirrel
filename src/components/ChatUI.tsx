@@ -27,7 +27,7 @@ import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, ChevronUp, Search, Pin, Camera, MoreVertical, RotateCcw } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, ChevronUp, Search, Pin, Camera, MoreVertical, RotateCcw, Clock, CheckSquare } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import ImageEditor from './ImageEditor';
 import CameraCapture from './CameraCapture';
@@ -116,6 +116,90 @@ const secureCache = {
   }
 };
 
+const PurePrivacyCurtain = ({ onClose }: { onClose: () => void }) => {
+  const [curHeight, setCurHeight] = useState<number | null>(null);
+  const [swipeX, setSwipeX] = useState(0);
+  
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = curHeight || (window.innerHeight - 150);
+    
+    const onMove = (moveEvent: PointerEvent) => {
+      moveEvent.preventDefault();
+      const deltaY = moveEvent.clientY - startY;
+      const newHeight = Math.min(window.innerHeight, Math.max(100, startHeight + deltaY));
+      setCurHeight(newHeight);
+    };
+    
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  const handleTextPointerDown = (e: React.PointerEvent) => {
+    if (!e.isPrimary) return;
+    const startX = e.clientX;
+    
+    const onMove = (moveEvent: PointerEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      if (deltaX > 0) {
+        setSwipeX(deltaX);
+      }
+    };
+    
+    const onUp = (upEvent: PointerEvent) => {
+      const finalDeltaX = upEvent.clientX - startX;
+      if (finalDeltaX > 100) {
+        onClose();
+      }
+      setSwipeX(0);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+  
+  return (
+    <div 
+      className="fixed top-0 left-0 right-0 bg-black z-[100] flex flex-col shadow-2xl transition-none"
+      style={{ height: curHeight !== null ? `${curHeight}px` : 'calc(100vh - 150px)', touchAction: 'none' }}
+    >
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none overflow-hidden pb-12">
+        <div 
+          className="flex flex-col items-center cursor-grab active:cursor-grabbing pointer-events-auto transition-transform"
+          onPointerDown={handleTextPointerDown}
+          style={{ transform: `translateX(${swipeX}px)`, opacity: Math.max(0, 1 - swipeX / 150) }}
+        >
+          <h2 className="text-white font-black text-5xl sm:text-6xl uppercase tracking-[0.2em] whitespace-nowrap drop-shadow-[0_0_15px_rgba(255,0,0,1)] bg-red-600/30 px-10 py-5 border-y-4 border-red-500 select-none">
+            PERSONAL
+          </h2>
+          <span className="text-white/80 text-sm mt-4 tracking-widest font-medium select-none uppercase">
+            Nothing to see here
+          </span>
+        </div>
+      </div>
+      <div className="flex-1 pointer-events-none" />
+      <div 
+        className="w-full h-24 cursor-ns-resize flex items-center justify-center bg-zinc-900 border-t border-zinc-700 relative z-10 hover:bg-zinc-800 transition-colors shadow-[0_-4px_10px_rgba(0,0,0,0.5)] shrink-0"
+        onPointerDown={handlePointerDown}
+      >
+        <div className="flex gap-2 items-center justify-center pointer-events-none">
+          <div className="w-2 h-2 rounded-full bg-zinc-500" />
+          <div className="w-12 h-2 rounded-full bg-zinc-500" />
+          <div className="w-2 h-2 rounded-full bg-zinc-500" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function ChatUI({ user }: ChatUIProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
@@ -175,7 +259,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [otherUserName, setOtherUserName] = useState<string>('');
   const [otherUserStatus, setOtherUserStatus] = useState<{state: string, last_changed: number} | null>(null);
   const [otherUid, setOtherUid] = useState<string | null>(null);
-  const [isAnonymousMode, setIsAnonymousMode] = useState(false);
+  const [privacyMode, setPrivacyMode] = useState<'none' | 'blur' | 'pure'>('none');
   const [revealedMessages, setRevealedMessages] = useState<string[]>([]);
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
     const [showSearch, setShowSearch] = useState(false);
@@ -193,6 +277,8 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [isClientOffline, setIsClientOffline] = useState(false);
   const [hideOfflineBanner, setHideOfflineBanner] = useState(false);
+  
+
   
   useEffect(() => {
     const handleOffline = () => {
@@ -452,7 +538,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
   useEffect(() => {
     const myTypingRef = ref(rtdb, `typingStatus/${chatId}/${user.uid}`);
-    onDisconnect(myTypingRef).set(false);
+    onDisconnect(myTypingRef).set(false).catch(() => {});
 
     const chatTypingRef = ref(rtdb, `typingStatus/${chatId}`);
     const unsubscribeTyping = onValue(chatTypingRef, (snapshot) => {
@@ -472,7 +558,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     });
 
     return () => {
-      set(myTypingRef, false);
+      set(myTypingRef, false).catch(() => {});
       unsubscribeTyping();
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
@@ -738,6 +824,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     }
   };
 
+
   const loadMore = () => {
     if (scrollContainerRef.current) {
       prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
@@ -747,7 +834,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         shouldScrollToTopAfterLoad.current = false;
       }, 1500); // Failsafe reset
     }
-    setMessageLimit(prev => prev + 25);
+    setMessageLimit(prev => Math.min(prev + 25, 100));
   };
 
   const adjustTextareaHeight = () => {
@@ -1079,6 +1166,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
     return (
     <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
+      {privacyMode === 'pure' && <PurePrivacyCurtain onClose={() => setPrivacyMode('none')} />}
       {isClientOffline && !hideOfflineBanner && (
         <div className="fixed top-[75px] left-1/2 -translate-x-1/2 bg-red-500/80 backdrop-blur-xl text-white text-[12px] font-medium py-1.5 px-3.5 rounded-full shadow-md border border-red-400/20 flex items-center justify-center space-x-2 z-[9999] animate-pop-in">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"></path><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"></path><line x1="2" y1="2" x2="22" y2="22"></line></svg>
@@ -1099,9 +1187,9 @@ export default function ChatUI({ user }: ChatUIProps) {
           </h1>
         </div>
         {/* Floating Top Section */}
-        <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none w-full">
+        <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none w-full items-center">
           {/* Header */}
-          <div className="pointer-events-auto flex items-center justify-between px-4 py-2 bg-white/20 backdrop-blur-md backdrop-saturate-150 rounded-[32px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] border border-white/40 shrink-0 pt-[max(env(safe-area-inset-top),0.5rem)] relative mx-2 mt-2 max-w-5xl sm:mx-auto w-[calc(100%-1rem)] mb-1 will-change-transform transform-gpu">
+          <div className="pointer-events-auto flex items-center justify-between px-4 py-2 bg-white/20 backdrop-blur-md backdrop-saturate-150 rounded-[32px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] border border-white/40 shrink-0 relative max-w-5xl w-[calc(100%-1rem)] mb-1 will-change-transform transform-gpu mt-2 pt-[max(env(safe-area-inset-top),0.5rem)]">
             {/* Sleek yellow shade line */}
             <div className="absolute bottom-0 left-[10%] right-[10%] h-[1.5px] bg-gradient-to-r from-transparent via-yellow-400/90 to-transparent pointer-events-none rounded-full blur-[0.3px]"></div>
             
@@ -1114,6 +1202,16 @@ export default function ChatUI({ user }: ChatUIProps) {
                 <span className="font-bold text-slate-800 text-lg">{selectedMessages.size} selected</span>
               </div>
               <div className="flex items-center space-x-2">
+                <button onClick={() => {
+                  if (selectedMessages.size === messages.length) {
+                    setSelectedMessages(new Set());
+                    setSelectionMode(false);
+                  } else {
+                    setSelectedMessages(new Set(messages.map(m => m.id)));
+                  }
+                }} className="p-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm" title="Select All">
+                  <CheckSquare size={20} />
+                </button>
                 <button onClick={handleCopySelected} className="p-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm">
                   <Copy size={20} />
                 </button>
@@ -1134,63 +1232,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                   <MoreVertical size={20} />
                 </button>
                 
-                <div 
-                  ref={menuRef}
-                  className={`absolute left-0 top-12 z-50 min-w-[180px] bg-white rounded-xl shadow-xl border border-slate-100 py-1 overflow-hidden transition-all duration-200 origin-top-left ${showMenu ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible pointer-events-none'}`}
-                >
-                  {user.email === 'officialhaadi81@gmail.com' && (
-                    <button 
-                      onClick={() => {
-                        if (otherUid) {
-                          const otherStatusRef = ref(rtdb, `/status/${otherUid}`);
-                          set(otherStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
-                        }
-                        setShowMenu(false);
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
-                    >
-                      <RotateCcw size={16} className="mr-2" />
-                      Reset Status
-                    </button>
-                  )}
-                  
-                  <button 
-                    onClick={() => {
-                      setShowSearch(!showSearch);
-                      if (!showSearch) {
-                        setTimeout(() => searchInputRef.current?.focus(), 100);
-                      } else {
-                        setSearchQuery('');
-                      }
-                      setShowMenu(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
-                  >
-                    {showSearch ? <X size={16} className="mr-2" /> : <Search size={16} className="mr-2" />}
-                    {showSearch ? 'Close Search' : 'Search Messages'}
-                  </button>
 
-                  <button 
-                    onClick={() => {
-                      setIsAnonymousMode(!isAnonymousMode);
-                      setShowMenu(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center"
-                  >
-                    <Ghost size={16} className="mr-2" />
-                    {isAnonymousMode ? 'Disable Privacy' : 'Enable Privacy'}
-                  </button>
-
-                  <div className="h-px bg-slate-100 my-1" />
-                  
-                  <button 
-                    onClick={handleClearChat}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-medium transition-colors flex items-center"
-                  >
-                    <Trash2 size={16} className="mr-2" />
-                    Clear Chat
-                  </button>
-                </div>
               </div>
 
               {/* Right Side: Profile & SignOut */}
@@ -1261,37 +1303,60 @@ export default function ChatUI({ user }: ChatUIProps) {
           <div 
             className={`absolute top-[75px] left-0 right-0 z-30 w-full max-w-5xl mx-auto px-4 transition-all duration-150 ease-in-out ${showSearch ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}
           >
-            <div className="bg-[#efeae2] border border-slate-300 shadow-md rounded-2xl p-2 flex items-center space-x-2">
-              <div className="flex-1 bg-white rounded-xl flex items-center px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
-                <Search size={16} className="text-slate-400 mr-2 shrink-0" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Search loaded messages..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400"
-                />
+            <div className="flex items-center space-x-2">
+              <div className="flex-1 bg-[#efeae2] border border-slate-300 shadow-md rounded-2xl p-2 flex items-center space-x-2">
+                <div className="flex-1 bg-white rounded-xl flex items-center px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
+                  <Search size={16} className="text-slate-400 mr-2 shrink-0" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Search loaded messages..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400"
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
                 {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
-                    <X size={14} />
-                  </button>
+                  <div className="flex items-center space-x-1 shrink-0 bg-white rounded-xl p-1">
+                    <span className="text-xs font-semibold text-slate-500 px-2 min-w-[40px] text-center">
+                      {searchResults.length > 0 ? currentSearchIndex + 1 : 0}/{searchResults.length}
+                    </span>
+                    <div className="w-px h-4 bg-slate-300 mx-1"></div>
+                    <button onClick={handlePrevSearch} disabled={searchResults.length === 0} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
+                      <ChevronUp size={16} />
+                    </button>
+                    <button onClick={handleNextSearch} disabled={searchResults.length === 0} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
+                      <ChevronDown size={16} />
+                    </button>
+                  </div>
                 )}
               </div>
-              {searchQuery && (
-                <div className="flex items-center space-x-1 shrink-0 bg-white rounded-xl p-1">
-                  <span className="text-xs font-semibold text-slate-500 px-2 min-w-[40px] text-center">
-                    {searchResults.length > 0 ? currentSearchIndex + 1 : 0}/{searchResults.length}
-                  </span>
-                  <div className="w-px h-4 bg-slate-300 mx-1"></div>
-                  <button onClick={handlePrevSearch} disabled={searchResults.length === 0} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
-                    <ChevronUp size={16} />
-                  </button>
-                  <button onClick={handleNextSearch} disabled={searchResults.length === 0} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
-                    <ChevronDown size={16} />
-                  </button>
-                </div>
-              )}
+              
+              {/* Liquid Glass Close Button with Golden Boundary */}
+              <button 
+                onClick={() => {
+                  setShowSearch(false);
+                  setSearchQuery('');
+                }}
+                className="shrink-0 relative w-11 h-11 rounded-full bg-white/40 backdrop-blur-md backdrop-saturate-150 shadow-[0_4px_12px_rgba(0,0,0,0.1)] flex items-center justify-center text-slate-700 hover:bg-white/60 hover:scale-105 active:scale-95 transition-all overflow-hidden"
+              >
+                <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                  <defs>
+                    <linearGradient id="goldGradientSearch" x1="0%" y1="100%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#eab308" />
+                      <stop offset="50%" stopColor="#fef3c7" />
+                      <stop offset="100%" stopColor="#d97706" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx="22" cy="22" r="21.5" fill="none" stroke="url(#goldGradientSearch)" strokeWidth="1.5" />
+                </svg>
+                <X size={20} strokeWidth={2.5} className="relative z-10" />
+              </button>
             </div>
           </div>
           
@@ -1304,7 +1369,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 150;
           setShowScrollBottom(!isNearBottom);
         }} 
-        className="flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto"
+        className={`flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto transition-all duration-500 ${privacyMode !== 'none' ? 'opacity-30 saturate-0 brightness-75' : 'opacity-100 saturate-100 brightness-100'}`}
       >
         {/* Spacers to prevent content from hiding under the floating header */}
         <div className="shrink-0 h-[60px]" />
@@ -1325,7 +1390,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             <ChevronDown size={22} strokeWidth={2.5} />
           </button>
         )}
-        {messages.length >= messageLimit && (
+        {messages.length >= messageLimit && messageLimit < 100 && (
           <div className="flex justify-center mb-6 z-10">
             <button 
               onClick={loadMore}
@@ -1346,7 +1411,7 @@ export default function ChatUI({ user }: ChatUIProps) {
               ))}
             </div>
           ) : (() => {
-            const displayMessages = searchQuery ? visibleMessages.filter(m => m.text?.toLowerCase().includes(searchQuery.toLowerCase())) : visibleMessages;
+            const displayMessages = visibleMessages;
             let firstUnrepliedId: string | null = null;
             for (let i = displayMessages.length - 1; i >= 0; i--) {
               if (displayMessages[i].senderId === user.uid) break; 
@@ -1375,7 +1440,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                     chatId={chatId}
                     isFirstUnreplied={msg.id === firstUnrepliedId}
                     onReply={() => setReplyingTo(msg)}
-                    isAnonymousMode={isAnonymousMode}
+                    isAnonymousMode={privacyMode === 'blur'}
                     isLastMessage={index === displayMessages.length - 1}
                     isRevealed={revealedMessages.includes(msg.id)}
                     onReveal={() => handleRevealMessage(msg.id)}
@@ -1467,6 +1532,7 @@ export default function ChatUI({ user }: ChatUIProps) {
               placeholder="Type a message"
               className="flex-1 bg-transparent text-[#111b21] placeholder-[#8696a0] py-[10px] px-2 text-[14.5px] focus:outline-none resize-none leading-snug max-h-[100px] min-h-[40px]"
               rows={1}
+              disabled={isSending}
               onFocus={() => {
                 const isMobile = window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent);
                 if (isMobile && scrollContainerRef.current) {
@@ -1595,6 +1661,106 @@ export default function ChatUI({ user }: ChatUIProps) {
         </div>
       )}
 
+      {/* Main Menu Modal */}
+      <div 
+        className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${showMenu ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`}
+        onClick={() => setShowMenu(false)}
+      >
+        <div 
+          className={`w-full max-w-[320px] bg-white rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${showMenu ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
+            <h3 className="font-semibold text-slate-800 text-lg">Settings</h3>
+            <button onClick={() => setShowMenu(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+          <div className="py-2 flex flex-col">
+            {user.email === 'officialhaadi81@gmail.com' && (
+              <>
+
+
+                <button 
+                  onClick={() => {
+                    const texts = visibleMessages.map(m => m.text).join('\n\n');
+                    navigator.clipboard.writeText(texts);
+                    setShowMenu(false);
+                    alert('All loaded messages copied to clipboard!');
+                  }}
+                  className="w-full text-left px-5 py-4 text-base text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center border-b border-slate-50 last:border-0"
+                >
+                  <Copy size={18} className="mr-3 text-slate-400" />
+                  Copy all messages
+                </button>
+              </>
+            )}
+            
+            <button 
+              onClick={() => {
+                setShowSearch(!showSearch);
+                if (!showSearch) {
+                  setTimeout(() => searchInputRef.current?.focus(), 100);
+                } else {
+                  setSearchQuery('');
+                }
+                setShowMenu(false);
+              }}
+              className="w-full text-left px-5 py-4 text-base text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center border-b border-slate-50 last:border-0"
+            >
+              {showSearch ? <X size={18} className="mr-3 text-slate-400" /> : <Search size={18} className="mr-3 text-slate-400" />}
+              {showSearch ? 'Close Search' : 'Search Messages'}
+            </button>
+
+            {privacyMode !== 'none' ? (
+              <button 
+                onClick={() => {
+                  setPrivacyMode('none');
+                  setShowMenu(false);
+                }}
+                className="w-full text-left px-5 py-4 text-base text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center border-b border-slate-50 last:border-0"
+              >
+                <Ghost size={18} className="mr-3 text-slate-400" />
+                Disable Privacy
+              </button>
+            ) : (
+              <>
+                <button 
+                  onClick={() => {
+                    setPrivacyMode('blur');
+                    setShowMenu(false);
+                  }}
+                  className="w-full text-left px-5 py-4 text-base text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center border-b border-slate-50"
+                >
+                  <Ghost size={18} className="mr-3 text-slate-400" />
+                  Enable Privacy: Blur
+                </button>
+                <button 
+                  onClick={() => {
+                    setPrivacyMode('pure');
+                    setShowMenu(false);
+                  }}
+                  className="w-full text-left px-5 py-4 text-base text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center border-b border-slate-50 last:border-0"
+                >
+                  <Ghost size={18} className="mr-3 text-slate-400" />
+                  Enable Privacy: Pure
+                </button>
+              </>
+            )}
+
+            <div className="h-2 bg-slate-50 border-y border-slate-100" />
+            
+            <button 
+              onClick={handleClearChat}
+              className="w-full text-left px-5 py-4 text-base text-red-600 hover:bg-red-50 active:bg-red-100 font-medium transition-colors flex items-center"
+            >
+              <Trash2 size={18} className="mr-3" />
+              Clear Chat
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Pin Error Toast */}
       {showPinError && (
         <div className="fixed top-[100px] left-1/2 -translate-x-1/2 z-[100] animate-slide-up">
@@ -1604,6 +1770,8 @@ export default function ChatUI({ user }: ChatUIProps) {
           </div>
         </div>
       )}
+
+
     </div>
   );
 }

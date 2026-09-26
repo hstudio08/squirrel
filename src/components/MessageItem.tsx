@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, FormEvent } from 'react';
 import { Message } from '@/types/chat';
 import { doc, updateDoc, deleteDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Edit2, Trash2, X, Check, Pin, Plus, CheckCheck, Copy, Circle, CheckCircle2 } from 'lucide-react';
+import { Edit2, Trash2, X, Check, Pin, Plus, CheckCheck, Copy, Circle, CheckCircle2, CheckSquare } from 'lucide-react';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import ImageEditor from './ImageEditor';
 import { User } from 'firebase/auth';
@@ -109,6 +109,23 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
         : part
     );
   };
+
+  const isEditable = () => {
+    if (!message.createdAt) return false;
+    let msgTime;
+    if (typeof message.createdAt === 'number') {
+      msgTime = message.createdAt;
+    } else if (typeof (message.createdAt as any).toMillis === 'function') {
+      msgTime = (message.createdAt as any).toMillis();
+    } else if ((message.createdAt as any).seconds) {
+      msgTime = (message.createdAt as any).seconds * 1000;
+    } else if (message.createdAt instanceof Date) {
+      msgTime = message.createdAt.getTime();
+    } else {
+      msgTime = Date.now();
+    }
+    return (Date.now() - msgTime) <= 600000; // 10 minutes
+  };
     
     const getMaskedEmail = (email: string) => {
       if (!email) return '';
@@ -139,6 +156,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
 
   useEffect(() => {
     if (isMine || message.seen) return;
+    if (typeof window !== 'undefined' && localStorage.getItem('freezePresence') === 'true') return;
 
     const currentRef = itemRef.current;
     if (!currentRef) return;
@@ -342,9 +360,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     } else if (Math.abs(translateX) < 10) {
       // Single tap on the bubble itself (not on a popup)
       if (!isActiveReaction && !showOptions && !showDeleteConfirm) {
-        if (selectionMode && onToggleSelect) {
-            onToggleSelect();
-        }
+        // Selection handled by onClick on outer wrapper
       } else {
         // Tapped outside popup — close everything
         if (onReactClose) onReactClose();
@@ -408,11 +424,54 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     }
   };
 
+  const outerTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const outerLongPressTriggered = useRef(false);
+
+  const handleOuterPointerDown = (e: React.PointerEvent) => {
+    if (!e.isPrimary) return;
+    if (e.target !== e.currentTarget) return;
+    
+    outerLongPressTriggered.current = false;
+    outerTimerRef.current = setTimeout(() => {
+      outerLongPressTriggered.current = true;
+      if (onToggleSelect && !selectionMode && !showOptions && !showDeleteConfirm && !isActiveReaction && !isEditing) {
+        onToggleSelect();
+        if (window.navigator.vibrate) window.navigator.vibrate(50);
+      }
+    }, 450);
+  };
+
+  const handleOuterPointerUp = (e: React.PointerEvent) => {
+    if (outerTimerRef.current) {
+      clearTimeout(outerTimerRef.current);
+      outerTimerRef.current = null;
+    }
+  };
+
   return (
     <div
       ref={itemRef}
       id={`message-${message.id}`}
-      className={`flex w-full ${isMine ? 'justify-end' : 'justify-start'} mb-2.5 animate-pop-in relative`}
+      className={`flex w-full ${isMine ? 'justify-end' : 'justify-start'} mb-2.5 animate-pop-in relative cursor-pointer`}
+      onPointerDown={handleOuterPointerDown}
+      onPointerUp={handleOuterPointerUp}
+      onPointerLeave={handleOuterPointerUp}
+      onPointerCancel={handleOuterPointerUp}
+      onContextMenu={(e) => {
+        if (e.target === e.currentTarget && !isEditing) {
+          e.preventDefault();
+        }
+      }}
+      onClick={(e) => {
+        if (outerLongPressTriggered.current) return;
+        if (selectionMode) {
+          if (!showOptions && !showDeleteConfirm && !isActiveReaction && !isEditing) {
+            if (onToggleSelect) {
+              onToggleSelect();
+            }
+          }
+        }
+      }}
     >
       <div
         onPointerDown={handlePointerDown}
@@ -442,13 +501,21 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
               onReactOpen();
             }
           }}
-          className={`relative max-w-[85%] sm:max-w-[70%] rounded-[22px] px-2.5 pt-1.5 pb-1 shadow-sm border ${Math.abs(translateX) > 0 ? 'select-none' : ''} ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
-          isMine
-            ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] cursor-pointer'
-            : 'bg-white text-[#111b21] rounded-tl-[4px] border-white cursor-pointer'
+          className={`relative max-w-[85%] sm:max-w-[70%] rounded-[22px] px-2.5 pt-1.5 pb-1 shadow-sm border transition-colors ${Math.abs(translateX) > 0 ? 'select-none' : ''} ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
+          isSelected 
+            ? 'bg-blue-500/10 text-[#111b21] border-blue-500/30 ring-2 ring-blue-500/20 ' + (isMine ? 'rounded-tr-[4px]' : 'rounded-tl-[4px]')
+            : isMine
+              ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] cursor-pointer'
+              : 'bg-white text-[#111b21] rounded-tl-[4px] border-white cursor-pointer'
         } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''} `}
-        onClick={() => { if (selectionMode && onToggleSelect) { onToggleSelect(); return; } }}
       >
+        {selectionMode && (
+          <div className="absolute inset-0 z-20 pointer-events-none rounded-inherit">
+             <div className={`absolute top-1/2 -translate-y-1/2 ${isMine ? '-left-8' : '-right-8'} w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors shadow-sm ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-slate-400 bg-white/80'}`}>
+               {isSelected && <Check size={12} strokeWidth={3} className="text-white" />}
+             </div>
+          </div>
+        )}
         {/* Pinned Indicator */}
         {message.isPinned && (
           <div className="flex items-center text-slate-500 mb-1 text-[11px] font-medium opacity-80">
@@ -527,7 +594,18 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
                     >
                       <Pin size={16} className={`mr-3 ${isPinned ? 'text-blue-500 fill-blue-500' : 'text-slate-500'}`} /> {isPinned ? 'Unpin' : 'Pin'}
                     </button>
-                    {isMine && !message.isDeletedForEveryone && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (onToggleSelect) onToggleSelect();
+                        setShowOptions(false); if (onReactClose) onReactClose();
+                      }}
+                      className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors w-full border-b border-slate-100"
+                    >
+                      <CheckSquare size={16} className="mr-3 text-slate-500" /> Select
+                    </button>
+                    {isMine && !message.isDeletedForEveryone && isEditable() && (
                       <button
                         onPointerDown={(e) => {
                           e.preventDefault();

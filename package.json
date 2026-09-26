@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "browser-image-compression": "^2.0.2",
     "emoji-picker-react": "^4.22.2",
     "firebase": "^12.19.0",
@@ -33,5 +34,10 @@
   },
   "overrides": {
     "jose": "4.15.5"
+  },
+  "allowScripts": {
+    "@firebase/util@1.15.3": true,
+    "protobufjs@7.6.6": true,
+    "unrs-resolver@1.12.2": true
   }
 }
