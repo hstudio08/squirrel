@@ -177,7 +177,7 @@ const PurePrivacyCurtain = ({ onClose }: { onClose: () => void }) => {
           onPointerDown={handleTextPointerDown}
           style={{ transform: `translateX(${swipeX}px)`, opacity: Math.max(0, 1 - swipeX / 150) }}
         >
-          <h2 className="text-white font-black text-5xl sm:text-6xl uppercase tracking-[0.2em] whitespace-nowrap drop-shadow-[0_0_15px_rgba(255,0,0,1)] bg-red-600/30 px-10 py-5 border-y-4 border-red-500 select-none">
+          <h2 className="text-white font-black text-5xl sm:text-6xl uppercase tracking-[0.2em] whitespace-nowrap drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] bg-white/10 backdrop-blur-md px-10 py-5 border-y-4 border-white/20 select-none">
             PERSONAL
           </h2>
           <span className="text-white/80 text-sm mt-4 tracking-widest font-medium select-none uppercase">
@@ -1180,12 +1180,6 @@ export default function ChatUI({ user }: ChatUIProps) {
           </button>
         </div>
       )}
-        {/* Background Watermark */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-          <h1 className="text-7xl sm:text-9xl font-black text-slate-900/[0.04] tracking-widest uppercase select-none" style={{ fontFamily: 'var(--font-geist-sans)' }}>
-            SQUIRREL
-          </h1>
-        </div>
         {/* Floating Top Section */}
         <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none w-full items-center">
           {/* Header */}
@@ -1369,27 +1363,11 @@ export default function ChatUI({ user }: ChatUIProps) {
           const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 150;
           setShowScrollBottom(!isNearBottom);
         }} 
-        className={`flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto transition-all duration-500 ${privacyMode !== 'none' ? 'opacity-30 saturate-0 brightness-75' : 'opacity-100 saturate-100 brightness-100'}`}
+        className={`flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto transition-all duration-500 ${privacyMode === 'pure' ? 'opacity-30 saturate-0 brightness-75' : 'opacity-100 saturate-100 brightness-100'}`}
       >
         {/* Spacers to prevent content from hiding under the floating header */}
         <div className="shrink-0 h-[60px]" />
         {pinnedMessage && !isKeyboardOpen && <div className="shrink-0 h-[50px]" />}
-        
-        {showScrollBottom && (
-          <button 
-            onClick={() => {
-              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-            }}
-            className={`fixed right-6 sm:right-10 z-[100] p-3 rounded-full cursor-pointer animate-pop-in transition-all duration-300 ease-out bg-white/40 backdrop-blur-md backdrop-saturate-150 border border-white/60 shadow-[0_4px_12px_rgba(0,0,0,0.08)] text-slate-700 hover:text-blue-600 hover:bg-white/60 hover:scale-105 active:scale-95 ${replyingTo ? 'bottom-[145px]' : 'bottom-[90px]'}`}
-          >
-            {unreadCountWhileScrolled > 0 && (
-              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[11px] font-bold px-1.5 py-0.5 min-w-[20px] h-[20px] flex items-center justify-center rounded-full shadow-sm animate-pop-in border border-white/50">
-                {unreadCountWhileScrolled}
-              </span>
-            )}
-            <ChevronDown size={22} strokeWidth={2.5} />
-          </button>
-        )}
         {messages.length >= messageLimit && messageLimit < 100 && (
           <div className="flex justify-center mb-6 z-10">
             <button 
@@ -1477,6 +1455,22 @@ export default function ChatUI({ user }: ChatUIProps) {
         <div className="shrink-0 h-[80px]" />
         <div ref={messagesEndRef} className="h-1 w-full shrink-0" />
       </div>
+
+      {showScrollBottom && (
+        <button 
+          onClick={() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          className={`fixed right-6 sm:right-10 z-[100] p-3 rounded-full cursor-pointer animate-pop-in transition-all duration-300 ease-out bg-white/40 backdrop-blur-md backdrop-saturate-150 border border-white/60 shadow-[0_4px_12px_rgba(0,0,0,0.08)] text-slate-700 hover:text-blue-600 hover:bg-white/60 hover:scale-105 active:scale-95 ${replyingTo ? 'bottom-[145px]' : 'bottom-[90px]'}`}
+        >
+          {unreadCountWhileScrolled > 0 && (
+            <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[11px] font-bold px-1.5 py-0.5 min-w-[20px] h-[20px] flex items-center justify-center rounded-full shadow-sm animate-pop-in border border-white/50">
+              {unreadCountWhileScrolled}
+            </span>
+          )}
+          <ChevronDown size={22} strokeWidth={2.5} />
+        </button>
+      )}
 
       {/* Floating Composer */}
       <div className="absolute bottom-[env(safe-area-inset-bottom,0px)] pb-3 pt-2 left-0 right-0 z-40 pointer-events-none flex justify-center px-2 sm:px-4 w-full will-change-transform transform-gpu">
