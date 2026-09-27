@@ -30,12 +30,13 @@ import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, ChevronUp, Search, Pin, Camera, MoreVertical, RotateCcw, Clock, CheckSquare, Lock, Plus } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, ChevronUp, Search, Pin, Camera, MoreVertical, RotateCcw, Clock, CheckSquare, Lock, Plus, Settings } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import ImageEditor from './ImageEditor';
 import MultiImagePreviewModal from './MultiImagePreviewModal';
 import CameraCapture from './CameraCapture';
 import { ChatInputForm } from './ChatInputForm';
+import OnboardingTour from './OnboardingTour';
 
 interface ChatUIProps {
   user: User;
@@ -209,6 +210,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
+  const [isOtherRecording, setIsOtherRecording] = useState(false);
   const [loadedCount, setLoadedCount] = useState(10);
   const [sessionId, setSessionId] = useState('');
   const [pinUnlockedThisSession, setPinUnlockedThisSession] = useState(false);
@@ -248,6 +250,20 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [bottomReadMessageId, setBottomReadMessageId] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const lastTapRef = useRef<number>(0);
+  const privacyTapTimeout = useRef<NodeJS.Timeout | null>(null);
+  
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ title: string; description: string; confirmText?: string; onConfirm: () => void; isDestructive?: boolean } | null>(null);
+  const [otherUserAbout, setOtherUserAbout] = useState<string>('');
+
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 2500);
+  };
 
   const shouldScrollToTopAfterLoad = useRef(false);
 
@@ -270,6 +286,34 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [otherUserName, setOtherUserName] = useState<string>('');
   const [otherUserStatus, setOtherUserStatus] = useState<{ state: string, last_changed: number } | null>(null);
   const [otherUid, setOtherUid] = useState<string | null>(null);
+  const [partnerData, setPartnerData] = useState<any>(null);
+  const [myDoc, setMyDoc] = useState<any>(null);
+  const [showPartnerModal, setShowPartnerModal] = useState(false);
+
+  useEffect(() => {
+    const unsubMe = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        setMyDoc(docSnap.data());
+      }
+    });
+
+    if (otherUid) {
+      const unsubPartner = onSnapshot(doc(db, 'users', otherUid), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setPartnerData(data);
+          if (data.status !== undefined) {
+            setOtherUserAbout(data.status);
+          }
+        }
+      });
+      return () => {
+        unsubMe();
+        unsubPartner();
+      };
+    }
+    return () => unsubMe();
+  }, [otherUid, user.uid]);
   const [privacyMode, setPrivacyMode] = useState<'none' | 'blur' | 'pure'>('none');
   const [revealedMessages, setRevealedMessages] = useState<string[]>([]);
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
@@ -341,6 +385,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   }, []);
 
   const isTypingRef = useRef(false);
+  const isRecordingRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTypingWriteRef = useRef<number>(0); // throttle RTDB writes
 
@@ -506,7 +551,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           }, { merge: true });
         }
 
-        const permission = await Notification.requestPermission();
+        const permission = 'Notification' in window ? Notification.permission : 'denied';
         if (permission === 'granted') {
           const messaging = await getFirebaseMessaging();
           if (messaging) {
@@ -524,7 +569,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           }
         }
       } catch (err) {
-        console.warn('Push setup failed', err);
+        // Silently ignore push setup permission errors to prevent console spam
       }
     };
     setupNotifications();
@@ -559,6 +604,9 @@ export default function ChatUI({ user }: ChatUIProps) {
     const myTypingRef = ref(rtdb, `typingStatus/${chatId}/${user.uid}`);
     onDisconnect(myTypingRef).set(false).catch(() => { });
 
+    const myRecordingRef = ref(rtdb, `recordingStatus/${chatId}/${user.uid}`);
+    onDisconnect(myRecordingRef).set(false).catch(() => { });
+
     const chatTypingRef = ref(rtdb, `typingStatus/${chatId}`);
     const unsubscribeTyping = onValue(chatTypingRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -576,9 +624,28 @@ export default function ChatUI({ user }: ChatUIProps) {
       }
     });
 
+    const chatRecordingRef = ref(rtdb, `recordingStatus/${chatId}`);
+    const unsubscribeRecording = onValue(chatRecordingRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        let someoneElseIsRecording = false;
+        for (const [uid, isRecording] of Object.entries(data)) {
+          if (uid !== user.uid && isRecording === true) {
+            someoneElseIsRecording = true;
+            break;
+          }
+        }
+        setIsOtherRecording(someoneElseIsRecording);
+      } else {
+        setIsOtherRecording(false);
+      }
+    });
+
     return () => {
       set(myTypingRef, false).catch(() => { });
+      set(myRecordingRef, false).catch(() => { });
       unsubscribeTyping();
+      unsubscribeRecording();
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, [user.uid, chatId]);
@@ -598,10 +665,19 @@ export default function ChatUI({ user }: ChatUIProps) {
     set(myTypingRef, typing).catch(err => console.error("Typing status error", err));
   };
 
+  const updateRecordingStatus = (recording: boolean) => {
+    if (isRecordingRef.current === recording) return;
+
+    isRecordingRef.current = recording;
+    const myRecordingRef = ref(rtdb, `recordingStatus/${chatId}/${user.uid}`);
+    set(myRecordingRef, recording).catch(err => console.error("Recording status error", err));
+  };
+
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
         updateTypingStatus(false);
+        updateRecordingStatus(false);
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -810,19 +886,17 @@ export default function ChatUI({ user }: ChatUIProps) {
   };
 
   const handleClearChat = async () => {
-    if (confirm('Are you sure you want to clear the entire chat? This will hide all messages for you.')) {
-      try {
-        const batch = writeBatch(db);
-        visibleMessages.forEach(msg => {
-          batch.update(doc(db, `conversations/${chatId}/messages`, msg.id), {
-            deletedFor: arrayUnion(user.uid)
-          });
+    try {
+      const batch = writeBatch(db);
+      visibleMessages.forEach(msg => {
+        batch.update(doc(db, `conversations/${chatId}/messages`, msg.id), {
+          deletedFor: arrayUnion(user.uid)
         });
-        await batch.commit();
-        setShowMenu(false);
-      } catch (err) {
-        console.error('Failed to clear chat', err);
-      }
+      });
+      await batch.commit();
+      setShowMenu(false);
+    } catch (err) {
+      console.error('Failed to clear chat', err);
     }
   };
 
@@ -1099,6 +1173,82 @@ export default function ChatUI({ user }: ChatUIProps) {
     });
   };
 
+  const handleSendAudio = async (file: File) => {
+    if (isSending) return;
+    setIsSending(true);
+    try {
+      const idToken = await user.getIdToken();
+      const audioCount = messages.filter(m => m.senderId === user.uid && m.audioUrl).length + 1;
+      const senderName = user.email ? user.email.split('@')[0] : 'user';
+      const publicId = `${senderName}_${audioCount.toString().padStart(2, '0')}`;
+
+      const sigRes = await fetch('/api/upload-signature', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ folder: 'squirrel/voice_notes', public_id: publicId })
+      });
+      if (!sigRes.ok) throw new Error('Failed to get upload signature');
+      const { timestamp, signature, folder, public_id: resolvedPublicId } = await sigRes.json();
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || '');
+      formData.append('timestamp', timestamp.toString());
+      formData.append('signature', signature);
+      formData.append('folder', folder);
+      formData.append('public_id', resolvedPublicId);
+      formData.append('resource_type', 'video');
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/wusvh42x/video/upload`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (data.secure_url) {
+        const newMessageData: any = {
+          senderId: user.uid,
+          audioUrl: data.secure_url,
+          createdAt: serverTimestamp(),
+          seen: false,
+          isDeletedForEveryone: false,
+          isEdited: false
+        };
+
+        if (replyingTo) {
+          newMessageData.replyToId = replyingTo.id;
+          newMessageData.replyToText = replyingTo.text || 'Voice Note';
+          newMessageData.replyToSenderId = replyingTo.senderId;
+        }
+
+        await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+        
+        try {
+          fetch('/api/notify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({ receiverUid: otherUid })
+          });
+        } catch (e) {}
+      }
+      setReplyingTo(null);
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (error) {
+      console.error("Failed to send audio", error);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const handleSend = async (e?: FormEvent, textToUse: string = '') => {
     if (e) e.preventDefault();
     if ((!textToUse.trim() && pastedImages.length === 0) || textToUse.length > 2000 || isSending) return;
@@ -1318,6 +1468,13 @@ export default function ChatUI({ user }: ChatUIProps) {
       firstUnrepliedId = displayMessages[i].id;
     }
 
+    const audioMessageIds = new Set(
+      displayMessages
+        .filter(m => m.audioUrl)
+        .slice(-5)
+        .map(m => m.id)
+    );
+
     return displayMessages.map((msg, index) => {
       const showDate = index === 0 || !isSameDay(displayMessages[index - 1].createdAt, msg.createdAt);
       const isNewSenderGroup = index > 0 && !showDate && displayMessages[index - 1].senderId !== msg.senderId;
@@ -1355,6 +1512,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                 onToggleExpand={() => setExpandedMessageId(prev => prev === msg.id ? null : msg.id)}
                 isPinned={pinnedMessage?.id === msg.id}
                 onPinToggle={() => handlePinToggle(msg)}
+                autoPreloadAudio={audioMessageIds.has(msg.id)}
               />
             </div>
           </div>
@@ -1365,7 +1523,55 @@ export default function ChatUI({ user }: ChatUIProps) {
 
   return (
     <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
+      <OnboardingTour user={user} />
       {privacyMode === 'pure' && <PurePrivacyCurtain onClose={() => setPrivacyMode('none')} />}
+      
+      {showPartnerModal && (
+        <div 
+          className="fixed inset-0 z-[99999] bg-transparent flex flex-col items-center justify-start pt-24 p-4 animate-fade-in"
+          onClick={() => setShowPartnerModal(false)}
+        >
+          {/* Animated Instagram + Skyblue/Green Gradient Frame */}
+          <div 
+            className="w-72 h-72 sm:w-80 sm:h-80 rounded-full relative flex items-center justify-center cursor-pointer hover:scale-[1.02] transition-transform duration-500 ease-out shadow-2xl" 
+            style={{ animation: 'slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}
+          >
+            {/* Animated Gradient Background */}
+            <div className="absolute inset-0 rounded-full overflow-hidden">
+               <div className="absolute inset-[-50%] animate-[spin_5s_linear_infinite]" 
+                    style={{ background: 'conic-gradient(from 0deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888, #87CEEB, #32CD32, #f09433)' }}>
+               </div>
+            </div>
+            
+            {/* Inner Image Container */}
+            <div className="w-[calc(100%-8px)] h-[calc(100%-8px)] rounded-full overflow-hidden bg-slate-50 flex items-center justify-center relative z-10 group">
+              {partnerData?.photoURL ? (
+                <img 
+                  src={partnerData.photoURL} 
+                  alt="Profile" 
+                  className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-125" 
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              {/* Dummy Photo Fallback */}
+              <div 
+                className="w-full h-full bg-gradient-to-tr from-slate-200 to-slate-50 flex items-center justify-center"
+                style={{ display: partnerData?.photoURL ? 'none' : 'flex' }}
+              >
+                <svg className="w-1/2 h-1/2 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {isClientOffline && !hideOfflineBanner && (
         <div className="fixed top-[75px] left-1/2 -translate-x-1/2 bg-red-500/80 backdrop-blur-xl text-white text-[12px] font-medium py-1.5 px-3.5 rounded-full shadow-md border border-red-400/20 flex items-center justify-center space-x-2 z-[9999] animate-pop-in">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"></path><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"></path><line x1="2" y1="2" x2="22" y2="22"></line></svg>
@@ -1382,73 +1588,245 @@ export default function ChatUI({ user }: ChatUIProps) {
       {/* Floating Top Section */}
       <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none w-full items-center">
         {/* Header */}
-        <div className="pointer-events-auto flex items-center justify-between px-4 py-2 bg-white/20 backdrop-blur-md backdrop-saturate-150 rounded-[32px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] border border-white/40 shrink-0 relative max-w-5xl w-[calc(100%-1rem)] mb-1 will-change-transform transform-gpu mt-2 pt-[max(env(safe-area-inset-top),0.5rem)]">
+        <div className={`pointer-events-auto flex flex-col px-4 py-2 bg-white/20 backdrop-blur-md backdrop-saturate-150 shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] border border-white/40 shrink-0 relative max-w-5xl w-[calc(100%-1rem)] mb-1 will-change-transform transform-gpu mt-2 pt-[max(env(safe-area-inset-top),0.5rem)] overflow-hidden transition-all duration-300 ease-in-out ${showMenu ? 'rounded-[24px]' : 'rounded-[32px]'}`}>
           {/* Sleek yellow shade line */}
           <div className="absolute bottom-0 left-[10%] right-[10%] h-[1.5px] bg-gradient-to-r from-transparent via-yellow-400/90 to-transparent pointer-events-none rounded-full blur-[0.3px]"></div>
 
-          {selectionMode ? (
-            <div className="flex items-center justify-between w-full h-10">
-              <div className="flex items-center">
-                <button onClick={() => { setSelectionMode(false); setSelectedMessages(new Set()); }} className="p-2 mr-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm">
-                  <X size={20} />
-                </button>
-                <span className="font-bold text-slate-800 text-lg">{selectedMessages.size} selected</span>
+          <div className="flex items-center justify-between w-full relative z-10">
+            {selectionMode ? (
+              <div className="flex items-center justify-between w-full h-10">
+                <div className="flex items-center">
+                  <button onClick={() => { setSelectionMode(false); setSelectedMessages(new Set()); }} className="p-2 mr-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm">
+                    <X size={20} />
+                  </button>
+                  <span className="font-bold text-slate-800 text-lg">{selectedMessages.size} selected</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button onClick={() => {
+                    if (selectedMessages.size === messages.length) {
+                      setSelectedMessages(new Set());
+                      setSelectionMode(false);
+                    } else {
+                      setSelectedMessages(new Set(messages.map(m => m.id)));
+                    }
+                  }} className="p-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm" title="Select All">
+                    <CheckSquare size={20} />
+                  </button>
+                  <button onClick={handleCopySelected} className="p-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm">
+                    <Copy size={20} />
+                  </button>
+                  <button onClick={handleDeleteSelected} className="p-2 bg-red-500/90 rounded-full hover:bg-red-500 text-white transition-colors shadow-sm">
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <button onClick={() => {
-                  if (selectedMessages.size === messages.length) {
-                    setSelectedMessages(new Set());
-                    setSelectionMode(false);
+            ) : (
+              <>
+                {/* Left Side: Menu */}
+                <div className="flex items-center relative">
+                  <button
+                    id="menu-toggle-btn"
+                    onClick={() => setShowMenu(!showMenu)}
+                    className={`relative w-10 h-10 flex items-center justify-center rounded-full transition-all duration-500 ease-out overflow-hidden backdrop-blur-xl backdrop-saturate-200 border border-amber-300/60 shadow-[0_4px_12px_rgba(251,191,36,0.15),inset_0_1px_2px_rgba(255,255,255,0.9)] hover:shadow-[0_6px_16px_rgba(251,191,36,0.25),inset_0_1px_3px_rgba(255,255,255,1)] hover:scale-105 active:scale-95 ${showMenu ? 'bg-amber-100/50 text-amber-900' : 'bg-white/40 text-slate-700 hover:text-amber-800'}`}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/70 to-transparent pointer-events-none rounded-full" />
+                    <ChevronDown className={`relative z-10 transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${showMenu ? '-rotate-180' : ''}`} size={22} strokeWidth={2.5} />
+                  </button>
+                </div>
+
+                {/* Right Side: Profile & SignOut */}
+                <div className="flex items-center justify-end flex-1 min-w-0 ml-4 space-x-3">
+                  {/* Partner Profile Picture */}
+                  <button 
+                    onClick={() => setShowPartnerModal(true)}
+                    className="w-[38px] h-[38px] rounded-full shrink-0 shadow-sm hover:scale-105 active:scale-95 transition-transform flex items-center justify-center relative"
+                  >
+                    {/* Animated Gradient Background */}
+                    <div className="absolute inset-0 rounded-full overflow-hidden pointer-events-none">
+                       <div className="absolute inset-[-50%] animate-[spin_5s_linear_infinite]" 
+                            style={{ background: 'conic-gradient(from 0deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888, #87CEEB, #32CD32, #f09433)' }}>
+                       </div>
+                    </div>
+                    
+                    <div className="w-[calc(100%-4px)] h-[calc(100%-4px)] rounded-full overflow-hidden bg-slate-100 flex items-center justify-center relative z-10">
+                      {partnerData?.photoURL ? (
+                        <img src={partnerData?.photoURL} alt="Partner" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <svg className="w-5 h-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+
+                  <div className="flex flex-col items-end overflow-hidden">
+                    <h1 className="text-[14px] font-bold text-slate-800 truncate w-full text-right tracking-wide leading-tight">
+                      {getMaskedEmail(otherEmail)}
+                    </h1>
+                    <StatusIndicator
+                      state={otherUserStatus?.state}
+                      timestamp={otherUserStatus?.last_changed || null}
+                      isTyping={isOtherTyping}
+                    />
+                  </div>
+                  <button
+                    onClick={signOut}
+                    className={`px-4 py-1.5 text-[13px] font-bold text-white rounded-full shadow-sm transition-all whitespace-nowrap shrink-0 ${otherUserStatus?.state === 'online' ? 'bg-green-500/90 hover:bg-green-500' : 'bg-red-500/90 hover:bg-red-500'}`}
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Expanded Menu Options inside Navbar */}
+          <div className={`w-full flex flex-col transition-all duration-300 origin-top ${showMenu ? 'max-h-[160px] mt-2 mb-0 opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
+            <div className="flex flex-row items-center justify-around w-full px-2 py-2 bg-white/30 rounded-2xl">
+              
+              <button
+                title="Settings"
+                onClick={() => window.location.href = '/settings'}
+                className="p-3 text-green-600 bg-white/50 hover:bg-white/70 active:bg-white/90 rounded-full transition-all shadow-sm ring-1 ring-[#D4AF37]/50"
+              >
+                <Settings size={22} />
+              </button>
+
+              {user.email === 'officialhaadi81@gmail.com' && (
+                <>
+                  <button
+                    title={generatedPin ? `PIN: ${generatedPin}` : 'Generate PIN'}
+                    onClick={async () => {
+                      const idToken = await user.getIdToken();
+                      const res = await fetch('/api/pin/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` }
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        setGeneratedPin(data.pin);
+                        showToast(`Generated PIN: ${data.pin}`);
+                      } else {
+                        showToast('Failed to generate PIN.');
+                      }
+                    }}
+                    className="p-3 text-slate-600 bg-white/40 hover:bg-white/60 active:bg-white/80 rounded-full transition-all ring-1 ring-[#D4AF37]/50"
+                  >
+                    <Lock size={20} />
+                  </button>
+  
+                  <button
+                    title="Copy all messages"
+                    onClick={() => {
+                      setConfirmAction({
+                        title: 'Copy Messages?',
+                        description: 'Copy all currently loaded messages to your clipboard?',
+                        confirmText: 'Copy',
+                        onConfirm: () => {
+                          const texts = visibleMessages.map(m => m.text).join('\n\n');
+                          navigator.clipboard.writeText(texts);
+                          setShowMenu(false);
+                          showToast('All loaded messages copied!');
+                          setConfirmAction(null);
+                        }
+                      });
+                    }}
+                    className="p-3 text-slate-600 bg-white/40 hover:bg-white/60 active:bg-white/80 rounded-full transition-all ring-1 ring-[#D4AF37]/50"
+                  >
+                    <Copy size={20} />
+                  </button>
+                </>
+              )}
+  
+              <button
+                title={showSearch ? 'Close Search' : 'Search Messages'}
+                onClick={() => {
+                  setShowSearch(!showSearch);
+                  if (!showSearch) {
+                    setTimeout(() => searchInputRef.current?.focus(), 100);
                   } else {
-                    setSelectedMessages(new Set(messages.map(m => m.id)));
+                    setSearchQuery('');
                   }
-                }} className="p-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm" title="Select All">
-                  <CheckSquare size={20} />
-                </button>
-                <button onClick={handleCopySelected} className="p-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm">
-                  <Copy size={20} />
-                </button>
-                <button onClick={handleDeleteSelected} className="p-2 bg-red-500/90 rounded-full hover:bg-red-500 text-white transition-colors shadow-sm">
-                  <Trash2 size={20} />
-                </button>
+                  setShowMenu(false);
+                }}
+                className={`p-3 rounded-full transition-all ring-1 ring-[#D4AF37]/50 ${showSearch ? 'bg-blue-100 text-blue-600' : 'text-slate-600 bg-white/40 hover:bg-white/60 active:bg-white/80'}`}
+              >
+                {showSearch ? <X size={20} /> : <Search size={20} />}
+              </button>
+  
+              <button
+                title={privacyMode !== 'none' ? `Disable Privacy (${privacyMode})` : 'Privacy (Tap: Blur, Double: Pure)'}
+                onClick={(e) => {
+                  const now = Date.now();
+                  const DOUBLE_PRESS_DELAY = 300;
+                  
+                  if (privacyTapTimeout.current) {
+                    clearTimeout(privacyTapTimeout.current);
+                    privacyTapTimeout.current = null;
+                  }
+                  
+                  if (now - lastTapRef.current < DOUBLE_PRESS_DELAY) {
+                    // Double tap
+                    setConfirmAction({
+                      title: 'Enable Pure Privacy?',
+                      description: 'Are you sure you want to toggle pure privacy mode?',
+                      confirmText: 'Toggle',
+                      onConfirm: () => {
+                        setPrivacyMode(privacyMode === 'pure' ? 'none' : 'pure');
+                        setShowMenu(false);
+                        setConfirmAction(null);
+                      }
+                    });
+                  } else {
+                    // Single tap
+                    privacyTapTimeout.current = setTimeout(() => {
+                      setConfirmAction({
+                        title: 'Enable Blur Privacy?',
+                        description: 'Are you sure you want to toggle blur privacy mode?',
+                        confirmText: 'Toggle',
+                        onConfirm: () => {
+                          setPrivacyMode(privacyMode === 'blur' ? 'none' : 'blur');
+                          setShowMenu(false);
+                          setConfirmAction(null);
+                        }
+                      });
+                    }, DOUBLE_PRESS_DELAY);
+                  }
+                  lastTapRef.current = now;
+                }}
+                className={`p-3 rounded-full transition-all ring-1 ring-[#D4AF37]/50 ${privacyMode !== 'none' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-600 bg-white/40 hover:bg-white/60 active:bg-white/80'}`}
+              >
+                <Ghost size={20} />
+              </button>
+  
+              <button
+                title="Clear Chat"
+                onClick={() => {
+                  setConfirmAction({
+                    title: 'Clear Chat?',
+                    description: 'Are you sure you want to clear all messages? This action cannot be undone.',
+                    confirmText: 'Clear',
+                    isDestructive: true,
+                    onConfirm: () => {
+                      handleClearChat();
+                      setConfirmAction(null);
+                    }
+                  });
+                }}
+                className="p-3 text-red-600 bg-red-50/50 hover:bg-red-100/60 active:bg-red-200/80 rounded-full transition-all ring-1 ring-[#D4AF37]/50"
+              >
+                <Trash2 size={20} />
+              </button>
+            </div>
+            
+            {/* Status Field */}
+            <div className="mt-1.5 w-full px-3 pb-0">
+              <div className="w-full bg-white/40 text-[13px] py-1 px-4 rounded-full border border-slate-300/60 shadow-sm text-center font-medium truncate text-slate-600 tracking-wide">
+                {otherUserAbout || "Hey there! I am using Squirrel."}
               </div>
             </div>
-          ) : (
-            <>
-              {/* Left Side: Menu */}
-              <div className="flex items-center relative">
-                <button
-                  id="menu-toggle-btn"
-                  onClick={() => setShowMenu(!showMenu)}
-                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${showMenu ? 'bg-slate-200 text-slate-800' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
-                >
-                  <MoreVertical size={20} />
-                </button>
-
-
-              </div>
-
-              {/* Right Side: Profile & SignOut */}
-              <div className="flex items-center justify-end flex-1 min-w-0 ml-4 space-x-3">
-                <div className="flex flex-col items-end overflow-hidden">
-                  <h1 className="text-[14px] font-bold text-slate-800 truncate w-full text-right tracking-wide leading-tight">
-                    {getMaskedEmail(otherEmail)}
-                  </h1>
-                  <StatusIndicator
-                    state={otherUserStatus?.state}
-                    timestamp={otherUserStatus?.last_changed || null}
-                    isTyping={isOtherTyping}
-                  />
-                </div>
-                <button
-                  onClick={signOut}
-                  className={`px-4 py-1.5 text-[13px] font-bold text-white rounded-full shadow-sm transition-all whitespace-nowrap shrink-0 ${otherUserStatus?.state === 'online' ? 'bg-green-500/90 hover:bg-green-500' : 'bg-red-500/90 hover:bg-red-500'}`}
-                >
-                  Sign Out
-                </button>
-              </div>
-            </>
-          )}
+          </div>
         </div>
 
         {/* Pinned Message */}
@@ -1624,12 +2002,21 @@ export default function ChatUI({ user }: ChatUIProps) {
         )}
 
         {/* Typing Indicator */}
-        {isOtherTyping && (
+        {(isOtherTyping || isOtherRecording) && (
           <div className="flex w-full justify-start mb-2.5 animate-pop-in">
             <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center space-x-1">
-              <div className="typing-dot" />
-              <div className="typing-dot" />
-              <div className="typing-dot" />
+              {isOtherRecording ? (
+                <div className="flex items-center space-x-1.5">
+                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                  <span className="text-[12px] font-medium text-slate-500 tracking-tight">recording audio...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="typing-dot" />
+                  <div className="typing-dot" />
+                  <div className="typing-dot" />
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1683,13 +2070,16 @@ export default function ChatUI({ user }: ChatUIProps) {
             ref={chatInputRef}
             isSending={isSending}
             onSend={handleSend}
+            onSendAudio={handleSendAudio}
             pastedImagesLength={pastedImages.length}
             onPasteImage={(file) => setPastedImages(prev => [...prev, file])}
             onImageUpload={handleImageUpload}
             scrollContainerRef={scrollContainerRef}
             messagesEndRef={messagesEndRef}
             updateTypingStatus={updateTypingStatus}
+            updateRecordingStatus={updateRecordingStatus}
             enterToSend={enterToSend}
+            onCameraClick={() => setShowCamera(true)}
           />
         </div>
       </div>
@@ -1723,13 +2113,13 @@ export default function ChatUI({ user }: ChatUIProps) {
       />
 
       {showBulkDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-scale-up">
-            <div className="p-5 text-center">
-              <h3 className="text-lg font-semibold text-slate-800 mb-2">Delete {selectedMessages.size} message{selectedMessages.size > 1 ? 's' : ''}?</h3>
-              <p className="text-sm text-slate-500">This action cannot be undone.</p>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#f2f2f2]/95 backdrop-blur-2xl rounded-[14px] shadow-2xl w-full max-w-[270px] flex flex-col overflow-hidden animate-pop-in text-center border border-white/20">
+            <div className="px-4 pt-5 pb-4">
+              <h3 className="text-[17px] font-semibold text-black tracking-tight">Delete {selectedMessages.size} message{selectedMessages.size > 1 ? 's' : ''}?</h3>
+              <p className="text-[13px] text-black/70 leading-snug mt-1 px-1">This action cannot be undone.</p>
             </div>
-            <div className="flex flex-col border-t border-slate-100">
+            <div className="flex flex-col border-t border-black/10">
               {(() => {
                 const selectedMsgs = messages.filter(m => selectedMessages.has(m.id));
                 const canDeleteForEveryone = selectedMsgs.every(m => {
@@ -1739,15 +2129,15 @@ export default function ChatUI({ user }: ChatUIProps) {
                   return (Date.now() - msgTime) < (12 * 60 * 60 * 1000);
                 });
                 return canDeleteForEveryone ? (
-                  <button onClick={() => confirmBulkDelete(true)} className="p-4 text-red-500 font-semibold hover:bg-slate-50 transition-colors border-b border-slate-100">
+                  <button onClick={() => confirmBulkDelete(true)} className="h-[44px] text-[17px] font-semibold text-[#FF3B30] hover:bg-black/5 active:bg-black/10 transition-colors border-b border-black/10">
                     Delete for everyone
                   </button>
                 ) : null;
               })()}
-              <button onClick={() => confirmBulkDelete(false)} className="p-4 text-red-500 font-semibold hover:bg-slate-50 transition-colors border-b border-slate-100">
+              <button onClick={() => confirmBulkDelete(false)} className="h-[44px] text-[17px] font-semibold text-[#FF3B30] hover:bg-black/5 active:bg-black/10 transition-colors border-b border-black/10">
                 Delete for me
               </button>
-              <button onClick={() => setShowBulkDeleteModal(false)} className="p-4 text-slate-600 font-medium hover:bg-slate-50 transition-colors">
+              <button onClick={() => setShowBulkDeleteModal(false)} className="h-[44px] text-[17px] font-normal text-[#007AFF] hover:bg-black/5 active:bg-black/10 transition-colors">
                 Cancel
               </button>
             </div>
@@ -1757,141 +2147,25 @@ export default function ChatUI({ user }: ChatUIProps) {
 
       {/* Unpin Confirm Modal */}
       {showUnpinConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-scale-up">
-            <div className="p-5 text-center">
-              <h3 className="text-lg font-semibold text-slate-800 mb-2">Unpin this message?</h3>
-              <p className="text-sm text-slate-500">The message will no longer be pinned at the top of the chat for everyone.</p>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#f2f2f2]/95 backdrop-blur-2xl rounded-[14px] shadow-2xl w-full max-w-[270px] flex flex-col overflow-hidden animate-pop-in text-center border border-white/20">
+            <div className="px-4 pt-5 pb-4">
+              <h3 className="text-[17px] font-semibold text-black tracking-tight">Unpin this message?</h3>
+              <p className="text-[13px] text-black/70 leading-snug mt-1 px-1">The message will no longer be pinned at the top of the chat for everyone.</p>
             </div>
-            <div className="flex flex-col border-t border-slate-100">
-              <button onClick={confirmUnpin} className="p-4 text-blue-600 font-semibold hover:bg-slate-50 transition-colors border-b border-slate-100">
-                Unpin Message
-              </button>
-              <button onClick={() => setShowUnpinConfirm(false)} className="p-4 text-slate-600 font-medium hover:bg-slate-50 transition-colors">
+            <div className="flex border-t border-black/10 h-[44px]">
+              <button onClick={() => setShowUnpinConfirm(false)} className="flex-1 text-[17px] font-normal text-[#007AFF] hover:bg-black/5 active:bg-black/10 transition-colors border-r border-black/10">
                 Cancel
+              </button>
+              <button onClick={confirmUnpin} className="flex-1 text-[17px] font-semibold text-[#FF3B30] hover:bg-black/5 active:bg-black/10 transition-colors">
+                Unpin
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Menu Modal */}
-      <div
-        className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${showMenu ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`}
-        onClick={() => setShowMenu(false)}
-      >
-        <div
-          className={`w-full max-w-[320px] bg-white rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${showMenu ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
-            <h3 className="font-semibold text-slate-800 text-lg">Settings</h3>
-            <button onClick={() => setShowMenu(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors">
-              <X size={20} />
-            </button>
-          </div>
-          <div className="py-2 flex flex-col">
-            {user.email === 'officialhaadi81@gmail.com' && (
-              <>
-                <button
-                  onClick={async () => {
-                    const idToken = await user.getIdToken();
-                    const res = await fetch('/api/pin/generate', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` }
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      setGeneratedPin(data.pin);
-                    } else {
-                      window.alert('Failed to generate PIN.');
-                    }
-                  }}
-                  className="w-full text-left px-5 py-4 text-base text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center border-b border-slate-50"
-                >
-                  <Lock size={18} className="mr-3 text-slate-400" />
-                  {generatedPin ? `PIN: ${generatedPin}` : 'Generate PIN'}
-                </button>
 
-                <button
-                  onClick={() => {
-                    const texts = visibleMessages.map(m => m.text).join('\n\n');
-                    navigator.clipboard.writeText(texts);
-                    setShowMenu(false);
-                    alert('All loaded messages copied to clipboard!');
-                  }}
-                  className="w-full text-left px-5 py-4 text-base text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center border-b border-slate-50 last:border-0"
-                >
-                  <Copy size={18} className="mr-3 text-slate-400" />
-                  Copy all messages
-                </button>
-              </>
-            )}
-
-            <button
-              onClick={() => {
-                setShowSearch(!showSearch);
-                if (!showSearch) {
-                  setTimeout(() => searchInputRef.current?.focus(), 100);
-                } else {
-                  setSearchQuery('');
-                }
-                setShowMenu(false);
-              }}
-              className="w-full text-left px-5 py-4 text-base text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center border-b border-slate-50 last:border-0"
-            >
-              {showSearch ? <X size={18} className="mr-3 text-slate-400" /> : <Search size={18} className="mr-3 text-slate-400" />}
-              {showSearch ? 'Close Search' : 'Search Messages'}
-            </button>
-
-            {privacyMode !== 'none' ? (
-              <button
-                onClick={() => {
-                  setPrivacyMode('none');
-                  setShowMenu(false);
-                }}
-                className="w-full text-left px-5 py-4 text-base text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center border-b border-slate-50 last:border-0"
-              >
-                <Ghost size={18} className="mr-3 text-slate-400" />
-                Disable Privacy
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={() => {
-                    setPrivacyMode('blur');
-                    setShowMenu(false);
-                  }}
-                  className="w-full text-left px-5 py-4 text-base text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center border-b border-slate-50"
-                >
-                  <Ghost size={18} className="mr-3 text-slate-400" />
-                  Enable Privacy: Blur
-                </button>
-                <button
-                  onClick={() => {
-                    setPrivacyMode('pure');
-                    setShowMenu(false);
-                  }}
-                  className="w-full text-left px-5 py-4 text-base text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center border-b border-slate-50 last:border-0"
-                >
-                  <Ghost size={18} className="mr-3 text-slate-400" />
-                  Enable Privacy: Pure
-                </button>
-              </>
-            )}
-
-            <div className="h-2 bg-slate-50 border-y border-slate-100" />
-
-            <button
-              onClick={handleClearChat}
-              className="w-full text-left px-5 py-4 text-base text-red-600 hover:bg-red-50 active:bg-red-100 font-medium transition-colors flex items-center"
-            >
-              <Trash2 size={18} className="mr-3" />
-              Clear Chat
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* Pin Error Toast */}
       {showPinError && (
@@ -1982,6 +2256,38 @@ export default function ChatUI({ user }: ChatUIProps) {
                 className="w-[78px] h-[78px] rounded-full text-slate-500 flex items-center justify-center transition-all duration-150 active:bg-slate-200 active:text-slate-800 active:scale-95 hover:bg-slate-50 border border-transparent hover:border-slate-100 disabled:opacity-50 select-none mx-auto"
               >
                 <Trash2 size={24} strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-12 left-1/2 -translate-x-1/2 z-[9999] bg-[#f9f9f9]/90 backdrop-blur-2xl text-black px-6 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] text-[15px] font-semibold animate-pop-in border border-black/5 pointer-events-none tracking-tight">
+          {toastMessage}
+        </div>
+      )}
+
+      {/* Confirmation Modal (iOS Style) */}
+      {confirmAction && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#f2f2f2]/95 backdrop-blur-2xl rounded-[14px] shadow-2xl w-full max-w-[270px] flex flex-col overflow-hidden animate-pop-in text-center border border-white/20">
+            <div className="px-4 pt-5 pb-4">
+              <h3 className="text-[17px] font-semibold text-black tracking-tight">{confirmAction.title}</h3>
+              <p className="text-[13px] text-black/70 leading-snug mt-1 px-1">{confirmAction.description}</p>
+            </div>
+            <div className="flex border-t border-black/10 h-[44px]">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="flex-1 text-[17px] font-normal text-[#007AFF] hover:bg-black/5 active:bg-black/10 transition-colors border-r border-black/10"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAction.onConfirm}
+                className={`flex-1 text-[17px] font-semibold hover:bg-black/5 active:bg-black/10 transition-colors ${confirmAction.isDestructive ? 'text-[#FF3B30]' : 'text-[#007AFF]'}`}
+              >
+                {confirmAction.confirmText || 'Confirm'}
               </button>
             </div>
           </div>

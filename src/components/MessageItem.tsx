@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase';
 import { Edit2, Trash2, X, Check, Pin, Plus, CheckCheck, CheckSquare } from 'lucide-react';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { User } from 'firebase/auth';
+import CustomAudioPlayer from './CustomAudioPlayer';
 
 const formatMessageText = (text: string) => {
   if (!text) return text;
@@ -76,6 +77,7 @@ interface MessageItemProps {
   searchQuery?: string;
   isPinned?: boolean;
   onPinToggle?: () => void;
+  autoPreloadAudio?: boolean;
 }
 
 const formatTime = (timestamp: Timestamp | number | Date | any) => {
@@ -90,7 +92,8 @@ const formatTime = (timestamp: Timestamp | number | Date | any) => {
 
 export const MessageItemComponent = function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose, otherEmail, selectionMode = false, isSelected = false, onToggleSelect,
     isPinned = false,
-    onPinToggle
+    onPinToggle,
+    autoPreloadAudio = false
   }: MessageItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -836,6 +839,15 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
               );
             })()}
             
+            {message.audioUrl && !message.isDeletedForEveryone && (
+              <div className={`mt-1 mb-1 relative z-10 w-[240px] ${shouldMask ? 'blur-[3.5px] opacity-60 select-none' : ''}`}>
+                <CustomAudioPlayer 
+                  src={message.audioUrl}
+                  autoPreload={autoPreloadAudio}
+                />
+              </div>
+            )}
+
             <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''} ${shouldMask ? 'blur-[3.5px] opacity-60 select-none' : ''}`}>
               {message.isDeletedForEveryone ? (
                 <>
@@ -856,11 +868,21 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
                   {message.editedAt ? formatTime(message.editedAt) : formatTime(message.createdAt)}
                 </span>
                 {isMine && (
-                  <div className="flex items-center ml-1 space-x-0.5 opacity-90">
+                  <div className="flex items-center ml-1.5 opacity-90">
                     {message.seen ? (
-                      <CheckCheck size={14} className={(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'text-[#34B7F1] drop-shadow-sm' : 'text-[#34B7F1]'} strokeWidth={2.5} />
+                      <div className="flex items-center">
+                        <div className="flex items-center space-x-[3px] mr-1.5">
+                          <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-green-400 drop-shadow-sm' : 'bg-green-500'}`}></div>
+                          <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-green-400 drop-shadow-sm' : 'bg-green-500'}`}></div>
+                        </div>
+                        {message.seenAt && (
+                          <span className={`text-[10px] font-semibold tracking-tight ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'text-blue-300 drop-shadow-sm' : 'text-blue-500'}`}>
+                            {formatTime(message.seenAt)}
+                          </span>
+                        )}
+                      </div>
                     ) : (
-                      <Check size={13} className={(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'text-[#25D366] drop-shadow-sm' : 'text-[#25D366]'} strokeWidth={2.5} />
+                      <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-green-400 drop-shadow-sm' : 'bg-green-500'}`}></div>
                     )}
                   </div>
                 )}

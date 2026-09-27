@@ -28,18 +28,23 @@ service cloud.firestore {
         );
         
         allow create: if isAuthorizedUser()
-                      && request.resource.data.keys().hasAll(['text', 'senderId', 'createdAt', 'seen'])
+                      && request.resource.data.keys().hasAll(['senderId', 'createdAt', 'seen'])
                       && request.resource.data.keys().hasOnly([
                            'text', 'senderId', 'createdAt', 'seen',
-                           'imageUrl',
-                           'replyToId', 'replyToText', 'replyToSenderId'
+                           'imageUrl', 'imageUrls', 'audioUrl',
+                           'replyToId', 'replyToText', 'replyToSenderId',
+                           'isDeletedForEveryone', 'isEdited'
                          ])
                       && request.resource.data.senderId == request.auth.uid
                       && request.resource.data.createdAt == request.time
                       && request.resource.data.seen == false
-                      && request.resource.data.text is string
-                      && request.resource.data.text.size() <= 2000
+                      && (!('text' in request.resource.data) || request.resource.data.text is string)
+                      && (!('text' in request.resource.data) || request.resource.data.text.size() <= 2000)
                       && (!('imageUrl' in request.resource.data) || request.resource.data.imageUrl is string)
+                      && (!('imageUrls' in request.resource.data) || request.resource.data.imageUrls is list)
+                      && (!('audioUrl' in request.resource.data) || request.resource.data.audioUrl is string)
+                      && (!('isDeletedForEveryone' in request.resource.data) || request.resource.data.isDeletedForEveryone is bool)
+                      && (!('isEdited' in request.resource.data) || request.resource.data.isEdited is bool)
                       && (!('replyToId' in request.resource.data) || (
                            request.resource.data.replyToId is string
                            && request.resource.data.replyToText is string
@@ -85,12 +90,9 @@ service cloud.firestore {
           ) ||
           // Case 5: Sender soft-deletes for everyone
           (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeletedForEveryone', 'text', 'imageUrl', 'replyToId', 'replyToText', 'replyToSenderId'])
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeletedForEveryone'])
             && resource.data.senderId == request.auth.uid
             && request.resource.data.isDeletedForEveryone == true
-            && request.resource.data.text == ""
-            && (!('imageUrl' in request.resource.data))
-            && (!('replyToId' in request.resource.data))
           ) ||
           // Case 6: User adds or removes their own reaction (any emoji allowed)
           (
@@ -114,10 +116,7 @@ service cloud.firestore {
     
     match /users/{userId} {
       allow read: if isAuthorizedUser();
-      allow write: if isAuthorizedUser() && request.auth.uid == userId
-                   && request.resource.data.keys().hasOnly(['email', 'displayName', 'photoURL', 'lastSeen', 'lastLogin', 'uid'])
-                   && (!('displayName' in request.resource.data) || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 100))
-                   && (!('photoURL' in request.resource.data) || (request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 500));
+      allow write: if isAuthorizedUser() && request.auth.uid == userId;
     }
     match /users/{userId}/private/{docId} {
       allow read, write: if request.auth.uid == userId;

@@ -30,13 +30,24 @@ export async function POST(req: Request) {
 
     const timestamp = Math.round(new Date().getTime() / 1000);
     
-    // Cloudinary signature requires alphabetically sorted parameters
-    // 't' (timestamp) comes before 'u' (upload_preset)
-    const signatureString = `timestamp=${timestamp}&upload_preset=Squirrel${apiSecret}`;
+    let body = {};
+    if (req.headers.get('content-type')?.includes('application/json')) {
+      body = await req.json().catch(() => ({}));
+    }
+    const { folder, public_id } = body as any;
+
+    const params: Record<string, string | number> = {
+      timestamp
+    };
+    if (folder) params.folder = folder;
+    if (public_id) params.public_id = public_id;
+
+    const sortedKeys = Object.keys(params).sort();
+    const signatureString = sortedKeys.map(k => `${k}=${params[k]}`).join('&') + apiSecret;
     
     const signature = crypto.createHash('sha1').update(signatureString).digest('hex');
 
-    return NextResponse.json({ timestamp, signature });
+    return NextResponse.json({ timestamp, signature, folder, public_id });
 
   } catch (error) {
     console.error('Error generating signature:', error);

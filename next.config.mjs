@@ -6,10 +6,11 @@ const cspHeader = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval'" : ""} https://apis.google.com https://*.firebaseio.com https://www.gstatic.com https://cdn.jsdelivr.net`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' blob: data: https://www.google.com https://www.gstatic.com https://cdn.jsdelivr.net https://images.unsplash.com https://res.cloudinary.com https://lh3.googleusercontent.com https://hstudio08.github.io",
-  "connect-src 'self' https://cdn.jsdelivr.net https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firestore.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://api.cloudinary.com https://res.cloudinary.com https://*.firebaseapp.com https://apis.google.com https://www.googleapis.com https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com",
+  "img-src 'self' blob: data: https://www.google.com https://www.gstatic.com https://cdn.jsdelivr.net https://images.unsplash.com https://res.cloudinary.com https://lh3.googleusercontent.com https://hstudio08.github.io https://firebasestorage.googleapis.com",
+  "connect-src 'self' https://cdn.jsdelivr.net https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firestore.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://api.cloudinary.com https://res.cloudinary.com https://*.firebaseapp.com https://apis.google.com https://www.googleapis.com https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com https://lh3.googleusercontent.com https://firebasestorage.googleapis.com",
   "frame-src 'self' https://squirrel-4f5a6.firebaseapp.com https://*.firebaseapp.com https://*.firebaseio.com https://apis.google.com",
   "object-src 'none'",
+  "media-src 'self' blob: https://res.cloudinary.com",
   "worker-src 'self' https://www.gstatic.com blob:",
   "base-uri 'self'",
   "form-action 'self'",
@@ -53,7 +54,7 @@ const nextConfig = {
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()',
+            value: 'camera=(self), microphone=(self), geolocation=()',
           },
           {
             key: 'Strict-Transport-Security',

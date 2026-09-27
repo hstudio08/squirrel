@@ -32,6 +32,8 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
+import PermissionsGate from "@/components/PermissionsGate";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -43,6 +45,7 @@ export default function RootLayout({
         
       </head>
       <body className="bg-black text-white overscroll-none">
+        <PermissionsGate />
         {children}
         <script
           dangerouslySetInnerHTML={{

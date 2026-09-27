@@ -1,8 +1,9 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from "firebase/auth";
-import { getFirestore, initializeFirestore, Firestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache } from "firebase/firestore";
+import { getFirestore, initializeFirestore, Firestore, persistentLocalCache } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
+import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -25,13 +26,19 @@ setPersistence(auth, browserLocalPersistence).catch(console.error);
 let db: Firestore;
 try {
   db = initializeFirestore(app, {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    localCache: persistentLocalCache()
   });
 } catch (e) {
   // Fallback to getFirestore if already initialized or error
   db = getFirestore(app);
 }
 const rtdb = getDatabase(app);
+let storage;
+try {
+  storage = getStorage(app);
+} catch (e) {
+  console.error("Storage init failed:", e);
+}
 const googleProvider = new GoogleAuthProvider();
 
 // Force account selection to prevent auto sign-in with the wrong account
@@ -55,4 +62,4 @@ export const getFirebaseMessaging = async () => {
   return null;
 };
 
-export { app, auth, db, rtdb, googleProvider };
+export { app, auth, db, rtdb, storage, googleProvider };

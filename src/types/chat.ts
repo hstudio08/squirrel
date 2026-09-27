@@ -18,4 +18,5 @@ export interface Message {
   reactions?: Record<string, string>;
   imageUrl?: string;
   imageUrls?: string[];
+  audioUrl?: string;
 }
