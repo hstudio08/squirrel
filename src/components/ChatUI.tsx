@@ -973,13 +973,22 @@ export default function ChatUI({ user }: ChatUIProps) {
     setSelectedImageFile(null);
     setIsUploadingImage(true);
     try {
-      const options = {
-        maxSizeMB: 0.5,
-        maxWidthOrHeight: 1080,
-        useWebWorker: true,
-        initialQuality: 0.7
-      };
-      const compressedFile = await imageCompression(file, options);
+      let compressedFile = file;
+      try {
+        const fileToCompress = (!file.type || !file.type.startsWith('image/'))
+          ? new File([file], file.name || 'image.jpeg', { type: file.type || 'image/jpeg' })
+          : file;
+        const options = {
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 1080,
+          useWebWorker: true,
+          initialQuality: 0.7
+        };
+        compressedFile = await imageCompression(fileToCompress, options);
+      } catch (e) {
+        console.warn('Compression failed, using original file', e);
+        compressedFile = file;
+      }
 
       const idToken = await user.getIdToken();
       const sigRes = await fetch('/api/upload-signature', {
@@ -1272,13 +1281,22 @@ export default function ChatUI({ user }: ChatUIProps) {
 
         const idToken = await user.getIdToken();
         const uploadPromises = imagesToUpload.map(async (file) => {
-          const options = {
-            maxSizeMB: 0.5,
-            maxWidthOrHeight: 1080,
-            useWebWorker: true,
-            initialQuality: 0.7
-          };
-          const compressedFile = await imageCompression(file, options);
+          let compressedFile = file;
+          try {
+            const fileToCompress = (!file.type || !file.type.startsWith('image/'))
+              ? new File([file], file.name || 'image.jpeg', { type: file.type || 'image/jpeg' })
+              : file;
+            const options = {
+              maxSizeMB: 0.5,
+              maxWidthOrHeight: 1080,
+              useWebWorker: true,
+              initialQuality: 0.7
+            };
+            compressedFile = await imageCompression(fileToCompress, options);
+          } catch (e) {
+            console.warn('Compression failed, using original file', e);
+            compressedFile = file;
+          }
 
           const sigRes = await fetch('/api/upload-signature', {
             method: 'POST',
