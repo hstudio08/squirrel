@@ -34,13 +34,14 @@ export async function POST(req: Request) {
     if (req.headers.get('content-type')?.includes('application/json')) {
       body = await req.json().catch(() => ({}));
     }
-    const { folder, public_id } = body as any;
+    const { folder, public_id, upload_preset } = body as any;
 
     const params: Record<string, string | number> = {
       timestamp
     };
     if (folder) params.folder = folder;
     if (public_id) params.public_id = public_id;
+    if (upload_preset) params.upload_preset = upload_preset;
 
     const sortedKeys = Object.keys(params).sort();
     const signatureString = sortedKeys.map(k => `${k}=${params[k]}`).join('&') + apiSecret;

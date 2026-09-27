@@ -245,8 +245,10 @@ export default function SettingsPage() {
       const sigRes = await fetch('/api/upload-signature', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${idToken}`
-        }
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ upload_preset: 'Squirrel' })
       });
       if (!sigRes.ok) throw new Error('Failed to get upload signature');
       const { timestamp, signature } = await sigRes.json();
@@ -287,10 +289,10 @@ export default function SettingsPage() {
     if (!user) return;
     try {
       setUploading(true);
-      await updateProfile(user, { photoURL: null });
-      await updateDoc(doc(db, 'users', user.uid), { photoURL: null });
+      await updateProfile(user, { photoURL: "" });
+      await updateDoc(doc(db, 'users', user.uid), { photoURL: "" });
       
-      setUser({ ...user, photoURL: null } as User);
+      setUser({ ...user, photoURL: "" } as User);
     } catch (error) {
       console.error('Error deleting profile picture:', error);
       alert('Failed to delete profile picture.');

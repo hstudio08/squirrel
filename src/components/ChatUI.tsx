@@ -985,8 +985,10 @@ export default function ChatUI({ user }: ChatUIProps) {
       const sigRes = await fetch('/api/upload-signature', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${idToken}`
-        }
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ upload_preset: 'Squirrel' })
       });
       if (!sigRes.ok) throw new Error('Failed to get upload signature');
       const { timestamp, signature } = await sigRes.json();
@@ -1281,8 +1283,10 @@ export default function ChatUI({ user }: ChatUIProps) {
           const sigRes = await fetch('/api/upload-signature', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${idToken}`
-            }
+              'Authorization': `Bearer ${idToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ upload_preset: 'Squirrel' })
           });
           if (!sigRes.ok) throw new Error('Failed to get upload signature');
           const { timestamp, signature } = await sigRes.json();
