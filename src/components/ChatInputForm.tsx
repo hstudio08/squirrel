@@ -24,6 +24,7 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const prevTextLengthRef = useRef(0);
 
     // Voice Recording State
     const [isRecording, setIsRecording] = useState(false);
@@ -64,17 +65,23 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
       };
     }, []);
 
-    const adjustTextareaHeight = () => {
+    const adjustTextareaHeight = (newText: string) => {
       const textarea = textareaRef.current;
       if (textarea) {
-        textarea.style.height = 'auto';
-        textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+        requestAnimationFrame(() => {
+          if (newText.length < prevTextLengthRef.current || newText === '') {
+            textarea.style.height = 'auto';
+          }
+          textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+          prevTextLengthRef.current = newText.length;
+        });
       }
     };
 
     const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setText(e.target.value);
-      adjustTextareaHeight();
+      const newVal = e.target.value;
+      setText(newVal);
+      adjustTextareaHeight(newVal);
       updateTypingStatus(true);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
@@ -83,8 +90,11 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
     };
 
     const onEmojiClick = (emojiData: EmojiClickData) => {
-      setText(prev => prev + emojiData.emoji);
-      adjustTextareaHeight();
+      setText(prev => {
+        const newVal = prev + emojiData.emoji;
+        adjustTextareaHeight(newVal);
+        return newVal;
+      });
       updateTypingStatus(true);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
@@ -97,6 +107,7 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
       if ((text.trim() || pastedImagesLength > 0) && !isSending) {
         onSend(undefined, text);
         setText('');
+        prevTextLengthRef.current = 0;
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto';
         }
