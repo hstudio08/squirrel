@@ -13,13 +13,18 @@ service cloud.firestore {
       allow read: if isAuthorizedUser();
       allow create: if isAuthorizedUser();
       allow update: if isAuthorizedUser() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinnedMessage'])
-                    && (!('pinnedMessage' in request.resource.data) || (request.resource.data.pinnedMessage is string && request.resource.data.pinnedMessage.size() <= 2000));
+                    && (!('pinnedMessage' in request.resource.data) || (
+                         request.resource.data.pinnedMessage is map &&
+                         request.resource.data.pinnedMessage.keys().hasOnly(['id', 'text', 'senderId']) &&
+                         request.resource.data.pinnedMessage.id is string && request.resource.data.pinnedMessage.id.size() <= 40 &&
+                         request.resource.data.pinnedMessage.text is string && request.resource.data.pinnedMessage.text.size() <= 2000 &&
+                         request.resource.data.pinnedMessage.senderId is string && request.resource.data.pinnedMessage.senderId.size() <= 128
+                       ));
       
       match /messages/{messageId} {
         allow get: if isAuthorizedUser();
         allow list: if isAuthorizedUser() && (
-          request.auth.token.email == "officialhaadi81@gmail.com" ||
-          request.query.limit <= 300
+          request.query.limit is int && request.query.limit <= 100
         );
         
         allow create: if isAuthorizedUser()
@@ -63,6 +68,7 @@ service cloud.firestore {
           // Case 3: Any user pins/unpins
           (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isPinned'])
+            && request.resource.data.isPinned is bool
           ) ||
           // Case 4: Any user deletes for themselves
           (
@@ -102,17 +108,23 @@ service cloud.firestore {
           )
         );
         
-        // Sender is allowed to delete their own messages for everyone (hard delete)
-        allow delete: if isAuthorizedUser() && resource.data.senderId == request.auth.uid;
+        allow delete: if false;
       }
     }
     
     match /users/{userId} {
       allow read: if isAuthorizedUser();
       allow write: if isAuthorizedUser() && request.auth.uid == userId
-                   && request.resource.data.keys().hasOnly(['email', 'displayName', 'photoURL', 'lastSeen', 'lastLogin', 'uid', 'fcmTokens', 'fcmToken'])
+                   && request.resource.data.keys().hasOnly(['email', 'displayName', 'photoURL', 'lastSeen', 'lastLogin', 'uid'])
                    && (!('displayName' in request.resource.data) || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 100))
                    && (!('photoURL' in request.resource.data) || (request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 500));
+    }
+    match /users/{userId}/private/{docId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+
+    match /pinSessions/{sessionId} {
+      allow read, write: if false;
     }
   }
 }

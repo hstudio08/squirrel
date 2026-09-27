@@ -1,20 +1,20 @@
 'use client';
 import { getToken } from 'firebase/messaging';
 import { getFirebaseMessaging } from '@/lib/firebase';
-
+import imageCompression from 'browser-image-compression';
 
 import React, { useState, useEffect, useRef, useLayoutEffect, FormEvent, useMemo } from 'react';
 import { User } from 'firebase/auth';
 import { db, rtdb } from '@/lib/firebase';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  orderBy, 
-  limit as firestoreLimit, 
-  onSnapshot, 
-  addDoc, 
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  limit as firestoreLimit,
+  onSnapshot,
+  addDoc,
   serverTimestamp,
   writeBatch,
   doc,
@@ -22,16 +22,20 @@ import {
   arrayUnion,
   getCountFromServer,
   deleteField,
-  setDoc } from 'firebase/firestore';
+  setDoc,
+  startAfter,
+  getDoc
+} from 'firebase/firestore';
 import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, ChevronUp, Search, Pin, Camera, MoreVertical, RotateCcw, Clock, CheckSquare } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, ChevronUp, Search, Pin, Camera, MoreVertical, RotateCcw, Clock, CheckSquare, Lock, Plus } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import ImageEditor from './ImageEditor';
+import MultiImagePreviewModal from './MultiImagePreviewModal';
 import CameraCapture from './CameraCapture';
-import imageCompression from 'browser-image-compression';
+import { ChatInputForm } from './ChatInputForm';
 
 interface ChatUIProps {
   user: User;
@@ -94,7 +98,7 @@ const secureCache = {
       const text = JSON.stringify(data);
       const encoded = encodeURIComponent(text);
       let xored = '';
-      for(let i=0; i<encoded.length; i++) {
+      for (let i = 0; i < encoded.length; i++) {
         xored += String.fromCharCode(encoded.charCodeAt(i) ^ secret.charCodeAt(i % secret.length));
       }
       localStorage.setItem(key, btoa(xored));
@@ -103,14 +107,14 @@ const secureCache = {
   get: (key: string, secret: string) => {
     try {
       const cached = localStorage.getItem(key);
-      if(!cached) return null;
+      if (!cached) return null;
       const xored = atob(cached);
       let decoded = '';
-      for(let i=0; i<xored.length; i++) {
+      for (let i = 0; i < xored.length; i++) {
         decoded += String.fromCharCode(xored.charCodeAt(i) ^ secret.charCodeAt(i % secret.length));
       }
       return JSON.parse(decodeURIComponent(decoded));
-    } catch(e) {
+    } catch (e) {
       return null;
     }
   }
@@ -119,24 +123,24 @@ const secureCache = {
 const PurePrivacyCurtain = ({ onClose }: { onClose: () => void }) => {
   const [curHeight, setCurHeight] = useState<number | null>(null);
   const [swipeX, setSwipeX] = useState(0);
-  
+
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
     const startY = e.clientY;
     const startHeight = curHeight || (window.innerHeight - 150);
-    
+
     const onMove = (moveEvent: PointerEvent) => {
       moveEvent.preventDefault();
       const deltaY = moveEvent.clientY - startY;
       const newHeight = Math.min(window.innerHeight, Math.max(100, startHeight + deltaY));
       setCurHeight(newHeight);
     };
-    
+
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-    
+
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
   };
@@ -144,14 +148,14 @@ const PurePrivacyCurtain = ({ onClose }: { onClose: () => void }) => {
   const handleTextPointerDown = (e: React.PointerEvent) => {
     if (!e.isPrimary) return;
     const startX = e.clientX;
-    
+
     const onMove = (moveEvent: PointerEvent) => {
       const deltaX = moveEvent.clientX - startX;
       if (deltaX > 0) {
         setSwipeX(deltaX);
       }
     };
-    
+
     const onUp = (upEvent: PointerEvent) => {
       const finalDeltaX = upEvent.clientX - startX;
       if (finalDeltaX > 100) {
@@ -161,18 +165,18 @@ const PurePrivacyCurtain = ({ onClose }: { onClose: () => void }) => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-    
+
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
   };
-  
+
   return (
-    <div 
+    <div
       className="fixed top-0 left-0 right-0 bg-black z-[100] flex flex-col shadow-2xl transition-none"
       style={{ height: curHeight !== null ? `${curHeight}px` : 'calc(100vh - 150px)', touchAction: 'none' }}
     >
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none overflow-hidden pb-12">
-        <div 
+        <div
           className="flex flex-col items-center cursor-grab active:cursor-grabbing pointer-events-auto transition-transform"
           onPointerDown={handleTextPointerDown}
           style={{ transform: `translateX(${swipeX}px)`, opacity: Math.max(0, 1 - swipeX / 150) }}
@@ -186,7 +190,7 @@ const PurePrivacyCurtain = ({ onClose }: { onClose: () => void }) => {
         </div>
       </div>
       <div className="flex-1 pointer-events-none" />
-      <div 
+      <div
         className="w-full h-24 cursor-ns-resize flex items-center justify-center bg-zinc-900 border-t border-zinc-700 relative z-10 hover:bg-zinc-800 transition-colors shadow-[0_-4px_10px_rgba(0,0,0,0.5)] shrink-0"
         onPointerDown={handlePointerDown}
       >
@@ -203,29 +207,36 @@ const PurePrivacyCurtain = ({ onClose }: { onClose: () => void }) => {
 export default function ChatUI({ user }: ChatUIProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
-  const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
-  const [messageLimit, setMessageLimit] = useState(30);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [loadedCount, setLoadedCount] = useState(10);
+  const [sessionId, setSessionId] = useState('');
+  const [pinUnlockedThisSession, setPinUnlockedThisSession] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinValue, setPinValue] = useState('');
+  const [generatedPin, setGeneratedPin] = useState<string | null>(null);
+  const [pinError, setPinError] = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-    const [showCamera, setShowCamera] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [pastedImages, setPastedImages] = useState<File[]>([]);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [pinnedMessage, setPinnedMessage] = useState<{ id: string; text: string; senderId: string } | null>(null);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [showUnpinConfirm, setShowUnpinConfirm] = useState(false);
   const [showPinError, setShowPinError] = useState(false);
-  
+  const [uploadingImages, setUploadingImages] = useState<{urls: string[], text: string} | null>(null);
 
   const chatId = 'private-chat';
   const otherEmail = user.email === 'sadiyaayoub22019@gmail.com' ? 'officialhaadi81@gmail.com' : 'sadiyaayoub22019@gmail.com';
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const emojiPickerRef = useRef<HTMLDivElement>(null);
-  
+  const chatInputRef = useRef<any>(null);
+
   const initialLoadDone = useRef(false);
   const newestMsgTimeRef = useRef<number>(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -248,8 +259,8 @@ export default function ChatUI({ user }: ChatUIProps) {
         // The user wants to "remain at the top of the loaded chats", meaning they 
         // want to see the oldest message in the newly loaded batch.
         // We can just scroll to the very top (or near top so they don't immediately hit the button).
-        scrollContainerRef.current.scrollTop = 10; 
-        
+        scrollContainerRef.current.scrollTop = 10;
+
         prevScrollHeightRef.current = 0;
         shouldScrollToTopAfterLoad.current = false;
       }
@@ -257,12 +268,12 @@ export default function ChatUI({ user }: ChatUIProps) {
   }, [messages]);
 
   const [otherUserName, setOtherUserName] = useState<string>('');
-  const [otherUserStatus, setOtherUserStatus] = useState<{state: string, last_changed: number} | null>(null);
+  const [otherUserStatus, setOtherUserStatus] = useState<{ state: string, last_changed: number } | null>(null);
   const [otherUid, setOtherUid] = useState<string | null>(null);
   const [privacyMode, setPrivacyMode] = useState<'none' | 'blur' | 'pure'>('none');
   const [revealedMessages, setRevealedMessages] = useState<string[]>([]);
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
-    const [showSearch, setShowSearch] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<string[]>([]);
   const [currentSearchIndex, setCurrentSearchIndex] = useState(-1);
@@ -277,19 +288,31 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [isClientOffline, setIsClientOffline] = useState(false);
   const [hideOfflineBanner, setHideOfflineBanner] = useState(false);
-  
 
-  
+
+
   useEffect(() => {
     const handleOffline = () => {
       setIsClientOffline(true);
       setHideOfflineBanner(false);
     };
     const handleOnline = () => setIsClientOffline(false);
-    
+
     setIsClientOffline(typeof navigator !== 'undefined' && !navigator.onLine);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
+
+    let sid = sessionStorage.getItem('pin_session_id');
+    if (!sid) {
+      sid = crypto.randomUUID();
+      sessionStorage.setItem('pin_session_id', sid);
+    }
+    setSessionId(sid);
+
+    if (sessionStorage.getItem('pin_unlocked') === 'true') {
+      setPinUnlockedThisSession(true);
+    }
+
     return () => {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
@@ -304,7 +327,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       if (scrollContainerRef.current) {
         const target = scrollContainerRef.current;
         const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
-        
+
         // If user hasn't scrolled up more than roughly a page, keep them at the bottom
         // when the keyboard resizes the viewport
         if (scrollBottom <= target.clientHeight + 150) {
@@ -312,7 +335,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         }
       }
     };
-    
+
     window.visualViewport.addEventListener('resize', handleViewportResize);
     return () => window.visualViewport?.removeEventListener('resize', handleViewportResize);
   }, []);
@@ -321,7 +344,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTypingWriteRef = useRef<number>(0); // throttle RTDB writes
 
-  
+
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -332,7 +355,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     const results = messages
       .filter(msg => msg.text?.toLowerCase().includes(query))
       .map(msg => msg.id);
-    
+
     setSearchResults(results);
     if (results.length > 0) {
       setCurrentSearchIndex(results.length - 1);
@@ -430,7 +453,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     if (!user) return;
     const myStatusRef = ref(rtdb, `/status/${user.uid}`);
     const connectedRef = ref(rtdb, '.info/connected');
-    
+
     const unsubscribe = onValue(connectedRef, (snap) => {
       if (snap.val() === true) {
         onDisconnect(myStatusRef).set({ state: 'offline', last_changed: rtdbServerTimestamp() }).then(() => {
@@ -469,14 +492,14 @@ export default function ChatUI({ user }: ChatUIProps) {
     return () => unsubscribe();
   }, [otherUid]);
 
-    
-  
+
+
   useEffect(() => {
     const setupNotifications = async () => {
       try {
         // Ensure user record exists with email for querying
         if (user.email) {
-          await setDoc(doc(db, 'users', user.uid), { 
+          await setDoc(doc(db, 'users', user.uid), {
             email: user.email,
             displayName: user.displayName || user.email.split('@')[0],
             uid: user.uid
@@ -487,14 +510,16 @@ export default function ChatUI({ user }: ChatUIProps) {
         if (permission === 'granted') {
           const messaging = await getFirebaseMessaging();
           if (messaging) {
-            
+
             const registration = await navigator.serviceWorker.register('/sw.js');
-            const token = await getToken(messaging, { 
+            const token = await getToken(messaging, {
               vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-              serviceWorkerRegistration: registration 
+              serviceWorkerRegistration: registration
             });
             if (token) {
-              await setDoc(doc(db, 'users', user.uid), { fcmTokens: arrayUnion(token) }, { merge: true });
+              await setDoc(doc(db, "users", user.uid, "private", "tokens"), {
+                fcmTokens: arrayUnion(token)
+              }, { merge: true });
             }
           }
         }
@@ -515,13 +540,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Element;
-      
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(target as Node)) {
-        if (!target.closest('#emoji-toggle-btn')) {
-          setShowEmojiPicker(false);
-        }
-      }
-      
+
       if (menuRef.current && !menuRef.current.contains(target as Node)) {
         if (!target.closest('#menu-toggle-btn')) {
           setShowMenu(false);
@@ -538,7 +557,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
   useEffect(() => {
     const myTypingRef = ref(rtdb, `typingStatus/${chatId}/${user.uid}`);
-    onDisconnect(myTypingRef).set(false).catch(() => {});
+    onDisconnect(myTypingRef).set(false).catch(() => { });
 
     const chatTypingRef = ref(rtdb, `typingStatus/${chatId}`);
     const unsubscribeTyping = onValue(chatTypingRef, (snapshot) => {
@@ -558,7 +577,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     });
 
     return () => {
-      set(myTypingRef, false).catch(() => {});
+      set(myTypingRef, false).catch(() => { });
       unsubscribeTyping();
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
@@ -579,24 +598,6 @@ export default function ChatUI({ user }: ChatUIProps) {
     set(myTypingRef, typing).catch(err => console.error("Typing status error", err));
   };
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newText = e.target.value;
-    setText(newText);
-    adjustTextareaHeight();
-
-    if (newText.length > 0) {
-      updateTypingStatus(true);
-      // Reset the stop-typing timer
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => {
-        updateTypingStatus(false);
-      }, 2000); // stop indicator after 2s of silence
-    } else {
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      updateTypingStatus(false);
-    }
-  };
-
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -607,150 +608,151 @@ export default function ChatUI({ user }: ChatUIProps) {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
-    useEffect(() => {
-      if (!user?.uid) return;
-      
-      const convUnsub = onSnapshot(doc(db, 'conversations', chatId), (docSnap) => {
-        if (docSnap.exists()) {
-          setPinnedMessage(docSnap.data().pinnedMessage || null);
-        }
-      });
-      
-      const cacheKey = `sq_c_${chatId}_${user.uid}`;
+  useEffect(() => {
+    if (!user?.uid) return;
 
-      // ΓöÇΓöÇ STEP 1: Paint cached messages INSTANTLY (zero Firestore reads) ΓöÇΓöÇ
-      if (!initialLoadDone.current) {
-        const cached = secureCache.get(cacheKey, user.uid);
-        if (cached && Array.isArray(cached) && cached.length > 0) {
-          setMessages(cached);
-          setIsLoadingMessages(false);
-          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
+    const convUnsub = onSnapshot(doc(db, 'conversations', chatId), (docSnap) => {
+      if (docSnap.exists()) {
+        setPinnedMessage(docSnap.data().pinnedMessage || null);
+      }
+    });
+
+    const cacheKey = `sq_c_${chatId}_${user.uid}`;
+
+    // ΓöÇΓöÇ STEP 1: Paint cached messages INSTANTLY (zero Firestore reads) ΓöÇΓöÇ
+    if (!initialLoadDone.current) {
+      const cached = secureCache.get(cacheKey, user.uid);
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setMessages(cached);
+        setLoadedCount(Math.max(10, cached.length));
+        setIsLoadingMessages(false);
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
+      }
+    }
+
+    // ΓöÇΓöÇ STEP 2: Live Firestore subscription (only last 10 messages) ΓöÇΓöÇ
+    const q = query(
+      collection(db, `conversations/${chatId}/messages`),
+      orderBy('createdAt', 'desc'),
+      firestoreLimit(10)
+    );
+
+    let isFirstSnapshot = true;
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedMessages: Message[] = [];
+      const batch = writeBatch(db);
+      let hasUnseen = false;
+
+      // Process sound/scroll for truly new incoming messages
+      if (initialLoadDone.current && !isFirstSnapshot) {
+        let shouldScroll = false;
+        let isNearBottom = true;
+        if (scrollContainerRef.current) {
+          const { scrollHeight, scrollTop, clientHeight } = scrollContainerRef.current;
+          isNearBottom = scrollHeight - scrollTop - clientHeight < 250;
+        }
+
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const newMsg = change.doc.data();
+            let msgTime = 0;
+            if (newMsg.createdAt) {
+              if (newMsg.createdAt.toMillis) msgTime = newMsg.createdAt.toMillis();
+              else if (newMsg.createdAt.seconds) msgTime = newMsg.createdAt.seconds * 1000;
+              else if (typeof newMsg.createdAt === 'number') msgTime = newMsg.createdAt;
+            }
+            if (msgTime > newestMsgTimeRef.current) {
+              if (newMsg.senderId === user.uid || isNearBottom) shouldScroll = true;
+              if (newMsg.senderId !== user.uid) {
+                let isTrulyNew = false;
+                if (!newMsg.createdAt) {
+                  isTrulyNew = true;
+                } else {
+                  const msgDate = newMsg.createdAt.toDate ? newMsg.createdAt.toDate() : new Date(typeof newMsg.createdAt === 'number' ? newMsg.createdAt : newMsg.createdAt.seconds * 1000);
+                  if (Date.now() - msgDate.getTime() < 10000) isTrulyNew = true;
+                }
+                if (isTrulyNew) playNotificationSound();
+              }
+            }
+          }
+        });
+
+        if (shouldScroll) {
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         }
       }
 
-      // ΓöÇΓöÇ STEP 2: Live Firestore subscription (only last 10 messages) ΓöÇΓöÇ
-      const q = query(
-        collection(db, `conversations/${chatId}/messages`),
-        orderBy('createdAt', 'desc'),
-        firestoreLimit(messageLimit)
-      );
-  
-      let isFirstSnapshot = true;
-  
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const fetchedMessages: Message[] = [];
-        const batch = writeBatch(db);
-        let hasUnseen = false;
+      // Build live message list
+      snapshot.forEach((msgDoc) => {
+        const data = msgDoc.data();
+        fetchedMessages.push({ id: msgDoc.id, ...data } as Message);
 
-        // Process sound/scroll for truly new incoming messages
-        if (initialLoadDone.current && !isFirstSnapshot) {
-          let shouldScroll = false;
-          let isNearBottom = true;
-          if (scrollContainerRef.current) {
-            const { scrollHeight, scrollTop, clientHeight } = scrollContainerRef.current;
-            isNearBottom = scrollHeight - scrollTop - clientHeight < 250;
-          }
-
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === 'added') {
-              const newMsg = change.doc.data();
-              let msgTime = 0;
-              if (newMsg.createdAt) {
-                if (newMsg.createdAt.toMillis) msgTime = newMsg.createdAt.toMillis();
-                else if (newMsg.createdAt.seconds) msgTime = newMsg.createdAt.seconds * 1000;
-                else if (typeof newMsg.createdAt === 'number') msgTime = newMsg.createdAt;
-              }
-              if (msgTime > newestMsgTimeRef.current) {
-                if (newMsg.senderId === user.uid || isNearBottom) shouldScroll = true;
-                if (newMsg.senderId !== user.uid) {
-                  let isTrulyNew = false;
-                  if (!newMsg.createdAt) {
-                    isTrulyNew = true;
-                  } else {
-                    const msgDate = newMsg.createdAt.toDate ? newMsg.createdAt.toDate() : new Date(typeof newMsg.createdAt === 'number' ? newMsg.createdAt : newMsg.createdAt.seconds * 1000);
-                    if (Date.now() - msgDate.getTime() < 10000) isTrulyNew = true;
-                  }
-                  if (isTrulyNew) playNotificationSound();
-                }
-              }
-            }
-          });
-          
-          if (shouldScroll) {
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-          }
+        let time = 0;
+        if (data.createdAt) {
+          if (data.createdAt.toMillis) time = data.createdAt.toMillis();
+          else if (data.createdAt.seconds) time = data.createdAt.seconds * 1000;
+          else if (typeof data.createdAt === 'number') time = data.createdAt;
         }
-  
-        // Build live message list
-        snapshot.forEach((msgDoc) => {
-          const data = msgDoc.data();
-          fetchedMessages.push({ id: msgDoc.id, ...data } as Message);
-          
-          let time = 0;
-          if (data.createdAt) {
-            if (data.createdAt.toMillis) time = data.createdAt.toMillis();
-            else if (data.createdAt.seconds) time = data.createdAt.seconds * 1000;
-            else if (typeof data.createdAt === 'number') time = data.createdAt;
-          }
-          if (time > newestMsgTimeRef.current) newestMsgTimeRef.current = time;
+        if (time > newestMsgTimeRef.current) newestMsgTimeRef.current = time;
 
-          if (data.senderId !== user.uid && !data.seen && document.visibilityState === 'visible') {
-            batch.update(doc(db, 'conversations', chatId, 'messages', msgDoc.id), { seen: true, seenAt: serverTimestamp() });
-            hasUnseen = true;
-          }
-        });
-        
-        if (hasUnseen) batch.commit().catch(e => console.error('Failed to mark seen', e));
-  
-        const liveMessages = fetchedMessages.reverse();
-
-        // ΓöÇΓöÇ STEP 3: Merge live data with cached older messages ΓöÇΓöÇ
-        setMessages(prev => {
-          const mergedMap = new Map<string, Message>();
-          // Put cached older messages in first
-          prev.forEach(m => mergedMap.set(m.id, m));
-          // Overwrite/add live messages (handles edits, deletes, reactions)
-          liveMessages.forEach(m => mergedMap.set(m.id, m));
-          
-          const merged = Array.from(mergedMap.values()).sort((a, b) => {
-            const tA = (a.createdAt as any)?.seconds ? (a.createdAt as any).seconds * 1000 : (typeof a.createdAt === 'number' ? a.createdAt : 0);
-            const tB = (b.createdAt as any)?.seconds ? (b.createdAt as any).seconds * 1000 : (typeof b.createdAt === 'number' ? b.createdAt : 0);
-            return tA - tB;
-          });
-
-          // ΓöÇΓöÇ STEP 4: Persist merged list to cache (serialise Timestamps ΓåÆ ms) ΓöÇΓöÇ
-          setTimeout(() => {
-            try {
-              const toCache = merged.map(m => ({
-                ...m,
-                createdAt: (m.createdAt as any)?.seconds ? (m.createdAt as any).seconds * 1000 : m.createdAt,
-                editedAt: (m.editedAt as any)?.seconds ? (m.editedAt as any).seconds * 1000 : m.editedAt,
-                seenAt: (m.seenAt as any)?.seconds ? (m.seenAt as any).seconds * 1000 : m.seenAt,
-              }));
-              secureCache.set(cacheKey, toCache, user.uid);
-            } catch(_) {}
-          }, 0);
-
-          return merged;
-        });
-
-        setIsLoadingMessages(false);
-        
-        if (!initialLoadDone.current) {
-          initialLoadDone.current = true;
-          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 100);
+        if (data.senderId !== user.uid && !data.seen && document.visibilityState === 'visible') {
+          batch.update(doc(db, 'conversations', chatId, 'messages', msgDoc.id), { seen: true, seenAt: serverTimestamp() });
+          hasUnseen = true;
         }
-        
-        isFirstSnapshot = false;
-      }, (error) => {
-        console.error("Error fetching messages:", error);
       });
-  
-      return () => {
-        unsubscribe();
-        convUnsub();
-      };
-    }, [messageLimit, chatId, user?.uid]);
+
+      if (hasUnseen) batch.commit().catch(e => console.error('Failed to mark seen', e));
+
+      const liveMessages = fetchedMessages.reverse();
+
+      // ΓöÇΓöÇ STEP 3: Merge live data with cached older messages ΓöÇΓöÇ
+      setMessages(prev => {
+        const mergedMap = new Map<string, Message>();
+        // Put cached older messages in first
+        prev.forEach(m => mergedMap.set(m.id, m));
+        // Overwrite/add live messages (handles edits, deletes, reactions)
+        liveMessages.forEach(m => mergedMap.set(m.id, m));
+
+        const merged = Array.from(mergedMap.values()).sort((a, b) => {
+          const tA = (a.createdAt as any)?.seconds ? (a.createdAt as any).seconds * 1000 : (typeof a.createdAt === 'number' ? a.createdAt : 0);
+          const tB = (b.createdAt as any)?.seconds ? (b.createdAt as any).seconds * 1000 : (typeof b.createdAt === 'number' ? b.createdAt : 0);
+          return tA - tB;
+        });
+
+        // ΓöÇΓöÇ STEP 4: Persist merged list to cache (serialise Timestamps ΓåÆ ms) ΓöÇΓöÇ
+        setTimeout(() => {
+          try {
+            const toCache = merged.map(m => ({
+              ...m,
+              createdAt: (m.createdAt as any)?.seconds ? (m.createdAt as any).seconds * 1000 : m.createdAt,
+              editedAt: (m.editedAt as any)?.seconds ? (m.editedAt as any).seconds * 1000 : m.editedAt,
+              seenAt: (m.seenAt as any)?.seconds ? (m.seenAt as any).seconds * 1000 : m.seenAt,
+            }));
+            secureCache.set(cacheKey, toCache, user.uid);
+          } catch (_) { }
+        }, 0);
+
+        return merged;
+      });
+
+      setIsLoadingMessages(false);
+
+      if (!initialLoadDone.current) {
+        initialLoadDone.current = true;
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 100);
+      }
+
+      isFirstSnapshot = false;
+    }, (error) => {
+      console.error("Error fetching messages:", error);
+    });
+
+    return () => {
+      unsubscribe();
+      convUnsub();
+    };
+  }, [chatId, user?.uid]);
 
   const handleToggleSelect = (id: string) => {
     setSelectedMessages(prev => {
@@ -771,7 +773,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     setClearedAt(now);
     localStorage.setItem(`clearedAt_${user.uid}_${chatId}`, now.toString());
     setShowClearConfirm(false);
-      };
+  };
 
   const handleCopySelected = () => {
     const texts = messages.filter(m => selectedMessages.has(m.id)).map(m => m.text).join('\n\n');
@@ -790,7 +792,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         Array.from(selectedMessages).map(id => {
           const docRef = doc(db, `conversations/${chatId}/messages`, id);
           if (forEveryone) {
-            return updateDoc(docRef, { 
+            return updateDoc(docRef, {
               isDeletedForEveryone: true,
               editedAt: rtdbServerTimestamp()
             });
@@ -825,55 +827,86 @@ export default function ChatUI({ user }: ChatUIProps) {
   };
 
 
-  const loadMore = () => {
-    if (scrollContainerRef.current) {
-      prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
-      shouldScrollToTopAfterLoad.current = true;
-      setTimeout(() => {
-        prevScrollHeightRef.current = 0;
-        shouldScrollToTopAfterLoad.current = false;
-      }, 1500); // Failsafe reset
+  const loadMore = async (overridePin = false) => {
+    if (loadedCount >= 100 && !pinUnlockedThisSession && !overridePin) {
+      setShowPinModal(true);
+      return;
     }
-    setMessageLimit(prev => Math.min(prev + 25, 100));
-  };
+    if (isFetchingMore || messages.length === 0) return;
 
-  const adjustTextareaHeight = () => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+    setIsFetchingMore(true);
+    try {
+      if (scrollContainerRef.current) {
+        prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
+        shouldScrollToTopAfterLoad.current = true;
+      }
+
+      const oldestMsg = messages[0];
+      const oldestDocSnap = await getDoc(doc(db, `conversations/${chatId}/messages`, oldestMsg.id));
+
+      const q = query(
+        collection(db, `conversations/${chatId}/messages`),
+        orderBy('createdAt', 'desc'),
+        startAfter(oldestDocSnap),
+        firestoreLimit(10)
+      );
+
+      const snapshot = await getDocs(q);
+      const fetched: Message[] = [];
+      snapshot.forEach(docSnap => {
+        fetched.push({ id: docSnap.id, ...docSnap.data() } as Message);
+      });
+
+      if (fetched.length > 0) {
+        const newOlder = fetched.reverse();
+        setMessages(prev => {
+          const mergedMap = new Map<string, Message>();
+          newOlder.forEach(m => mergedMap.set(m.id, m));
+          prev.forEach(m => mergedMap.set(m.id, m));
+          const merged = Array.from(mergedMap.values());
+
+          setTimeout(() => {
+            try {
+              const toCache = merged.map(m => ({
+                ...m,
+                createdAt: (m.createdAt as any)?.seconds ? (m.createdAt as any).seconds * 1000 : m.createdAt,
+                editedAt: (m.editedAt as any)?.seconds ? (m.editedAt as any).seconds * 1000 : m.editedAt,
+                seenAt: (m.seenAt as any)?.seconds ? (m.seenAt as any).seconds * 1000 : m.seenAt,
+              }));
+              secureCache.set(`sq_c_${chatId}_${user.uid}`, toCache, user.uid);
+            } catch (_) { }
+          }, 0);
+
+          return merged;
+        });
+        setLoadedCount(prev => prev + fetched.length);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsFetchingMore(false);
     }
   };
-
-  const onEmojiClick = (emojiData: EmojiClickData) => {
-    setText(prev => prev + emojiData.emoji);
-    adjustTextareaHeight();
-    updateTypingStatus(true);
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      updateTypingStatus(false);
-    }, 1000);
-  };
-
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setSelectedImageFile(file);
+    if (e.target.files && e.target.files.length > 0) {
+      setPastedImages(prev => [...prev, ...Array.from(e.target.files!)]);
+    }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleSendEditedImage = async (file: File, caption: string) => {
+  const handleSendEditedImage = async (file: File, caption: string = "") => {
     setSelectedImageFile(null);
     setIsUploadingImage(true);
     try {
       const options = {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1920,
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 1080,
         useWebWorker: true,
+        initialQuality: 0.7
       };
       const compressedFile = await imageCompression(file, options);
-      
+
       const idToken = await user.getIdToken();
       const sigRes = await fetch('/api/upload-signature', {
         method: 'POST',
@@ -890,14 +923,14 @@ export default function ChatUI({ user }: ChatUIProps) {
       formData.append('timestamp', timestamp.toString());
       formData.append('upload_preset', 'Squirrel');
       formData.append('signature', signature);
-      
+
       const res = await fetch(`https://api.cloudinary.com/v1_1/wusvh42x/image/upload`, {
         method: 'POST',
         body: formData
       });
-      
+
       const data = await res.json();
-      
+
       if (data.secure_url) {
         const newMessageData: any = {
           senderId: user.uid,
@@ -913,14 +946,14 @@ export default function ChatUI({ user }: ChatUIProps) {
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
-                await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
-        
+        await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+
         // Trigger notification to the other user
         try {
           const idToken = await user.getIdToken();
           fetch('/api/notify', {
             method: 'POST',
-            headers: { 
+            headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${idToken}`
             },
@@ -946,10 +979,10 @@ export default function ChatUI({ user }: ChatUIProps) {
   const isSameDay = (d1: any, d2: any) => {
     if (!d1 || !d2) return false;
     const date1 = d1.toDate ? d1.toDate() : new Date(typeof d1 === 'number' ? d1 : d1.seconds ? d1.seconds * 1000 : d1);
-      const date2 = d2.toDate ? d2.toDate() : new Date(typeof d2 === 'number' ? d2 : d2.seconds ? d2.seconds * 1000 : d2);
+    const date2 = d2.toDate ? d2.toDate() : new Date(typeof d2 === 'number' ? d2 : d2.seconds ? d2.seconds * 1000 : d2);
     return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate();
   };
 
   const formatDateSeparator = (d: any) => {
@@ -958,7 +991,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     if (isSameDay(date, today)) return 'TODAY';
     if (isSameDay(date, yesterday)) return 'YESTERDAY';
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
@@ -1013,11 +1046,11 @@ export default function ChatUI({ user }: ChatUIProps) {
     if (pinSwipeStartRef.current === null || !pinBannerRef.current) return;
     const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
     const diff = clientX - pinSwipeStartRef.current;
-    
+
     if (Math.abs(diff) > 10) {
       pinSwipeDraggingRef.current = true;
     }
-    
+
     // Allow sliding only left (diff < 0)
     if (diff < 0) {
       // Add a slight resistance curve
@@ -1029,13 +1062,13 @@ export default function ChatUI({ user }: ChatUIProps) {
 
   const handlePinTouchEnd = () => {
     if (pinSwipeStartRef.current === null || !pinBannerRef.current) return;
-    
+
     const transform = pinBannerRef.current.style.transform;
     const match = transform.match(/translateX\(([-\d.]+)px\)/);
     const offset = match ? parseFloat(match[1]) : 0;
-    
+
     pinBannerRef.current.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s ease';
-    
+
     if (offset < -75) {
       pinBannerRef.current.style.transform = `translateX(-120%)`;
       pinBannerRef.current.style.opacity = '0';
@@ -1045,102 +1078,174 @@ export default function ChatUI({ user }: ChatUIProps) {
           pinBannerRef.current.style.transform = 'translateX(0)';
           pinBannerRef.current.style.opacity = '1';
         }
-      }, 500); 
+      }, 500);
     } else {
       pinBannerRef.current.style.transform = 'translateX(0)';
       pinBannerRef.current.style.opacity = '1';
     }
-    
+
     pinSwipeStartRef.current = null;
     setTimeout(() => { pinSwipeDraggingRef.current = false; }, 50);
   };
 
   const handleRevealMessage = (msgId: string) => {
-      setRevealedMessages(prev => {
-        if (prev.includes(msgId)) {
-          return prev.filter(id => id !== msgId);
-        }
-        const newRevealed = [...prev, msgId];
-        if (newRevealed.length > 2) newRevealed.shift();
-        return newRevealed;
-      });
-    };
+    setRevealedMessages(prev => {
+      if (prev.includes(msgId)) {
+        return prev.filter(id => id !== msgId);
+      }
+      const newRevealed = [...prev, msgId];
+      if (newRevealed.length > 2) newRevealed.shift();
+      return newRevealed;
+    });
+  };
 
-  const handleSend = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!text.trim() || text.length > 2000 || isSending) return;
+  const handleSend = async (e?: FormEvent, textToUse: string = '') => {
+    if (e) e.preventDefault();
+    if ((!textToUse.trim() && pastedImages.length === 0) || textToUse.length > 2000 || isSending) return;
 
     setIsSending(true);
-    const messageText = text.trim();
-    setText('');
-    setShowEmojiPicker(false);
-    
+    const messageText = textToUse.trim();
+
     updateTypingStatus(false);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
 
     try {
-      const newMessageData: any = {
-        text: messageText,
-        senderId: user.uid,
-        createdAt: serverTimestamp(),
-        seen: false
-      };
-      
-      if (replyingTo) {
-        newMessageData.replyToId = replyingTo.id;
-        newMessageData.replyToText = replyingTo.text;
-        newMessageData.replyToSenderId = replyingTo.senderId;
-      }
-
-              await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+      if (pastedImages.length > 0) {
+        const imagesToUpload = [...pastedImages];
+        setPastedImages([]);
         
+        // Optimistic UI for uploading
+        const objectUrls = imagesToUpload.map(file => URL.createObjectURL(file));
+        setUploadingImages({ urls: objectUrls, text: messageText });
+
+        const idToken = await user.getIdToken();
+        const uploadPromises = imagesToUpload.map(async (file) => {
+          const options = {
+            maxSizeMB: 0.5,
+            maxWidthOrHeight: 1080,
+            useWebWorker: true,
+            initialQuality: 0.7
+          };
+          const compressedFile = await imageCompression(file, options);
+
+          const sigRes = await fetch('/api/upload-signature', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${idToken}`
+            }
+          });
+          if (!sigRes.ok) throw new Error('Failed to get upload signature');
+          const { timestamp, signature } = await sigRes.json();
+
+          const formData = new FormData();
+          formData.append('file', compressedFile);
+          formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || '');
+          formData.append('timestamp', timestamp.toString());
+          formData.append('upload_preset', 'Squirrel');
+          formData.append('signature', signature);
+
+          const res = await fetch(`https://api.cloudinary.com/v1_1/wusvh42x/image/upload`, {
+            method: 'POST',
+            body: formData
+          });
+
+          const data = await res.json();
+          return data.secure_url as string;
+        });
+
+        const urls = await Promise.all(uploadPromises);
+        const validUrls = urls.filter(Boolean);
+
+        if (validUrls.length > 0) {
+          const newMessageData: any = {
+            senderId: user.uid,
+            text: messageText,
+            imageUrl: validUrls.length === 1 ? validUrls[0] : undefined,
+            imageUrls: validUrls.length > 1 ? validUrls : undefined,
+            createdAt: serverTimestamp(),
+            seen: false
+          };
+
+          if (replyingTo) {
+            newMessageData.replyToId = replyingTo.id;
+            newMessageData.replyToText = replyingTo.text || 'Photo';
+            newMessageData.replyToSenderId = replyingTo.senderId;
+          }
+
+          await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+          
+          try {
+            fetch('/api/notify', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+              },
+              body: JSON.stringify({ receiverUid: otherUid })
+            });
+          } catch (e) {}
+        }
+
+        // Cleanup optimistic UI
+        objectUrls.forEach(url => URL.revokeObjectURL(url));
+        setUploadingImages(null);
+      } else {
+        const newMessageData: any = {
+          text: messageText,
+          senderId: user.uid,
+          createdAt: serverTimestamp(),
+          seen: false
+        };
+
+        if (replyingTo) {
+          newMessageData.replyToId = replyingTo.id;
+          newMessageData.replyToText = replyingTo.text;
+          newMessageData.replyToSenderId = replyingTo.senderId;
+        }
+
+        await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+
         // Trigger notification to the other user
         try {
           const idToken = await user.getIdToken();
           fetch('/api/notify', {
             method: 'POST',
-            headers: { 
+            headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${idToken}`
             },
             body: JSON.stringify({ receiverUid: otherUid })
           });
-        } catch (e) {
-          console.error('Failed to trigger notification', e);
-        }
-      
+        } catch (e) {}
+      }
+
       setReplyingTo(null);
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     } catch (error) {
       console.error("Failed to send message", error);
-      setText(messageText);
-      adjustTextareaHeight();
+      if (chatInputRef.current) chatInputRef.current.setText(messageText);
     } finally {
       setIsSending(false);
     }
   };
 
-
-  const visibleMessages = messages.filter(m => {
-    if (m.deletedFor?.includes(user.uid)) return false;
-    if (!m.createdAt) return true;
-    let time = 0;
-    if (m.createdAt.toDate) {
-      time = m.createdAt.toDate().getTime();
-    } else if (typeof m.createdAt === 'number') {
-      time = m.createdAt;
-    } else if (m.createdAt.seconds) {
-      time = m.createdAt.seconds * 1000;
-    } else {
-      time = new Date(m.createdAt as any).getTime();
-    }
-    return time > clearedAt;
-  });
-
+  const visibleMessages = useMemo(() => {
+    return messages.filter(m => {
+      if (m.deletedFor?.includes(user.uid)) return false;
+      if (!m.createdAt) return true;
+      let time = 0;
+      if (m.createdAt.toDate) {
+        time = m.createdAt.toDate().getTime();
+      } else if (typeof m.createdAt === 'number') {
+        time = m.createdAt;
+      } else if (m.createdAt.seconds) {
+        time = m.createdAt.seconds * 1000;
+      } else {
+        time = new Date(m.createdAt as any).getTime();
+      }
+      return time > clearedAt;
+    });
+  }, [messages, user.uid, clearedAt]);
   useEffect(() => {
     if (!showScrollBottom && visibleMessages.length > 0) {
       setBottomReadMessageId(visibleMessages[visibleMessages.length - 1].id);
@@ -1164,7 +1269,101 @@ export default function ChatUI({ user }: ChatUIProps) {
     return date.toDateString();
   }).filter(Boolean)).size;
 
-    return (
+  const submitPin = async (finalPin: string) => {
+    if (pinLoading) return;
+    setPinLoading(true);
+    setPinError('');
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/pin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ pin: finalPin })
+      });
+      if (res.ok) {
+        setPinUnlockedThisSession(true);
+        sessionStorage.setItem('pin_unlocked', 'true');
+        setShowPinModal(false);
+        setPinValue('');
+        loadMore(true);
+      } else if (res.status === 429) {
+        setPinError('Too many attempts. Try again in 15 minutes.');
+        setPinValue('');
+      } else {
+        setPinError('Invalid PIN');
+        setPinValue('');
+      }
+    } catch (err) {
+      setPinError('Error verifying PIN');
+      setPinValue('');
+    } finally {
+      setPinLoading(false);
+    }
+  };
+
+  const handlePinDigit = (digit: string) => {
+    if (pinValue.length >= 4 || pinLoading) return;
+    const newVal = pinValue + digit;
+    setPinValue(newVal);
+    if (newVal.length === 4) {
+      submitPin(newVal);
+    }
+  };
+
+  const renderedMessages = useMemo(() => {
+    const displayMessages = visibleMessages;
+    let firstUnrepliedId: string | null = null;
+    for (let i = displayMessages.length - 1; i >= 0; i--) {
+      if (displayMessages[i].senderId === user?.uid) break;
+      firstUnrepliedId = displayMessages[i].id;
+    }
+
+    return displayMessages.map((msg, index) => {
+      const showDate = index === 0 || !isSameDay(displayMessages[index - 1].createdAt, msg.createdAt);
+      const isNewSenderGroup = index > 0 && !showDate && displayMessages[index - 1].senderId !== msg.senderId;
+
+      return (
+        <React.Fragment key={msg.id}>
+          {showDate && (
+            <div className="flex justify-center mb-4 mt-2 z-10 relative pointer-events-none">
+              <div className="bg-white/80 backdrop-blur-md text-slate-600 font-medium text-[11px] px-3 py-1 rounded-full shadow-sm border border-black/5 tracking-wide">
+                {formatDateSeparator(msg.createdAt)}
+              </div>
+            </div>
+          )}
+          <div className={isNewSenderGroup ? "mt-2" : ""}>
+            <div id={`msg-${msg.id}`} className={`transition-all duration-300 ${searchResults.includes(msg.id) ? (searchResults[currentSearchIndex] === msg.id ? 'bg-amber-200/40 ring-2 ring-amber-400 rounded-lg shadow-sm px-1 py-1' : 'bg-amber-100/20 rounded-lg px-1 py-1') : ''}`}>
+              <MessageItem searchQuery={searchQuery}
+                message={msg}
+                isMine={msg.senderId === user?.uid}
+                user={user}
+                chatId={chatId}
+                isFirstUnreplied={msg.id === firstUnrepliedId}
+                onReply={() => setReplyingTo(msg)}
+                isAnonymousMode={privacyMode === 'blur'}
+                isLastMessage={index === displayMessages.length - 1}
+                isRevealed={revealedMessages.includes(msg.id)}
+                onReveal={() => handleRevealMessage(msg.id)}
+                isActiveReaction={activeReactionMessageId === msg.id}
+                onReactOpen={() => setActiveReactionMessageId(msg.id)}
+                onReactClose={() => setActiveReactionMessageId(null)}
+                otherEmail={otherEmail}
+                selectionMode={selectionMode}
+                isSelected={selectedMessages.has(msg.id)}
+                onToggleSelect={() => handleToggleSelect(msg.id)}
+                isExpanded={expandedMessageId === msg.id}
+                onToggleExpand={() => setExpandedMessageId(prev => prev === msg.id ? null : msg.id)}
+                isPinned={pinnedMessage?.id === msg.id}
+                onPinToggle={() => handlePinToggle(msg)}
+              />
+            </div>
+          </div>
+        </React.Fragment>
+      );
+    });
+  }, [visibleMessages, user, chatId, searchQuery, searchResults, currentSearchIndex, privacyMode, revealedMessages, activeReactionMessageId, selectionMode, selectedMessages, expandedMessageId, pinnedMessage, otherEmail, formatDateSeparator, handlePinToggle]);
+
+  return (
     <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
       {privacyMode === 'pure' && <PurePrivacyCurtain onClose={() => setPrivacyMode('none')} />}
       {isClientOffline && !hideOfflineBanner && (
@@ -1172,7 +1371,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"></path><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"></path><line x1="2" y1="2" x2="22" y2="22"></line></svg>
           <span className="whitespace-nowrap leading-none mt-px tracking-wide">No Internet Connection</span>
           <div className="w-px h-3 bg-white/30 mx-1"></div>
-          <button 
+          <button
             onClick={() => setHideOfflineBanner(true)}
             className="p-0.5 hover:bg-white/20 rounded-full transition-colors shrink-0 -mr-1"
           >
@@ -1180,17 +1379,17 @@ export default function ChatUI({ user }: ChatUIProps) {
           </button>
         </div>
       )}
-        {/* Floating Top Section */}
-        <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none w-full items-center">
-          {/* Header */}
-          <div className="pointer-events-auto flex items-center justify-between px-4 py-2 bg-white/20 backdrop-blur-md backdrop-saturate-150 rounded-[32px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] border border-white/40 shrink-0 relative max-w-5xl w-[calc(100%-1rem)] mb-1 will-change-transform transform-gpu mt-2 pt-[max(env(safe-area-inset-top),0.5rem)]">
-            {/* Sleek yellow shade line */}
-            <div className="absolute bottom-0 left-[10%] right-[10%] h-[1.5px] bg-gradient-to-r from-transparent via-yellow-400/90 to-transparent pointer-events-none rounded-full blur-[0.3px]"></div>
-            
-            {selectionMode ? (
-              <div className="flex items-center justify-between w-full h-10">
-                <div className="flex items-center">
-                  <button onClick={() => { setSelectionMode(false); setSelectedMessages(new Set()); }} className="p-2 mr-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm">
+      {/* Floating Top Section */}
+      <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none w-full items-center">
+        {/* Header */}
+        <div className="pointer-events-auto flex items-center justify-between px-4 py-2 bg-white/20 backdrop-blur-md backdrop-saturate-150 rounded-[32px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] border border-white/40 shrink-0 relative max-w-5xl w-[calc(100%-1rem)] mb-1 will-change-transform transform-gpu mt-2 pt-[max(env(safe-area-inset-top),0.5rem)]">
+          {/* Sleek yellow shade line */}
+          <div className="absolute bottom-0 left-[10%] right-[10%] h-[1.5px] bg-gradient-to-r from-transparent via-yellow-400/90 to-transparent pointer-events-none rounded-full blur-[0.3px]"></div>
+
+          {selectionMode ? (
+            <div className="flex items-center justify-between w-full h-10">
+              <div className="flex items-center">
+                <button onClick={() => { setSelectionMode(false); setSelectedMessages(new Set()); }} className="p-2 mr-2 bg-white/50 rounded-full hover:bg-white text-slate-700 transition-colors shadow-sm">
                   <X size={20} />
                 </button>
                 <span className="font-bold text-slate-800 text-lg">{selectedMessages.size} selected</span>
@@ -1218,14 +1417,14 @@ export default function ChatUI({ user }: ChatUIProps) {
             <>
               {/* Left Side: Menu */}
               <div className="flex items-center relative">
-                <button 
+                <button
                   id="menu-toggle-btn"
                   onClick={() => setShowMenu(!showMenu)}
                   className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${showMenu ? 'bg-slate-200 text-slate-800' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
                 >
                   <MoreVertical size={20} />
                 </button>
-                
+
 
               </div>
 
@@ -1235,13 +1434,13 @@ export default function ChatUI({ user }: ChatUIProps) {
                   <h1 className="text-[14px] font-bold text-slate-800 truncate w-full text-right tracking-wide leading-tight">
                     {getMaskedEmail(otherEmail)}
                   </h1>
-                  <StatusIndicator 
-                    state={otherUserStatus?.state} 
-                    timestamp={otherUserStatus?.last_changed || null} 
-                    isTyping={isOtherTyping} 
+                  <StatusIndicator
+                    state={otherUserStatus?.state}
+                    timestamp={otherUserStatus?.last_changed || null}
+                    isTyping={isOtherTyping}
                   />
                 </div>
-                <button 
+                <button
                   onClick={signOut}
                   className={`px-4 py-1.5 text-[13px] font-bold text-white rounded-full shadow-sm transition-all whitespace-nowrap shrink-0 ${otherUserStatus?.state === 'online' ? 'bg-green-500/90 hover:bg-green-500' : 'bg-red-500/90 hover:bg-red-500'}`}
                 >
@@ -1251,196 +1450,179 @@ export default function ChatUI({ user }: ChatUIProps) {
             </>
           )}
         </div>
-        
+
         {/* Pinned Message */}
         {pinnedMessage && !isKeyboardOpen && (
-           <div 
-             ref={pinBannerRef}
-             className="mx-2 max-w-5xl mx-auto w-[calc(100%-1rem)] bg-white/70 backdrop-blur-md rounded-[20px] shadow-sm border border-white/40 px-4 py-2 mt-1 mb-1 flex items-center justify-between shrink-0 relative z-20 pointer-events-auto cursor-pointer hover:bg-white/80 transition-transform select-none"
-             onClick={(e) => {
-               if (pinSwipeDraggingRef.current) {
-                 e.preventDefault();
-                 e.stopPropagation();
-                 return;
-               }
-               const el = document.getElementById(`msg-${pinnedMessage.id}`);
-               if (el) {
-                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                 setTimeout(() => {
-                   el.classList.add('bg-blue-100/50', 'ring-2', 'ring-blue-400');
-                   setTimeout(() => {
-                     el.classList.remove('bg-blue-100/50', 'ring-2', 'ring-blue-400');
-                   }, 2000);
-                 }, 300);
-               }
-             }}
-             onTouchStart={handlePinTouchStart}
-             onTouchMove={handlePinTouchMove}
-             onTouchEnd={handlePinTouchEnd}
-             onMouseDown={handlePinTouchStart}
-             onMouseMove={handlePinTouchMove}
-             onMouseUp={handlePinTouchEnd}
-             onMouseLeave={handlePinTouchEnd}
-           >
-             <div className="flex items-center space-x-3 overflow-hidden flex-1 pointer-events-none">
-               <Pin size={16} className="text-blue-500 shrink-0 fill-blue-500" />
-               <div className="flex flex-col overflow-hidden w-full">
-                 <span className="text-[11px] font-bold text-blue-600 tracking-wider mb-0.5">Pinned Message</span>
-                 <span className="text-[13px] text-slate-700 truncate w-full leading-tight">{pinnedMessage.text}</span>
-               </div>
-             </div>
-           </div>
+          <div
+            ref={pinBannerRef}
+            className="mx-2 max-w-5xl mx-auto w-[calc(100%-1rem)] bg-white/70 backdrop-blur-md rounded-[20px] shadow-sm border border-white/40 px-4 py-2 mt-1 mb-1 flex items-center justify-between shrink-0 relative z-20 pointer-events-auto cursor-pointer hover:bg-white/80 transition-transform select-none"
+            onClick={(e) => {
+              if (pinSwipeDraggingRef.current) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+              }
+              const el = document.getElementById(`msg-${pinnedMessage.id}`);
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => {
+                  el.classList.add('bg-blue-100/50', 'ring-2', 'ring-blue-400');
+                  setTimeout(() => {
+                    el.classList.remove('bg-blue-100/50', 'ring-2', 'ring-blue-400');
+                  }, 2000);
+                }, 300);
+              }
+            }}
+            onTouchStart={handlePinTouchStart}
+            onTouchMove={handlePinTouchMove}
+            onTouchEnd={handlePinTouchEnd}
+            onMouseDown={handlePinTouchStart}
+            onMouseMove={handlePinTouchMove}
+            onMouseUp={handlePinTouchEnd}
+            onMouseLeave={handlePinTouchEnd}
+          >
+            <div className="flex items-center space-x-3 overflow-hidden flex-1 pointer-events-none">
+              <Pin size={16} className="text-blue-500 shrink-0 fill-blue-500" />
+              <div className="flex flex-col overflow-hidden w-full">
+                <span className="text-[11px] font-bold text-blue-600 tracking-wider mb-0.5">Pinned Message</span>
+                <span className="text-[13px] text-slate-700 truncate w-full leading-tight">{pinnedMessage.text}</span>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
       {/* Search Bar - Absolute positioned over messages for speed and no layout shift */}
-          <div 
-            className={`absolute top-[75px] left-0 right-0 z-30 w-full max-w-5xl mx-auto px-4 transition-all duration-150 ease-in-out ${showSearch ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}
-          >
-            <div className="flex items-center space-x-2">
-              <div className="flex-1 bg-[#efeae2] border border-slate-300 shadow-md rounded-2xl p-2 flex items-center space-x-2">
-                <div className="flex-1 bg-white rounded-xl flex items-center px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
-                  <Search size={16} className="text-slate-400 mr-2 shrink-0" />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    placeholder="Search loaded messages..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400"
-                  />
-                  {searchQuery && (
-                    <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-                {searchQuery && (
-                  <div className="flex items-center space-x-1 shrink-0 bg-white rounded-xl p-1">
-                    <span className="text-xs font-semibold text-slate-500 px-2 min-w-[40px] text-center">
-                      {searchResults.length > 0 ? currentSearchIndex + 1 : 0}/{searchResults.length}
-                    </span>
-                    <div className="w-px h-4 bg-slate-300 mx-1"></div>
-                    <button onClick={handlePrevSearch} disabled={searchResults.length === 0} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
-                      <ChevronUp size={16} />
-                    </button>
-                    <button onClick={handleNextSearch} disabled={searchResults.length === 0} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
-                      <ChevronDown size={16} />
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {/* Liquid Glass Close Button with Golden Boundary */}
-              <button 
-                onClick={() => {
-                  setShowSearch(false);
-                  setSearchQuery('');
-                }}
-                className="shrink-0 relative w-11 h-11 rounded-full bg-white/40 backdrop-blur-md backdrop-saturate-150 shadow-[0_4px_12px_rgba(0,0,0,0.1)] flex items-center justify-center text-slate-700 hover:bg-white/60 hover:scale-105 active:scale-95 transition-all overflow-hidden"
-              >
-                <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                  <defs>
-                    <linearGradient id="goldGradientSearch" x1="0%" y1="100%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#eab308" />
-                      <stop offset="50%" stopColor="#fef3c7" />
-                      <stop offset="100%" stopColor="#d97706" />
-                    </linearGradient>
-                  </defs>
-                  <circle cx="22" cy="22" r="21.5" fill="none" stroke="url(#goldGradientSearch)" strokeWidth="1.5" />
-                </svg>
-                <X size={20} strokeWidth={2.5} className="relative z-10" />
-              </button>
+      <div
+        className={`absolute top-[75px] left-0 right-0 z-30 w-full max-w-5xl mx-auto px-4 transition-all duration-150 ease-in-out ${showSearch ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}
+      >
+        <div className="flex items-center space-x-2">
+          <div className="flex-1 bg-[#efeae2] border border-slate-300 shadow-md rounded-2xl p-2 flex items-center space-x-2">
+            <div className="flex-1 bg-white rounded-xl flex items-center px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
+              <Search size={16} className="text-slate-400 mr-2 shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search loaded messages..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                  <X size={14} />
+                </button>
+              )}
             </div>
+            {searchQuery && (
+              <div className="flex items-center space-x-1 shrink-0 bg-white rounded-xl p-1">
+                <span className="text-xs font-semibold text-slate-500 px-2 min-w-[40px] text-center">
+                  {searchResults.length > 0 ? currentSearchIndex + 1 : 0}/{searchResults.length}
+                </span>
+                <div className="w-px h-4 bg-slate-300 mx-1"></div>
+                <button onClick={handlePrevSearch} disabled={searchResults.length === 0} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
+                  <ChevronUp size={16} />
+                </button>
+                <button onClick={handleNextSearch} disabled={searchResults.length === 0} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
+                  <ChevronDown size={16} />
+                </button>
+              </div>
+            )}
           </div>
-          
-          {/* Messages */}
-      <div 
+
+          {/* Liquid Glass Close Button with Golden Boundary */}
+          <button
+            onClick={() => {
+              setShowSearch(false);
+              setSearchQuery('');
+            }}
+            className="shrink-0 relative w-11 h-11 rounded-full bg-white/40 backdrop-blur-md backdrop-saturate-150 shadow-[0_4px_12px_rgba(0,0,0,0.1)] flex items-center justify-center text-slate-700 hover:bg-white/60 hover:scale-105 active:scale-95 transition-all overflow-hidden"
+          >
+            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+              <defs>
+                <linearGradient id="goldGradientSearch" x1="0%" y1="100%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#eab308" />
+                  <stop offset="50%" stopColor="#fef3c7" />
+                  <stop offset="100%" stopColor="#d97706" />
+                </linearGradient>
+              </defs>
+              <circle cx="22" cy="22" r="21.5" fill="none" stroke="url(#goldGradientSearch)" strokeWidth="1.5" />
+            </svg>
+            <X size={20} strokeWidth={2.5} className="relative z-10" />
+          </button>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div
         ref={scrollContainerRef}
         onScroll={(e) => {
           setActiveReactionMessageId(null);
           const target = e.target as HTMLDivElement;
           const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 150;
           setShowScrollBottom(!isNearBottom);
-        }} 
+        }}
         className={`flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto transition-all duration-500 ${privacyMode === 'pure' ? 'opacity-30 saturate-0 brightness-75' : 'opacity-100 saturate-100 brightness-100'}`}
       >
         {/* Spacers to prevent content from hiding under the floating header */}
         <div className="shrink-0 h-[60px]" />
         {pinnedMessage && !isKeyboardOpen && <div className="shrink-0 h-[50px]" />}
-        {messages.length >= messageLimit && messageLimit < 100 && (
+        {messages.length >= loadedCount && (
           <div className="flex justify-center mb-6 z-10">
-            <button 
-              onClick={loadMore}
-              className="px-4 py-1.5 bg-white shadow-sm rounded-full text-[13px] font-medium text-slate-600 active:scale-95 transition-all"
+            <button
+              onClick={() => loadMore()}
+              disabled={isFetchingMore}
+              className="px-4 py-1.5 bg-white shadow-sm rounded-full text-[13px] font-medium text-slate-600 active:scale-95 transition-all disabled:opacity-50"
             >
-              Load earlier messages
+              {isFetchingMore ? 'Loading...' : 'Load earlier messages'}
             </button>
           </div>
         )}
         <div className="flex-1" />
-        
-          {isLoadingMessages ? (
-            <div className="flex flex-col space-y-4 w-full h-full justify-end pb-4 px-2 mt-auto">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className={`flex w-full ${i % 2 !== 0 ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`skeleton-blue h-[45px] ${i % 2 !== 0 ? 'w-2/3 rounded-2xl rounded-tr-sm' : 'w-1/2 rounded-2xl rounded-tl-sm'}`}></div>
-                </div>
-              ))}
-            </div>
-          ) : (() => {
-            const displayMessages = visibleMessages;
-            let firstUnrepliedId: string | null = null;
-            for (let i = displayMessages.length - 1; i >= 0; i--) {
-              if (displayMessages[i].senderId === user.uid) break; 
-              firstUnrepliedId = displayMessages[i].id;
-            }
-  
-            return displayMessages.map((msg, index) => {
-              const showDate = index === 0 || !isSameDay(displayMessages[index - 1].createdAt, msg.createdAt);
-              const isNewSenderGroup = index > 0 && !showDate && displayMessages[index - 1].senderId !== msg.senderId;
-              
-              return (
-                <React.Fragment key={msg.id}>
-                  {showDate && (
-                    <div className="flex justify-center mb-4 mt-2 z-10 relative pointer-events-none">
-                      <div className="bg-white/80 backdrop-blur-md text-slate-600 font-medium text-[11px] px-3 py-1 rounded-full shadow-sm border border-black/5 tracking-wide">
-                        {formatDateSeparator(msg.createdAt)}
-                      </div>
-                    </div>
-                  )}
-                  <div className={isNewSenderGroup ? "mt-2" : ""}>
-                    <div id={`msg-${msg.id}`} className={`transition-all duration-300 ${searchResults.includes(msg.id) ? (searchResults[currentSearchIndex] === msg.id ? 'bg-amber-200/40 ring-2 ring-amber-400 rounded-lg shadow-sm px-1 py-1' : 'bg-amber-100/20 rounded-lg px-1 py-1') : ''}`}>
-                        <MessageItem searchQuery={searchQuery} 
-                    message={msg} 
-                    isMine={msg.senderId === user.uid} 
-                    user={user}
-                    chatId={chatId}
-                    isFirstUnreplied={msg.id === firstUnrepliedId}
-                    onReply={() => setReplyingTo(msg)}
-                    isAnonymousMode={privacyMode === 'blur'}
-                    isLastMessage={index === displayMessages.length - 1}
-                    isRevealed={revealedMessages.includes(msg.id)}
-                    onReveal={() => handleRevealMessage(msg.id)}
-                    isActiveReaction={activeReactionMessageId === msg.id}
-                    onReactOpen={() => setActiveReactionMessageId(msg.id)}
-                    onReactClose={() => setActiveReactionMessageId(null)}
-                    otherEmail={otherEmail}
-                    selectionMode={selectionMode}
-                    isSelected={selectedMessages.has(msg.id)}
-                    onToggleSelect={() => handleToggleSelect(msg.id)}
-                    isExpanded={expandedMessageId === msg.id}
-                    onToggleExpand={() => setExpandedMessageId(prev => prev === msg.id ? null : msg.id)}
-                    isPinned={pinnedMessage?.id === msg.id}
-                    onPinToggle={() => handlePinToggle(msg)}
-                  />
-                      </div>
+
+        {/* Memoized rendered messages */}
+
+        {isLoadingMessages ? (
+          <div className="flex flex-col space-y-4 w-full h-full justify-end pb-4 px-2 mt-auto">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className={`flex w-full ${i % 2 !== 0 ? 'justify-end' : 'justify-start'}`}>
+                <div className={`skeleton-blue h-[45px] ${i % 2 !== 0 ? 'w-2/3 rounded-2xl rounded-tr-sm' : 'w-1/2 rounded-2xl rounded-tl-sm'}`}></div>
+              </div>
+            ))}
+          </div>
+        ) : renderedMessages}
+
+        {/* Optimistic Uploading Images UI */}
+        {uploadingImages && (
+          <div className="flex w-full justify-end mb-2.5 animate-message-sent">
+            <div className="max-w-[85%] sm:max-w-[70%] rounded-[22px] px-2.5 pt-1.5 pb-1 shadow-sm border bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] opacity-70">
+              <div className="flex flex-col relative pointer-events-none select-none">
+                <div className={`mb-1.5 ${uploadingImages.urls.length > 1 ? 'grid grid-cols-2 gap-1 rounded-xl overflow-hidden' : 'rounded-xl overflow-hidden relative'}`} style={!(uploadingImages.urls.length > 1) ? { minWidth: '150px', minHeight: '150px' } : undefined}>
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/10 z-10 rounded-xl">
+                    <div className="w-8 h-8 border-4 border-white border-t-teal-500 rounded-full animate-spin shadow-md"></div>
                   </div>
-                </React.Fragment>
-              );
-            });
-        })()}
-        
+                  {uploadingImages.urls.map((url, idx) => (
+                    <div key={idx} className={`relative overflow-hidden ${uploadingImages.urls.length > 1 ? 'aspect-square' : 'w-full h-auto'} ${uploadingImages.urls.length === 3 && idx === 2 ? 'col-span-2 aspect-[2/1]' : ''}`}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt="Uploading" className={`w-full h-full object-cover blur-[2px] scale-105 ${!(uploadingImages.urls.length > 1) ? 'rounded-xl border border-black/5' : ''}`} />
+                    </div>
+                  ))}
+                </div>
+                {uploadingImages.text && (
+                  <p className="text-[15px] whitespace-pre-wrap break-words leading-snug pr-2">
+                    {uploadingImages.text}
+                  </p>
+                )}
+                <div className="flex items-center justify-end space-x-1 mt-0.5 self-end float-right">
+                  <span className="text-[10.5px] text-black/45 font-medium tracking-tight">
+                    Sending...
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Typing Indicator */}
         {isOtherTyping && (
           <div className="flex w-full justify-start mb-2.5 animate-pop-in">
@@ -1451,13 +1633,13 @@ export default function ChatUI({ user }: ChatUIProps) {
             </div>
           </div>
         )}
-        
+
         <div className="shrink-0 h-[80px]" />
         <div ref={messagesEndRef} className="h-1 w-full shrink-0" />
       </div>
 
       {showScrollBottom && (
-        <button 
+        <button
           onClick={() => {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
           }}
@@ -1475,133 +1657,71 @@ export default function ChatUI({ user }: ChatUIProps) {
       {/* Floating Composer */}
       <div className="absolute bottom-[env(safe-area-inset-bottom,0px)] pb-3 pt-2 left-0 right-0 z-40 pointer-events-none flex justify-center px-2 sm:px-4 w-full will-change-transform transform-gpu">
         <div className="w-full max-w-4xl relative pointer-events-auto flex flex-col">
-        
-        {showEmojiPicker && (
-          <div ref={emojiPickerRef} className="absolute bottom-[70px] left-2 sm:left-4 z-30 animate-pop-in">
-            <EmojiPicker emojiStyle={"native" as any} 
-              onEmojiClick={onEmojiClick} 
-              theme={Theme.LIGHT}
-              lazyLoadEmojis
-              searchDisabled
-              skinTonesDisabled
-              width={280}
-              height={350}
-            />
-          </div>
-        )}
 
-        {replyingTo && (
-          <div className="max-w-4xl mx-auto mb-2 flex items-center bg-[#e2e8f0] rounded-lg p-2 shadow-sm border-l-4 border-teal-500 animate-slide-up relative z-10 pointer-events-auto">
-            <div className="flex-1 overflow-hidden pr-2">
-              <p className="text-[12px] font-semibold text-teal-600 mb-0.5">
-                {replyingTo.senderId === user.uid ? 'You' : otherEmail}
-              </p>
-              <p className="text-[13px] text-slate-600 truncate">
-                {replyingTo.text}
-              </p>
+          {replyingTo && (
+            <div className="max-w-4xl w-full mx-auto mb-2 flex items-center justify-between bg-[#e2e8f0] rounded-lg p-2 shadow-sm border-l-4 border-teal-500 animate-slide-up relative z-10 pointer-events-auto overflow-hidden">
+              <div className="flex-1 overflow-hidden pr-2 min-w-0 w-0">
+                <p className="text-[12px] font-semibold text-teal-600 mb-0.5 truncate">
+                  {replyingTo.senderId === user?.uid ? 'You' : otherEmail}
+                </p>
+                <p className="text-[13px] text-slate-600 truncate">
+                  {replyingTo.text || 'Image'}
+                </p>
+              </div>
+              <button
+                onClick={() => setReplyingTo(null)}
+                className="p-1 rounded-full hover:bg-slate-300 text-slate-500 shrink-0 flex-none ml-2"
+                type="button"
+                aria-label="Cancel reply"
+              >
+                <X size={16} />
+              </button>
             </div>
-            <button
-              onClick={() => setReplyingTo(null)}
-              className="p-1 rounded-full hover:bg-slate-300 text-slate-500 shrink-0"
-              type="button"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        )}
+          )}
 
-        <form onSubmit={handleSend} className="flex items-end space-x-2 max-w-4xl mx-auto relative z-20 pointer-events-auto w-full">
-          <div className="flex-1 flex items-end bg-white border border-slate-200 shadow-sm rounded-[32px] overflow-hidden px-2">
-            <button
-              type="button"
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="shrink-0 p-3 text-slate-500 hover:text-slate-700 transition-colors self-end"
-            >
-              <Smile size={24} strokeWidth={1.5} />
-            </button>
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={handleTextChange}
-              placeholder="Type a message"
-              className="flex-1 bg-transparent text-[#111b21] placeholder-[#8696a0] py-[10px] px-2 text-[14.5px] focus:outline-none resize-none leading-snug max-h-[100px] min-h-[40px]"
-              rows={1}
-              disabled={isSending}
-              onFocus={() => {
-                const isMobile = window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent);
-                if (isMobile && scrollContainerRef.current) {
-                  const target = scrollContainerRef.current;
-                  const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
-                  
-                  if (scrollBottom <= target.clientHeight + 150) {
-                    setTimeout(() => {
-                      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-                    }, 300);
-                  }
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const isMobile = window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent);
-                  if (enterToSend && !e.shiftKey && !isMobile) {
-                    e.preventDefault();
-                    if (text.trim() && !isSending) {
-                      handleSend(e as unknown as React.FormEvent);
-                    }
-                  }
-                }
-              }}
-            />
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              id="image-upload"
-              onChange={handleImageUpload}
-              disabled={isSending}
-            />
-            <label
-              htmlFor="image-upload"
-              className={`shrink-0 p-3 transition-colors self-end cursor-pointer ${isSending ? 'text-slate-300 pointer-events-none' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              {isSending ? <Loader2 size={24} className="animate-spin" strokeWidth={1.5} /> : <ImageIcon size={24} strokeWidth={1.5} />}
-            </label>
-          </div>
-          
-          <button
-            type="submit"
-            disabled={!text.trim() || isSending}
-            className={`group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-all duration-300 ease-out outline-none ${
-              !text.trim() && !isSending 
-                ? 'bg-slate-100/50 backdrop-blur-sm border border-slate-200/50 text-slate-400 cursor-not-allowed opacity-70' 
-                : 'bg-blue-500/80 backdrop-blur-md backdrop-saturate-150 border border-blue-400/50 text-white shadow-[0_4px_16px_rgba(59,130,246,0.25)] hover:bg-blue-500/90 hover:scale-105 active:scale-95'
-            }`}
-          >
-            {isSending ? (
-              <Loader2 size={20} className="animate-spin" strokeWidth={2.5} />
-            ) : (
-              <Send size={20} strokeWidth={2.5} className="ml-0.5 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-transform duration-300" />
-            )}
-          </button>
-        </form>
+          <ChatInputForm
+            ref={chatInputRef}
+            isSending={isSending}
+            onSend={handleSend}
+            pastedImagesLength={pastedImages.length}
+            onPasteImage={(file) => setPastedImages(prev => [...prev, file])}
+            onImageUpload={handleImageUpload}
+            scrollContainerRef={scrollContainerRef}
+            messagesEndRef={messagesEndRef}
+            updateTypingStatus={updateTypingStatus}
+            enterToSend={enterToSend}
+          />
         </div>
       </div>
 
       {showCamera && (
-        <CameraCapture 
+        <CameraCapture
           onCapture={(file) => {
             setSelectedImageFile(file);
             setShowCamera(false);
-          }} 
-          onClose={() => setShowCamera(false)} 
+          }}
+          onClose={() => setShowCamera(false)}
         />
       )}
-      
+
       {selectedImageFile && (
         <div className="fixed inset-0 z-[9999] bg-white flex flex-col animate-pop-in">
           <ImageEditor file={selectedImageFile} onCancel={() => setSelectedImageFile(null)} onSend={handleSendEditedImage} />
         </div>
       )}
+
+      <MultiImagePreviewModal
+        files={pastedImages}
+        onAddMore={(files) => setPastedImages((prev) => [...prev, ...files])}
+        onRemove={(idx) => setPastedImages((prev) => prev.filter((_, i) => i !== idx))}
+        onUpdateFile={(idx, newFile) => setPastedImages(prev => prev.map((f, i) => i === idx ? newFile : f))}
+        onClose={() => setPastedImages([])}
+        onSend={(caption) => {
+          if (chatInputRef.current) chatInputRef.current.setText('');
+          handleSend(undefined, caption);
+        }}
+      />
+
       {showBulkDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-scale-up">
@@ -1656,11 +1776,11 @@ export default function ChatUI({ user }: ChatUIProps) {
       )}
 
       {/* Main Menu Modal */}
-      <div 
+      <div
         className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${showMenu ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`}
         onClick={() => setShowMenu(false)}
       >
-        <div 
+        <div
           className={`w-full max-w-[320px] bg-white rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${showMenu ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
           onClick={(e) => e.stopPropagation()}
         >
@@ -1673,9 +1793,27 @@ export default function ChatUI({ user }: ChatUIProps) {
           <div className="py-2 flex flex-col">
             {user.email === 'officialhaadi81@gmail.com' && (
               <>
+                <button
+                  onClick={async () => {
+                    const idToken = await user.getIdToken();
+                    const res = await fetch('/api/pin/generate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` }
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setGeneratedPin(data.pin);
+                    } else {
+                      window.alert('Failed to generate PIN.');
+                    }
+                  }}
+                  className="w-full text-left px-5 py-4 text-base text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center border-b border-slate-50"
+                >
+                  <Lock size={18} className="mr-3 text-slate-400" />
+                  {generatedPin ? `PIN: ${generatedPin}` : 'Generate PIN'}
+                </button>
 
-
-                <button 
+                <button
                   onClick={() => {
                     const texts = visibleMessages.map(m => m.text).join('\n\n');
                     navigator.clipboard.writeText(texts);
@@ -1689,8 +1827,8 @@ export default function ChatUI({ user }: ChatUIProps) {
                 </button>
               </>
             )}
-            
-            <button 
+
+            <button
               onClick={() => {
                 setShowSearch(!showSearch);
                 if (!showSearch) {
@@ -1707,7 +1845,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             </button>
 
             {privacyMode !== 'none' ? (
-              <button 
+              <button
                 onClick={() => {
                   setPrivacyMode('none');
                   setShowMenu(false);
@@ -1719,7 +1857,7 @@ export default function ChatUI({ user }: ChatUIProps) {
               </button>
             ) : (
               <>
-                <button 
+                <button
                   onClick={() => {
                     setPrivacyMode('blur');
                     setShowMenu(false);
@@ -1729,7 +1867,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                   <Ghost size={18} className="mr-3 text-slate-400" />
                   Enable Privacy: Blur
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     setPrivacyMode('pure');
                     setShowMenu(false);
@@ -1743,8 +1881,8 @@ export default function ChatUI({ user }: ChatUIProps) {
             )}
 
             <div className="h-2 bg-slate-50 border-y border-slate-100" />
-            
-            <button 
+
+            <button
               onClick={handleClearChat}
               className="w-full text-left px-5 py-4 text-base text-red-600 hover:bg-red-50 active:bg-red-100 font-medium transition-colors flex items-center"
             >
@@ -1765,7 +1903,92 @@ export default function ChatUI({ user }: ChatUIProps) {
         </div>
       )}
 
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @keyframes slideUpFullScreen {
+          0% { transform: translateY(100%); }
+          100% { transform: translateY(0); }
+        }
+        .animate-slide-up-fullscreen {
+          animation: slideUpFullScreen 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+      `}} />
+      {showPinModal && (
+        <div className="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center animate-slide-up-fullscreen overflow-hidden touch-none">
+          <div className="relative z-10 flex flex-col items-center w-full max-w-sm px-8 pt-4 pb-12 h-full justify-between bg-white">
+            
+            <div className="flex flex-col items-center mt-12 w-full">
+              <div className="w-16 h-16 bg-blue-50/80 rounded-full flex items-center justify-center mb-6 shadow-sm border border-blue-100">
+                <Lock size={32} className="text-blue-500" />
+              </div>
+              
+              <h4 className="text-[22px] font-bold text-slate-800 tracking-wide mb-2">
+                Older Messages
+              </h4>
+              <p className="text-slate-500 font-medium text-sm">Enter 4-digit PIN to load</p>
+
+              <div className="flex justify-center space-x-6 mt-12 mb-6 w-full">
+                {[...Array(4)].map((_, i) => (
+                  <div 
+                    key={i} 
+                    className={`w-3.5 h-3.5 rounded-full transition-all duration-300 ${
+                      i < pinValue.length 
+                        ? 'bg-blue-600 scale-110' 
+                        : 'bg-slate-200 border border-slate-300/50'
+                    }`} 
+                  />
+                ))}
+              </div>
+
+              <div className="h-6 w-full flex justify-center items-center">
+                {pinError && <p className="text-rose-500 text-sm font-semibold tracking-wide animate-pulse bg-rose-50 px-4 py-1 rounded-full">{pinError}</p>}
+                {pinLoading && <p className="text-blue-600 text-sm font-semibold tracking-wide animate-pulse flex items-center gap-2 bg-blue-50 px-4 py-1 rounded-full"><Loader2 className="w-4 h-4 animate-spin" /> Verifying...</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-x-6 gap-y-4 w-full max-w-[280px] mb-8">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+                <button
+                  key={num}
+                  disabled={pinLoading}
+                  onClick={() => handlePinDigit(num.toString())}
+                  className="w-[78px] h-[78px] rounded-full text-slate-800 text-[32px] font-light flex items-center justify-center transition-all duration-150 active:bg-slate-200 active:scale-95 hover:bg-slate-50 border border-transparent hover:border-slate-100 disabled:opacity-50 select-none mx-auto"
+                >
+                  {num}
+                </button>
+              ))}
+
+              {/* Skip */}
+              <button
+                onClick={() => { setShowPinModal(false); setPinValue(''); setPinError(''); }}
+                className="w-[78px] h-[78px] rounded-full text-emerald-600 text-base font-semibold flex items-center justify-center transition-all duration-150 active:bg-emerald-100 active:scale-95 hover:bg-emerald-50 border border-transparent hover:border-emerald-100/50 select-none mx-auto"
+              >
+                Skip
+              </button>
+
+              {/* 0 */}
+              <button
+                disabled={pinLoading}
+                onClick={() => handlePinDigit('0')}
+                className="w-[78px] h-[78px] rounded-full text-slate-800 text-[32px] font-light flex items-center justify-center transition-all duration-150 active:bg-slate-200 active:scale-95 hover:bg-slate-50 border border-transparent hover:border-slate-100 disabled:opacity-50 select-none mx-auto"
+              >
+                0
+              </button>
+
+              {/* Delete */}
+              <button
+                disabled={pinLoading}
+                onClick={() => setPinValue(prev => prev.slice(0, -1))}
+                className="w-[78px] h-[78px] rounded-full text-slate-500 flex items-center justify-center transition-all duration-150 active:bg-slate-200 active:text-slate-800 active:scale-95 hover:bg-slate-50 border border-transparent hover:border-slate-100 disabled:opacity-50 select-none mx-auto"
+              >
+                <Trash2 size={24} strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
 }
+

@@ -18,7 +18,7 @@ export function useAuth() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         // Client-side UX check. Authoritative check is in Firestore Rules.
-        if (currentUser.email && ALLOWED_EMAILS.includes(currentUser.email)) {
+        if (currentUser.email && ALLOWED_EMAILS.includes(currentUser.email.toLowerCase())) {
           setUser(currentUser);
           setAccessDenied(false);
         } else {

@@ -17,4 +17,5 @@ export interface Message {
   replyToSenderId?: string;
   reactions?: Record<string, string>;
   imageUrl?: string;
+  imageUrls?: string[];
 }

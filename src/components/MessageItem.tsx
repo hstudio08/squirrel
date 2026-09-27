@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, FormEvent } from 'react';
+import React, { useEffect, useRef, useState, FormEvent } from 'react';
 import { Message } from '@/types/chat';
-import { doc, updateDoc, deleteDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, arrayUnion, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Edit2, Trash2, X, Check, Pin, Plus, CheckCheck, Copy, Circle, CheckCircle2, CheckSquare } from 'lucide-react';
+import { Edit2, Trash2, X, Check, Pin, Plus, CheckCheck, CheckSquare } from 'lucide-react';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
-import ImageEditor from './ImageEditor';
 import { User } from 'firebase/auth';
 
 const formatMessageText = (text: string) => {
@@ -57,7 +56,7 @@ const formatMessageText = (text: string) => {
 interface MessageItemProps {
   message: Message;
   isMine: boolean;
-  user: any;
+  user: User;
   chatId: string;
   isFirstUnreplied: boolean;
   onReply?: () => void;
@@ -79,7 +78,7 @@ interface MessageItemProps {
   onPinToggle?: () => void;
 }
 
-const formatTime = (timestamp: any) => {
+const formatTime = (timestamp: Timestamp | number | Date | any) => {
   if (!timestamp) return '';
   const date = timestamp.toDate ? timestamp.toDate() : (typeof timestamp === 'number' ? new Date(timestamp) : new Date(timestamp.seconds ? timestamp.seconds * 1000 : timestamp));
   return new Intl.DateTimeFormat('en-US', {
@@ -89,36 +88,22 @@ const formatTime = (timestamp: any) => {
   }).format(date);
 };
 
-export default function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose, otherEmail, selectionMode = false, isSelected = false, onToggleSelect, isExpanded,
-    onToggleExpand,
-    searchQuery,
+export const MessageItemComponent = function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose, otherEmail, selectionMode = false, isSelected = false, onToggleSelect,
     isPinned = false,
     onPinToggle
   }: MessageItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const renderTextWithHighlights = (text: string, query?: string) => {
-    if (!query || !query.trim() || !text) return text;
-    
-    const safeQuery = Array.from(query).map(c => /[.*+?^${}()|[\]\\]/.test(c) ? '\\' + c : c).join('');
-    const parts = text.split(new RegExp(`(${safeQuery})`, 'gi'));
-    
-    return parts.map((part, index) => 
-      part.toLowerCase() === query.toLowerCase() 
-        ? <span key={index} className='bg-amber-300 text-amber-900 rounded-[2px] font-medium'>{part}</span> 
-        : part
-    );
-  };
 
   const isEditable = () => {
     if (!message.createdAt) return false;
     let msgTime;
     if (typeof message.createdAt === 'number') {
       msgTime = message.createdAt;
-    } else if (typeof (message.createdAt as any).toMillis === 'function') {
-      msgTime = (message.createdAt as any).toMillis();
-    } else if ((message.createdAt as any).seconds) {
-      msgTime = (message.createdAt as any).seconds * 1000;
+    } else if (typeof (message.createdAt as Timestamp).toMillis === 'function') {
+      msgTime = (message.createdAt as Timestamp).toMillis();
+    } else if ((message.createdAt as Timestamp).seconds) {
+      msgTime = (message.createdAt as Timestamp).seconds * 1000;
     } else if (message.createdAt instanceof Date) {
       msgTime = message.createdAt.getTime();
     } else {
@@ -186,7 +171,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
       observer.disconnect();
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [isMine, message.id, message.seen]);
+  }, [isMine, message.id, message.seen, chatId]);
 
   // Menu closing is handled by the backdrop overlay
 
@@ -409,6 +394,9 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
   };
 
 
+  const outerTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const outerLongPressTriggered = useRef(false);
+
   if (message.deletedFor && message.deletedFor.includes(user.uid)) {
     return null; // Don't render if deleted for me
   }
@@ -423,9 +411,6 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
       }, 1000);
     }
   };
-
-  const outerTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const outerLongPressTriggered = useRef(false);
 
   const handleOuterPointerDown = (e: React.PointerEvent) => {
     if (!e.isPrimary) return;
@@ -452,7 +437,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     <div
       ref={itemRef}
       id={`message-${message.id}`}
-      className={`flex w-full ${isMine ? 'justify-end' : 'justify-start'} mb-2.5 animate-pop-in relative cursor-pointer`}
+      className={`flex w-full ${isMine ? 'justify-end animate-message-sent' : 'justify-start animate-message-received'} mb-2.5 relative cursor-pointer`}
       onPointerDown={handleOuterPointerDown}
       onPointerUp={handleOuterPointerUp}
       onPointerLeave={handleOuterPointerUp}
@@ -563,7 +548,7 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
             {showFullEmojiPicker && (
               <div className="shadow-2xl rounded-2xl overflow-hidden animate-pop-in z-50 mb-1" onClick={(e) => e.stopPropagation()}>
                 <EmojiPicker
-                  onEmojiClick={(emojiData: any) => { handleReaction(emojiData.emoji); setShowFullEmojiPicker(false); }}
+                  onEmojiClick={(emojiData: EmojiClickData) => { handleReaction(emojiData.emoji); setShowFullEmojiPicker(false); }}
                   lazyLoadEmojis={true}
                   width={280}
                   height={320}
@@ -718,61 +703,138 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
         ) : (
           <div className="flex flex-col relative pointer-events-none select-none">
         {/* Image Message */}
-            {message.imageUrl && !message.isDeletedForEveryone && (
-              <>
-                {/* Lightbox state is managed inline with a portal-style fixed overlay */}
-                <div className={`mb-1.5 relative rounded-xl overflow-hidden animate-pop-in bg-black/5 pointer-events-auto ${shouldMask ? 'blur-[8px] opacity-60 select-none pointer-events-none' : ''}`} style={{ minWidth: '150px', minHeight: '150px' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={message.imageUrl}
-                    alt="Photo"
-                    className="w-full h-auto object-cover rounded-xl border border-black/5 cursor-zoom-in active:opacity-80 transition-opacity"
-                    loading="lazy"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // Create and show lightbox
-                      const overlay = document.createElement('div');
-                      overlay.id = 'img-lightbox';
-                      overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);animation:fadeIn .15s ease';
-                      
-                      const img = document.createElement('img');
-                      img.src = message.imageUrl!;
-                      img.alt = 'Full image';
-                      img.style.cssText = 'max-width:95vw;max-height:90vh;object-fit:contain;border-radius:12px;box-shadow:0 25px 60px rgba(0,0,0,0.6)';
-                      
-                      // Close button
-                      const closeBtn = document.createElement('button');
-                      closeBtn.innerHTML = '✕';
-                      closeBtn.style.cssText = 'position:absolute;top:16px;right:16px;width:40px;height:40px;background:rgba(255,255,255,0.15);border:none;border-radius:50%;color:white;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:background .2s';
-                      closeBtn.onmouseenter = () => { closeBtn.style.background = 'rgba(255,255,255,0.25)'; };
-                      closeBtn.onmouseleave = () => { closeBtn.style.background = 'rgba(255,255,255,0.15)'; };
+            {(() => {
+              const urls = message.imageUrls || (message.imageUrl ? [message.imageUrl] : []);
+              if (urls.length === 0 || message.isDeletedForEveryone) return null;
+              
+              const isGrid = urls.length > 1;
+              const displayUrls = isGrid ? urls.slice(0, 4) : urls;
+              const remainingCount = urls.length > 4 ? urls.length - 4 : 0;
+              
+              return (
+                <div className={`mb-1.5 pointer-events-auto ${isGrid ? 'grid grid-cols-2 gap-[2px] rounded-xl overflow-hidden bg-black/10' : 'rounded-xl overflow-hidden bg-black/5 relative'} animate-pop-in ${shouldMask ? 'blur-[8px] opacity-60 select-none pointer-events-none' : ''}`} style={!isGrid ? { maxWidth: '320px', maxHeight: '420px' } : { width: '100%', maxWidth: '320px' }}>
+                  {displayUrls.map((url, idx) => {
+                    const isLastDisplay = idx === 3;
+                    const isThirdOfThree = urls.length === 3 && idx === 2;
+                    return (
+                      <div 
+                        key={idx} 
+                        className={`relative overflow-hidden cursor-zoom-in active:opacity-80 transition-opacity ${isGrid ? 'aspect-square bg-black/20' : 'w-full h-auto'} ${isThirdOfThree ? 'col-span-2 aspect-[2/1]' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          let currentIdx = idx;
+                          
+                          const overlay = document.createElement('div');
+                          overlay.id = 'img-lightbox';
+                          overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(12px);animation:fadeIn .2s ease;touch-action:none;';
+                          
+                          const container = document.createElement('div');
+                          container.style.cssText = 'position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;';
+                          
+                          const img = document.createElement('img');
+                          img.src = urls[currentIdx];
+                          img.alt = 'Full image';
+                          img.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;user-select:none;transition:transform 0.2s ease, opacity 0.2s ease;';
+                          
+                          const updateImage = () => {
+                            img.style.opacity = '0';
+                            img.style.transform = 'scale(0.95)';
+                            setTimeout(() => {
+                              img.src = urls[currentIdx];
+                              img.style.opacity = '1';
+                              img.style.transform = 'scale(1)';
+                              counter.textContent = `${currentIdx + 1} / ${urls.length}`;
+                            }, 150);
+                          };
 
-                      // Download button
-                      const dlBtn = document.createElement('a');
-                      dlBtn.href = message.imageUrl!;
-                      dlBtn.download = 'image.jpg';
-                      dlBtn.target = '_blank';
-                      dlBtn.innerHTML = '⬇';
-                      dlBtn.style.cssText = 'position:absolute;top:16px;right:64px;width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:50%;color:white;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);text-decoration:none;transition:background .2s';
-                      dlBtn.onmouseenter = () => { dlBtn.style.background = 'rgba(255,255,255,0.25)'; };
-                      dlBtn.onmouseleave = () => { dlBtn.style.background = 'rgba(255,255,255,0.15)'; };
+                          const closeBtn = document.createElement('button');
+                          closeBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+                          closeBtn.style.cssText = 'position:absolute;top:20px;left:20px;width:44px;height:44px;background:rgba(255,255,255,0.15);border:none;border-radius:50%;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);transition:background .2s;z-index:10;';
+                          closeBtn.onmouseenter = () => { closeBtn.style.background = 'rgba(255,255,255,0.25)'; };
+                          closeBtn.onmouseleave = () => { closeBtn.style.background = 'rgba(255,255,255,0.15)'; };
 
-                      const close = () => overlay.remove();
-                      closeBtn.onclick = close;
-                      overlay.onclick = (ev) => { if (ev.target === overlay) close(); };
-                      document.addEventListener('keydown', function handler(ev) {
-                        if (ev.key === 'Escape') { close(); document.removeEventListener('keydown', handler); }
-                      });
+                          const dlBtn = document.createElement('a');
+                          dlBtn.href = urls[currentIdx];
+                          dlBtn.download = 'image.jpg';
+                          dlBtn.target = '_blank';
+                          dlBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
+                          dlBtn.style.cssText = 'position:absolute;top:20px;right:20px;width:44px;height:44px;background:rgba(255,255,255,0.15);border-radius:50%;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);text-decoration:none;transition:background .2s;z-index:10;';
+                          dlBtn.onmouseenter = () => { dlBtn.style.background = 'rgba(255,255,255,0.25)'; };
+                          dlBtn.onmouseleave = () => { dlBtn.style.background = 'rgba(255,255,255,0.15)'; };
 
-                      overlay.appendChild(img);
-                      overlay.appendChild(closeBtn);
-                      overlay.appendChild(dlBtn);
-                      document.body.appendChild(overlay);
-                    }}
-                  />
+                          const counter = document.createElement('div');
+                          counter.textContent = `${currentIdx + 1} / ${urls.length}`;
+                          counter.style.cssText = 'position:absolute;top:32px;left:50%;transform:translateX(-50%);color:white;font-weight:600;font-size:16px;text-shadow:0 1px 4px rgba(0,0,0,0.5);z-index:10;';
+                          
+                          if (urls.length < 2) counter.style.display = 'none';
+
+                          const prevBtn = document.createElement('button');
+                          prevBtn.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>';
+                          prevBtn.style.cssText = 'position:absolute;left:16px;top:50%;transform:translateY(-50%);width:56px;height:56px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);transition:background .2s;z-index:10;';
+                          prevBtn.onmouseenter = () => { prevBtn.style.background = 'rgba(255,255,255,0.2)'; };
+                          prevBtn.onmouseleave = () => { prevBtn.style.background = 'rgba(255,255,255,0.1)'; };
+                          
+                          const nextBtn = document.createElement('button');
+                          nextBtn.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+                          nextBtn.style.cssText = 'position:absolute;right:16px;top:50%;transform:translateY(-50%);width:56px;height:56px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);transition:background .2s;z-index:10;';
+                          nextBtn.onmouseenter = () => { nextBtn.style.background = 'rgba(255,255,255,0.2)'; };
+                          nextBtn.onmouseleave = () => { nextBtn.style.background = 'rgba(255,255,255,0.1)'; };
+
+                          if (urls.length < 2) {
+                            prevBtn.style.display = 'none';
+                            nextBtn.style.display = 'none';
+                          }
+
+                          prevBtn.onclick = (ev) => {
+                            ev.stopPropagation();
+                            if (currentIdx > 0) { currentIdx--; updateImage(); dlBtn.href = urls[currentIdx]; }
+                          };
+                          nextBtn.onclick = (ev) => {
+                            ev.stopPropagation();
+                            if (currentIdx < urls.length - 1) { currentIdx++; updateImage(); dlBtn.href = urls[currentIdx]; }
+                          };
+
+                          const close = () => {
+                            overlay.style.opacity = '0';
+                            setTimeout(() => overlay.remove(), 200);
+                          };
+                          closeBtn.onclick = close;
+                          overlay.onclick = (ev) => { if (ev.target === overlay || ev.target === container) close(); };
+                          
+                          document.addEventListener('keydown', function handler(ev) {
+                            if (ev.key === 'Escape') { close(); document.removeEventListener('keydown', handler); }
+                            if (ev.key === 'ArrowLeft' && currentIdx > 0) { currentIdx--; updateImage(); dlBtn.href = urls[currentIdx]; }
+                            if (ev.key === 'ArrowRight' && currentIdx < urls.length - 1) { currentIdx++; updateImage(); dlBtn.href = urls[currentIdx]; }
+                          });
+
+                          container.appendChild(img);
+                          overlay.appendChild(container);
+                          overlay.appendChild(closeBtn);
+                          overlay.appendChild(dlBtn);
+                          overlay.appendChild(counter);
+                          overlay.appendChild(prevBtn);
+                          overlay.appendChild(nextBtn);
+                          document.body.appendChild(overlay);
+                        }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt="Photo"
+                          className={`w-full h-full object-cover ${!isGrid ? 'rounded-xl' : ''}`}
+                          loading="lazy"
+                        />
+                        {isLastDisplay && remainingCount > 0 && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-3xl font-medium tracking-wide">
+                            +{remainingCount}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              </>
-            )}
+              );
+            })()}
             
             <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''} ${shouldMask ? 'blur-[3.5px] opacity-60 select-none' : ''}`}>
               {message.isDeletedForEveryone ? (
@@ -783,26 +845,26 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
                 formatMessageText(message.text)
               )}
             </p>
-            <div className="flex items-center justify-end space-x-1 mt-0.5 self-end float-right">
-              {!message.isDeletedForEveryone && message.isEdited && (
-                <span className="text-[10px] text-black/40 italic mr-1">
-                  Edited
+            <div className={`flex items-center space-x-1 ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'absolute bottom-[4px] right-[4px] bg-black/40 text-white/90 rounded-full px-1.5 py-[1px] z-10 backdrop-blur-sm scale-[0.85] origin-bottom-right' : 'mt-0.5 justify-end self-end float-right'}`}>
+              <div className="flex items-center space-x-1">
+                {!message.isDeletedForEveryone && message.isEdited && (
+                  <span className={`text-[10px] italic mr-1 ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'text-white/80' : 'text-black/40'}`}>
+                    Edited
+                  </span>
+                )}
+                <span className={`text-[10.5px] font-medium tracking-tight ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'text-white' : 'text-black/45'}`}>
+                  {message.editedAt ? formatTime(message.editedAt) : formatTime(message.createdAt)}
                 </span>
-              )}
-              <span className="text-[10.5px] text-black/45 font-medium tracking-tight">
-                {message.editedAt ? formatTime(message.editedAt) : formatTime(message.createdAt)}
-              </span>
-              {isMine && (
-                <div className="flex items-center ml-1.5 space-x-0.5">
-                  <div className={`w-1.5 h-1.5 rounded-full ${message.seen ? 'bg-[#25D366] shadow-[0_0_2px_rgba(37,211,102,0.5)]' : 'bg-black/20'}`} />
-                  <div className={`w-1.5 h-1.5 rounded-full ${message.seen ? 'bg-[#25D366] shadow-[0_0_2px_rgba(37,211,102,0.5)]' : 'bg-black/20'}`} />
-                </div>
-              )}
-              {isMine && message.seen && message.seenAt && (
-                <span className="text-[10.5px] text-blue-600 font-bold tracking-tight ml-1.5">
-                  {formatTime(message.seenAt)}
-                </span>
-              )}
+                {isMine && (
+                  <div className="flex items-center ml-1 space-x-0.5 opacity-90">
+                    {message.seen ? (
+                      <CheckCheck size={14} className={(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'text-[#34B7F1] drop-shadow-sm' : 'text-[#34B7F1]'} strokeWidth={2.5} />
+                    ) : (
+                      <Check size={13} className={(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'text-[#25D366] drop-shadow-sm' : 'text-[#25D366]'} strokeWidth={2.5} />
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             
             {/* Render Reactions below the message */}
@@ -870,3 +932,23 @@ export default function MessageItem({ message, isMine, user, chatId, isFirstUnre
     </div>
   );
 }
+
+export default React.memo(MessageItemComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.text === nextProps.message.text &&
+    prevProps.message.isDeletedForEveryone === nextProps.message.isDeletedForEveryone &&
+    prevProps.message.seen === nextProps.message.seen &&
+    JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions) &&
+    prevProps.isFirstUnreplied === nextProps.isFirstUnreplied &&
+    prevProps.isAnonymousMode === nextProps.isAnonymousMode &&
+    prevProps.isLastMessage === nextProps.isLastMessage &&
+    prevProps.isRevealed === nextProps.isRevealed &&
+    prevProps.isActiveReaction === nextProps.isActiveReaction &&
+    prevProps.selectionMode === nextProps.selectionMode &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isExpanded === nextProps.isExpanded &&
+    prevProps.isPinned === nextProps.isPinned &&
+    prevProps.searchQuery === nextProps.searchQuery
+  );
+});

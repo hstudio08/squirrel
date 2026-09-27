@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFirestore, initializeFirestore, Firestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 
@@ -18,6 +18,10 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
+
+// Explicitly set persistence to local to fix aggressive iOS Safari / browser clearing issues
+setPersistence(auth, browserLocalPersistence).catch(console.error);
+
 let db: Firestore;
 try {
   db = initializeFirestore(app, {
