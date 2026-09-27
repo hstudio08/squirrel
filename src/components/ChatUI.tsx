@@ -1332,11 +1332,11 @@ export default function ChatUI({ user }: ChatUIProps) {
           const newMessageData: any = {
             senderId: user.uid,
             text: messageText,
-            imageUrl: validUrls.length === 1 ? validUrls[0] : undefined,
-            imageUrls: validUrls.length > 1 ? validUrls : undefined,
             createdAt: serverTimestamp(),
             seen: false
           };
+          if (validUrls.length === 1) newMessageData.imageUrl = validUrls[0];
+          if (validUrls.length > 1) newMessageData.imageUrls = validUrls;
 
           if (replyingTo) {
             newMessageData.replyToId = replyingTo.id;
@@ -1371,7 +1371,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
         if (replyingTo) {
           newMessageData.replyToId = replyingTo.id;
-          newMessageData.replyToText = replyingTo.text;
+          newMessageData.replyToText = replyingTo.text || 'Photo';
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
