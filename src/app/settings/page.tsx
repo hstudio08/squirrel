@@ -219,19 +219,35 @@ export default function SettingsPage() {
       const canvas = document.createElement('canvas');
       const scaleX = image.naturalWidth / image.width;
       const scaleY = image.naturalHeight / image.height;
-      canvas.width = completedCrop.width;
-      canvas.height = completedCrop.height;
+      
+      let actualWidth = Math.floor(completedCrop.width * scaleX);
+      let actualHeight = Math.floor(completedCrop.height * scaleY);
+      
+      // Limit resolution to avoid mobile memory issues
+      const MAX_SIZE = 1080;
+      if (actualWidth > MAX_SIZE || actualHeight > MAX_SIZE) {
+        const ratio = Math.min(MAX_SIZE / actualWidth, MAX_SIZE / actualHeight);
+        actualWidth = Math.floor(actualWidth * ratio);
+        actualHeight = Math.floor(actualHeight * ratio);
+      }
+      
+      canvas.width = actualWidth;
+      canvas.height = actualHeight;
       const ctx = canvas.getContext('2d');
 
       if (!ctx) throw new Error('No 2d context');
 
+      // Fill white background (prevents black background on transparent PNGs when saving as JPEG)
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
       ctx.drawImage(
         image,
-        completedCrop.x * scaleX,
-        completedCrop.y * scaleY,
-        completedCrop.width * scaleX,
-        completedCrop.height * scaleY,
-        0, 0, completedCrop.width, completedCrop.height
+        Math.floor(completedCrop.x * scaleX),
+        Math.floor(completedCrop.y * scaleY),
+        Math.floor(completedCrop.width * scaleX),
+        Math.floor(completedCrop.height * scaleY),
+        0, 0, actualWidth, actualHeight
       );
 
       const blob = await new Promise<Blob>((resolve, reject) => {
