@@ -219,10 +219,10 @@ export default function SettingsPage() {
       const canvas = document.createElement('canvas');
       const scaleX = image.naturalWidth / image.width;
       const scaleY = image.naturalHeight / image.height;
-      
+
       let actualWidth = Math.floor(completedCrop.width * scaleX);
       let actualHeight = Math.floor(completedCrop.height * scaleY);
-      
+
       // Limit resolution to avoid mobile memory issues
       const MAX_SIZE = 1080;
       if (actualWidth > MAX_SIZE || actualHeight > MAX_SIZE) {
@@ -230,7 +230,7 @@ export default function SettingsPage() {
         actualWidth = Math.floor(actualWidth * ratio);
         actualHeight = Math.floor(actualHeight * ratio);
       }
-      
+
       canvas.width = actualWidth;
       canvas.height = actualHeight;
       const ctx = canvas.getContext('2d');
@@ -307,7 +307,7 @@ export default function SettingsPage() {
       setUploading(true);
       await updateProfile(user, { photoURL: "" });
       await updateDoc(doc(db, 'users', user.uid), { photoURL: "" });
-      
+
       setUser({ ...user, photoURL: "" } as User);
     } catch (error) {
       console.error('Error deleting profile picture:', error);
@@ -501,13 +501,13 @@ export default function SettingsPage() {
             <div className="flex items-center w-full justify-between relative z-10 group cursor-default px-2 stagger-1">
               <div className="w-[84px] h-[84px] rounded-full flex flex-col items-center justify-center transition-transform duration-500 hover:scale-105"
                 style={{ backgroundColor: '#F2E8CF', borderColor: '#6B705C', borderWidth: 1 }}>
-                <span className="text-[13px] font-medium italic" style={{ color: '#6B705C' }}>Watij</span>
+                <span className="text-[13px] font-medium italic" style={{ color: '#6B705C' }}>Sadiya</span>
                 <span className="text-[8px] mt-1 uppercase tracking-widest opacity-80" style={{ color: '#6B705C' }}>Spark</span>
               </div>
 
               <div className="w-[84px] h-[84px] rounded-full flex flex-col items-center justify-center transition-transform duration-500 hover:scale-105"
                 style={{ backgroundColor: '#EBF0F2', borderColor: '#5E7480', borderWidth: 1 }}>
-                <span className="text-[13px] font-medium italic" style={{ color: '#5E7480' }}>Watul</span>
+                <span className="text-[13px] font-medium italic" style={{ color: '#5E7480' }}>Haadi</span>
                 <span className="text-[8px] mt-1 uppercase tracking-widest opacity-80" style={{ color: '#5E7480' }}>Spark</span>
               </div>
             </div>
@@ -576,9 +576,9 @@ export default function SettingsPage() {
                   </button>
                 )}
                 {user?.email === 'officialhaadi81@gmail.com' && isEditingPartnerNickname && isSavingPartnerNickname && (
-                   <div className="absolute inset-0 m-auto w-8 h-8 flex items-center justify-center bg-white/70 backdrop-blur-sm rounded-full z-20" style={{ color: '#2F6662' }}>
-                     <Loader2 size={14} className="animate-spin" />
-                   </div>
+                  <div className="absolute inset-0 m-auto w-8 h-8 flex items-center justify-center bg-white/70 backdrop-blur-sm rounded-full z-20" style={{ color: '#2F6662' }}>
+                    <Loader2 size={14} className="animate-spin" />
+                  </div>
                 )}
               </div>
 
@@ -623,9 +623,9 @@ export default function SettingsPage() {
                   </button>
                 )}
                 {user?.email === 'sadiyaayoub22019@gmail.com' && isEditingPartnerNickname && isSavingPartnerNickname && (
-                   <div className="absolute inset-0 m-auto w-8 h-8 flex items-center justify-center bg-white/70 backdrop-blur-sm rounded-full z-20" style={{ color: '#705746' }}>
-                     <Loader2 size={14} className="animate-spin" />
-                   </div>
+                  <div className="absolute inset-0 m-auto w-8 h-8 flex items-center justify-center bg-white/70 backdrop-blur-sm rounded-full z-20" style={{ color: '#705746' }}>
+                    <Loader2 size={14} className="animate-spin" />
+                  </div>
                 )}
               </div>
             </div>
