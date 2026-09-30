@@ -626,6 +626,31 @@ export default function SettingsPage() {
                 )}
               </div>
             </div>
+
+            {/* Notifications Button */}
+            <div className="w-full flex justify-center mt-12 mb-4 relative z-10 stagger-3">
+              <button
+                onClick={() => {
+                  if ('Notification' in window) {
+                    Notification.requestPermission().then(permission => {
+                      if (permission === 'granted') {
+                        alert('Notifications enabled! You will now receive alerts for new messages.');
+                        // Just trigger a reload so ChatUI can initialize notifications
+                        window.location.reload();
+                      } else {
+                        alert('Notifications denied. You can enable them in your browser settings.');
+                      }
+                    });
+                  } else {
+                    alert('Your browser does not support notifications.');
+                  }
+                }}
+                className="px-6 py-2.5 rounded-full bg-slate-800 text-white font-medium text-sm border border-slate-700 hover:bg-slate-700 active:scale-95 transition-all shadow-md flex items-center space-x-2"
+              >
+                <span>Enable Push Notifications</span>
+              </button>
+            </div>
+
           </div>
         </div>
       </div>
