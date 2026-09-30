@@ -502,13 +502,12 @@ export default function SettingsPage() {
               <div className="w-[84px] h-[84px] rounded-full flex flex-col items-center justify-center transition-transform duration-500 hover:scale-105"
                 style={{ backgroundColor: '#F2E8CF', borderColor: '#6B705C', borderWidth: 1 }}>
                 <span className="text-[13px] font-medium italic" style={{ color: '#6B705C' }}>Sadiya</span>
-                <span className="text-[8px] mt-1 uppercase tracking-widest opacity-80" style={{ color: '#6B705C' }}>Spark</span>
               </div>
 
               <div className="w-[84px] h-[84px] rounded-full flex flex-col items-center justify-center transition-transform duration-500 hover:scale-105"
                 style={{ backgroundColor: '#EBF0F2', borderColor: '#5E7480', borderWidth: 1 }}>
                 <span className="text-[13px] font-medium italic" style={{ color: '#5E7480' }}>Haadi</span>
-                <span className="text-[8px] mt-1 uppercase tracking-widest opacity-80" style={{ color: '#5E7480' }}>Spark</span>
+
               </div>
             </div>
 
@@ -520,13 +519,11 @@ export default function SettingsPage() {
               <div className="w-[90px] h-[90px] rounded-full flex flex-col items-center justify-center transition-transform duration-500 hover:scale-105"
                 style={{ backgroundColor: '#F9EED9', borderColor: '#A67C52', borderWidth: 1 }}>
                 <span className="text-[14px] font-semibold italic" style={{ color: '#A67C52' }}>Squirrel</span>
-                <span className="text-[8px] mt-1 uppercase tracking-widest opacity-80" style={{ color: '#A67C52' }}>Bond</span>
               </div>
 
               <div className="w-[90px] h-[90px] rounded-full flex flex-col items-center justify-center transition-transform duration-500 hover:scale-105"
                 style={{ backgroundColor: '#E5EDE8', borderColor: '#547A64', borderWidth: 1 }}>
                 <span className="text-[14px] font-semibold italic" style={{ color: '#547A64' }}>Pookie</span>
-                <span className="text-[8px] mt-1 uppercase tracking-widest opacity-80" style={{ color: '#547A64' }}>Warmth</span>
               </div>
             </div>
 
