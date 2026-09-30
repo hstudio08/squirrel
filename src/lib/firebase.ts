@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence, initializeAuth, Auth } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence, initializeAuth, Auth, browserPopupRedirectResolver } from "firebase/auth";
 import { getFirestore, initializeFirestore, Firestore, persistentLocalCache } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 import { getStorage } from "firebase/storage";
@@ -24,7 +24,8 @@ if (typeof window !== "undefined") {
   try {
     // Correctly force LocalStorage persistence without race conditions
     auth = initializeAuth(app, {
-      persistence: browserLocalPersistence
+      persistence: browserLocalPersistence,
+      popupRedirectResolver: browserPopupRedirectResolver
     });
   } catch (e) {
     // Fallback if already initialized (e.g., Next.js Fast Refresh)
