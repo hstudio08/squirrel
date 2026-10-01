@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "794362383109",
+    "firebase_url": "https://squirrel-4f5a6-default-rtdb.firebaseio.com",
+    "project_id": "squirrel-4f5a6",
+    "storage_bucket": "squirrel-4f5a6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:794362383109:android:e609cb3467b5fb45b0c56c",
+        "android_client_info": {
+          "package_name": "com.whyitworks.squirrel"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "794362383109-cel5qt7ab5g7hkehsmdgsprvv93aco3l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.whyitworks.squirrel",
+            "certificate_hash": "e8ab06d9a67e63ccc7be779ad9865345a270e8c4"
+          }
+        },
+        {
+          "client_id": "794362383109-slhj9uc231acqffgpnnri6127nqaaq9o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDH6sRuvivEd_Wg_9ihCfGSvl0dcdiZ4uc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "794362383109-slhj9uc231acqffgpnnri6127nqaaq9o.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
