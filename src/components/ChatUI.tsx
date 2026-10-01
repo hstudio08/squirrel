@@ -551,20 +551,36 @@ export default function ChatUI({ user }: ChatUIProps) {
           }, { merge: true });
         }
 
-        const permission = 'Notification' in window ? Notification.permission : 'denied';
-        if (permission === 'granted') {
-          const messaging = await getFirebaseMessaging();
-          if (messaging) {
-
-            const registration = await navigator.serviceWorker.register('/sw.js');
-            const token = await getToken(messaging, {
-              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-              serviceWorkerRegistration: registration
-            });
-            if (token) {
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor.isNativePlatform()) {
+          const { PushNotifications } = await import('@capacitor/push-notifications');
+          let permStatus = await PushNotifications.checkPermissions();
+          if (permStatus.receive === 'prompt') {
+            permStatus = await PushNotifications.requestPermissions();
+          }
+          if (permStatus.receive === 'granted') {
+            await PushNotifications.register();
+            PushNotifications.addListener('registration', async (token) => {
               await setDoc(doc(db, "users", user.uid, "private", "tokens"), {
-                fcmTokens: arrayUnion(token)
+                fcmTokens: arrayUnion(token.value)
               }, { merge: true });
+            });
+          }
+        } else {
+          const permission = 'Notification' in window ? Notification.permission : 'denied';
+          if (permission === 'granted') {
+            const messaging = await getFirebaseMessaging();
+            if (messaging) {
+              const registration = await navigator.serviceWorker.register('/sw.js');
+              const token = await getToken(messaging, {
+                vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+                serviceWorkerRegistration: registration
+              });
+              if (token) {
+                await setDoc(doc(db, "users", user.uid, "private", "tokens"), {
+                  fcmTokens: arrayUnion(token)
+                }, { merge: true });
+              }
             }
           }
         }

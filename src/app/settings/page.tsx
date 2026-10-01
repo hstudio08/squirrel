@@ -558,18 +558,37 @@ export default function SettingsPage() {
 
             {/* Notifications Button */}
             <button
-              onClick={() => {
-                if ('Notification' in window) {
-                  Notification.requestPermission().then(permission => {
-                    if (permission === 'granted') {
+              onClick={async () => {
+                try {
+                  const { Capacitor } = await import('@capacitor/core');
+                  if (Capacitor.isNativePlatform()) {
+                    const { PushNotifications } = await import('@capacitor/push-notifications');
+                    let permStatus = await PushNotifications.checkPermissions();
+                    if (permStatus.receive === 'prompt') {
+                      permStatus = await PushNotifications.requestPermissions();
+                    }
+                    if (permStatus.receive === 'granted') {
                       alert('Notifications enabled! You will now receive alerts for new messages.');
                       window.location.reload();
                     } else {
-                      alert('Notifications denied. You can enable them in your browser settings.');
+                      alert('Notifications denied. You can enable them in your device settings.');
                     }
-                  });
-                } else {
-                  alert('Your browser does not support notifications.');
+                  } else {
+                    if ('Notification' in window) {
+                      Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                          alert('Notifications enabled! You will now receive alerts for new messages.');
+                          window.location.reload();
+                        } else {
+                          alert('Notifications denied. You can enable them in your browser settings.');
+                        }
+                      });
+                    } else {
+                      alert('Your browser does not support notifications.');
+                    }
+                  }
+                } catch (e) {
+                  alert('Error setting up notifications');
                 }
               }}
               className="p-4 w-full flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
