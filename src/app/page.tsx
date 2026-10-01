@@ -2,24 +2,23 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { Capacitor } from '@capacitor/core';
+import Calculator from '@/components/Calculator';
 import { Sparkles, BrainCircuit, Cpu, Network, ShieldCheck, Zap, Layers, Code, Bot, Menu, X } from 'lucide-react';
 
-export default function AIHubLandingPage() {
-  const [clickCount, setClickCount] = useState(0);
+function AIHubLandingPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const router = useRouter();
   const lastClickRef = useRef<number>(0);
+  const clickCountRef = useRef<number>(0);
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [scrolled, setScrolled] = useState(false);
   
-  // STRICT PROD EMAILS ONLY
-  const allowedEmails = ['officialhaadi81@gmail.com', 'sadiyaayoub22019@gmail.com'];
-
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
@@ -29,64 +28,58 @@ export default function AIHubLandingPage() {
   }, []);
 
   useEffect(() => {
-    // We only observe auth state, no auto-redirect here.
+    getRedirectResult(auth).then(async (result) => {
+      if (result?.user) {
+        try {
+          await setDoc(doc(db, 'users', result.user.uid), {
+            uid: result.user.uid,
+            email: result.user.email,
+            displayName: result.user.displayName,
+            photoURL: result.user.photoURL,
+            lastLogin: serverTimestamp()
+          }, { merge: true });
+        } catch (e) {
+          console.error('Firestore error:', e);
+        }
+        router.push('/chat');
+      }
+    }).catch(console.error);
+
     const unsubscribe = auth.onAuthStateChanged(() => {});
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   // SECRET LOGIN TRIGGER: Click logo 5 times quickly
   const handleSecretClick = (e: React.MouseEvent) => {
     e.preventDefault();
     const now = Date.now();
-    let currentCount = clickCount;
+    let currentCount = clickCountRef.current;
     
     if (now - lastClickRef.current > 1500) currentCount = 0;
     
     currentCount++;
-    setClickCount(currentCount);
+    clickCountRef.current = currentCount;
     lastClickRef.current = now;
 
     if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-    clickTimerRef.current = setTimeout(() => setClickCount(0), 1500);
+    clickTimerRef.current = setTimeout(() => { clickCountRef.current = 0; }, 1500);
 
     if (currentCount >= 5) {
       if (isLoggingIn) return;
       setIsLoggingIn(true);
-      setClickCount(0);
+      clickCountRef.current = 0;
       
-      if (auth.currentUser && auth.currentUser.email && allowedEmails.includes(auth.currentUser.email.toLowerCase())) {
+      if (auth.currentUser) {
         setIsLoggingIn(false);
         router.push('/chat');
         return;
       }
 
-      signInWithPopup(auth, googleProvider)
-        .then(async (result) => {
-          if (result?.user) {
-            const email = result.user.email?.toLowerCase();
-            if (email && allowedEmails.includes(email)) {
-              try {
-                await setDoc(doc(db, 'users', result.user.uid), {
-                  uid: result.user.uid,
-                  email: result.user.email,
-                  displayName: result.user.displayName,
-                  photoURL: result.user.photoURL,
-                  lastLogin: serverTimestamp()
-                }, { merge: true });
-              } catch (e) {
-                console.error('Firestore error:', e);
-              }
-              router.push('/chat');
-            } else {
-              auth.signOut();
-              alert('Waitlist full. Please try again next month.');
-            }
-          }
-        })
+      signInWithRedirect(auth, googleProvider)
         .catch((error) => {
           console.error('Login failed:', error);
-        })
-        .finally(() => setIsLoggingIn(false));
+          setIsLoggingIn(false);
+        });
     }
   };
 
@@ -336,4 +329,22 @@ export default function AIHubLandingPage() {
       </footer>
     </div>
   );
+}
+
+export default function Home() {
+  const [isNative, setIsNative] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setIsNative(Capacitor.isNativePlatform());
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  if (isNative) {
+    return <Calculator />;
+  }
+  
+  return <AIHubLandingPage />;
 }

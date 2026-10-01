@@ -991,7 +991,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       }
 
       const idToken = await user.getIdToken();
-      const sigRes = await fetch('/api/upload-signature', {
+      const sigRes = await fetch('https://mysquirrel.vercel.app/api/upload-signature', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
@@ -1036,7 +1036,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         // Trigger notification to the other user
         try {
           const idToken = await user.getIdToken();
-          fetch('/api/notify', {
+          fetch('https://mysquirrel.vercel.app/api/notify', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1193,7 +1193,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       const senderName = user.email ? user.email.split('@')[0] : 'user';
       const publicId = `${senderName}_${audioCount.toString().padStart(2, '0')}`;
 
-      const sigRes = await fetch('/api/upload-signature', {
+      const sigRes = await fetch('https://mysquirrel.vercel.app/api/upload-signature', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
@@ -1239,7 +1239,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
         
         try {
-          fetch('/api/notify', {
+          fetch('https://mysquirrel.vercel.app/api/notify', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1298,7 +1298,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             compressedFile = file;
           }
 
-          const sigRes = await fetch('/api/upload-signature', {
+          const sigRes = await fetch('https://mysquirrel.vercel.app/api/upload-signature', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${idToken}`,
@@ -1347,7 +1347,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
           
           try {
-            fetch('/api/notify', {
+            fetch('https://mysquirrel.vercel.app/api/notify', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -1380,7 +1380,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         // Trigger notification to the other user
         try {
           const idToken = await user.getIdToken();
-          fetch('/api/notify', {
+          fetch('https://mysquirrel.vercel.app/api/notify', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1447,7 +1447,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     setPinError('');
     try {
       const idToken = await user.getIdToken();
-      const res = await fetch('/api/pin/verify', {
+      const res = await fetch('https://mysquirrel.vercel.app/api/pin/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
         body: JSON.stringify({ pin: finalPin })
@@ -1721,7 +1721,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                     title={generatedPin ? `PIN: ${generatedPin}` : 'Generate PIN'}
                     onClick={async () => {
                       const idToken = await user.getIdToken();
-                      const res = await fetch('/api/pin/generate', {
+                      const res = await fetch('https://mysquirrel.vercel.app/api/pin/generate', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` }
                       });

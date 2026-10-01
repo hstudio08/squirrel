@@ -44,6 +44,11 @@ export default function SettingsPage() {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // App PIN state
+  const [appPin, setAppPin] = useState('');
+  const [isEditingPin, setIsEditingPin] = useState(false);
+  const [pinSaved, setPinSaved] = useState(false);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -51,6 +56,11 @@ export default function SettingsPage() {
       setUser(u);
       setLoading(false);
     });
+    // Load existing PIN if any
+    const savedPin = localStorage.getItem('squirrel_pin');
+    if (savedPin) {
+      setAppPin(savedPin);
+    }
     return () => unsubscribe();
   }, []);
 
@@ -195,6 +205,23 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSavePin = () => {
+    const finalPin = appPin.replace(/\s/g, '');
+    if (finalPin.length === 0) {
+      localStorage.removeItem('squirrel_pin');
+      setAppPin('');
+    } else if (/^\d{4}$/.test(finalPin)) {
+      localStorage.setItem('squirrel_pin', finalPin);
+      setAppPin(finalPin);
+    } else {
+      alert('PIN must be exactly 4 digits.');
+      return;
+    }
+    setIsEditingPin(false);
+    setPinSaved(true);
+    setTimeout(() => setPinSaved(false), 2000);
+  };
+
   const handleSavePartnerNickname = async () => {
     if (!user || partnerNickname.length > 30) return;
     setIsSavingPartnerNickname(true);
@@ -258,7 +285,7 @@ export default function SettingsPage() {
       });
 
       const idToken = await user.getIdToken();
-      const sigRes = await fetch('/api/upload-signature', {
+      const sigRes = await fetch('https://mysquirrel.vercel.app/api/upload-signature', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
@@ -319,8 +346,8 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="h-dvh flex items-center justify-center bg-[#f2f2f7]">
-        <Loader2 className="animate-spin text-neutral-400" size={32} />
+      <div className="h-dvh flex items-center justify-center bg-[#F2F2F7]">
+        <Loader2 className="animate-spin text-blue-500" size={32} />
       </div>
     );
   }
@@ -328,33 +355,32 @@ export default function SettingsPage() {
   if (!user) return null;
 
   return (
-    <div className="h-dvh bg-[#f2f2f7] flex flex-col font-sans overflow-hidden">
-      {/* Header (iOS Style) */}
-      <div className="px-4 py-3 flex items-center shrink-0 bg-[#f2f2f7]/80 backdrop-blur-md z-10 sticky top-0">
+    <div className="h-dvh bg-[#F2F2F7] text-black flex flex-col font-sans overflow-hidden">
+      {/* Header (Clean iOS Style) */}
+      <div className="px-4 py-3 flex items-center shrink-0 bg-white/80 backdrop-blur-xl border-b border-gray-200 z-20 sticky top-0">
         <button
           onClick={() => router.push('/chat')}
-          className="relative z-10 w-10 h-10 flex items-center justify-center text-blue-500 hover:opacity-70 transition-opacity"
+          className="relative z-10 w-10 h-10 flex items-center justify-center text-blue-500 hover:bg-gray-100 rounded-full transition-all"
         >
           <ArrowLeft size={24} />
         </button>
-        <h1 className="flex-1 text-center text-lg font-semibold text-black -ml-10 pointer-events-none">Settings</h1>
+        <h1 className="flex-1 text-center text-[17px] font-semibold text-black -ml-10 pointer-events-none">Settings</h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-12 pt-4 flex flex-col items-center">
+      <div className="flex-1 overflow-y-auto px-4 pb-20 pt-6 flex flex-col items-center custom-scrollbar">
+        <div className="w-full max-w-md flex flex-col gap-6">
 
-        {/* Profile Card */}
-        <div className="w-full max-w-sm mt-2 flex flex-col gap-5">
-
-          {/* Avatar and Profile Info */}
-          <div className="flex items-center gap-4 px-2">
-
-            <div className="relative group shrink-0">
-              <div className="w-20 h-20 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center border-4 border-white">
+          {/* Profile Card */}
+          <div className="flex flex-col items-center gap-4 p-6 bg-white rounded-2xl shadow-sm border border-gray-200/60">
+            
+            {/* Avatar */}
+            <div className="relative group shrink-0 z-10">
+              <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center border border-gray-200 shadow-sm">
                 {user.photoURL ? (
                   <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-tr from-slate-200 to-slate-50 flex items-center justify-center">
-                    <svg className="w-1/2 h-1/2 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                    <svg className="w-1/2 h-1/2 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                       <circle cx="12" cy="7" r="4" />
                     </svg>
@@ -363,295 +389,201 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-1.5 flex-1 overflow-hidden">
-              <div className="flex flex-col gap-1">
-                {isEditingName ? (
-                  <div className="flex items-center bg-white rounded-lg border border-neutral-100 overflow-hidden pr-1">
-                    <input
-                      type="text"
-                      maxLength={50}
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      className="flex-1 min-w-0 bg-transparent outline-none text-black text-[13px] font-bold px-2 py-1.5"
-                      autoFocus
-                      onBlur={() => {
-                        if (displayName === user.displayName || displayName.trim() === '') {
-                          setIsEditingName(false);
-                          setDisplayName(user.displayName || '');
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={() => {
-                        handleSaveName();
-                        setIsEditingName(false);
-                      }}
-                      disabled={isSavingName || displayName.length > 50 || displayName === user.displayName}
-                      className="w-6 h-6 flex items-center justify-center rounded-md bg-blue-50 text-blue-600 active:bg-blue-100 disabled:opacity-40 shrink-0"
-                    >
-                      {isSavingName ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 group">
-                    <h2 className="text-lg font-bold text-black tracking-tight leading-tight truncate">{user.displayName || 'Anonymous'}</h2>
-                    <button onClick={() => setIsEditingName(true)} className="text-neutral-400 hover:text-blue-500 transition-colors opacity-50 group-hover:opacity-100">
-                      <Pen size={12} />
-                    </button>
-                  </div>
-                )}
-                <p className="text-neutral-500 text-[10px] truncate">{user.email}</p>
-              </div>
-
-              <div className="flex gap-2 mt-1">
-                <label className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer bg-white shadow-sm active:scale-95 transition-all text-neutral-500 hover:text-blue-500 border border-neutral-100">
-                  <ImagePlus size={14} />
-                  <input type="file" accept="image/*" onChange={onSelectFile} className="hidden" />
-                </label>
-                <button onClick={openCamera} className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer bg-white shadow-sm active:scale-95 transition-all text-neutral-500 hover:text-blue-500 border border-neutral-100">
-                  <Camera size={14} />
+            {/* Avatar Actions */}
+            <div className="flex gap-3 mt-1">
+              <label className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-all text-gray-700 shadow-sm">
+                <ImagePlus size={18} />
+                <input type="file" accept="image/*" onChange={onSelectFile} className="hidden" />
+              </label>
+              <button onClick={openCamera} className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-all text-gray-700 shadow-sm">
+                <Camera size={18} />
+              </button>
+              {user.photoURL && (
+                <button onClick={handleDeleteProfilePicture} disabled={uploading} className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer bg-gray-100 hover:bg-red-50 active:bg-red-100 transition-all text-red-500 shadow-sm disabled:opacity-40">
+                  {uploading ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
                 </button>
-                {user.photoURL && (
-                  <button onClick={handleDeleteProfilePicture} disabled={uploading} className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer bg-white shadow-sm active:scale-95 transition-all text-neutral-500 hover:text-red-500 border border-neutral-100 disabled:opacity-40">
-                    {uploading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                  </button>
-                )}
-              </div>
+              )}
             </div>
-          </div>
 
-          {/* Form Fields Stacked */}
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-neutral-100/50 flex flex-col gap-4">
-            {/* Status/About Input */}
-            <div className="flex flex-col">
-              <div className="flex justify-between items-end mb-1">
-                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">About You</label>
-                <span className="text-[9px] text-neutral-400 font-medium">{status.length}/35</span>
+            {/* Name */}
+            <div className="w-full mt-2">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1 mb-1 block">Name</label>
+              {isEditingName ? (
+                <div className="flex items-center bg-gray-50 rounded-xl border border-gray-300 overflow-hidden pr-1 focus-within:border-blue-500 transition-colors shadow-sm">
+                  <input
+                    type="text"
+                    maxLength={50}
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="flex-1 min-w-0 bg-transparent outline-none text-black text-[17px] px-3 py-2.5 placeholder:text-gray-400"
+                    autoFocus
+                    onBlur={() => {
+                      if (displayName === user.displayName || displayName.trim() === '') {
+                        setIsEditingName(false);
+                        setDisplayName(user.displayName || '');
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      handleSaveName();
+                      setIsEditingName(false);
+                    }}
+                    disabled={isSavingName || displayName.length > 50 || displayName === user.displayName}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-500 text-white active:scale-95 disabled:opacity-40 shrink-0 transition-transform"
+                  >
+                    {isSavingName ? <Loader2 size={14} className="animate-spin" /> : <Check size={16} strokeWidth={2.5} />}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between bg-gray-50 rounded-xl border border-gray-200 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => setIsEditingName(true)}>
+                  <span className="text-[17px] text-black truncate">{user.displayName || 'Anonymous'}</span>
+                  <Pen size={16} className="text-gray-400" />
+                </div>
+              )}
+              <p className="text-gray-500 text-xs ml-1 mt-1.5">{user.email}</p>
+            </div>
+
+            {/* About */}
+            <div className="w-full mt-2">
+              <div className="flex justify-between items-end mb-1 ml-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">About</label>
+                <span className="text-[10px] text-gray-400 font-medium">{status.length}/35</span>
               </div>
-              <div className="flex items-center border-b border-neutral-100 pb-1">
+              <div className="flex items-center bg-gray-50 rounded-xl border border-gray-200 px-1 py-1 focus-within:border-gray-300 transition-colors shadow-sm">
                 <input
                   type="text"
                   placeholder="What are you doing?"
                   maxLength={35}
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
-                  className="flex-1 bg-transparent outline-none text-black placeholder:text-neutral-300 text-[14px] font-medium"
+                  className="flex-1 min-w-0 bg-transparent outline-none text-black placeholder:text-gray-400 text-[16px] px-3 py-2"
                 />
                 <button
                   onClick={handleSaveStatus}
                   disabled={isSavingStatus || status.length > 35}
-                  className={`ml-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${statusSaved ? 'bg-green-500 text-white' : 'bg-blue-50 text-blue-600 active:bg-blue-100'
-                    } disabled:opacity-40 flex items-center gap-1`}
+                  className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all ${statusSaved ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700 active:scale-95 hover:bg-gray-300'
+                    } disabled:opacity-40 flex items-center gap-1 shrink-0`}
                 >
-                  {isSavingStatus ? <Loader2 size={12} className="animate-spin" /> : statusSaved ? 'Saved' : 'Save'}
+                  {isSavingStatus ? <Loader2 size={14} className="animate-spin" /> : statusSaved ? 'Saved' : 'Save'}
                 </button>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Emotional Timeline */}
-        <div className="w-full max-w-sm mt-16 mb-24 flex flex-col items-center justify-center relative">
-          <style>{`
-            @keyframes slideUpFade {
-              0% { opacity: 0; transform: translateY(20px); }
-              100% { opacity: 1; transform: translateY(0); }
-            }
-            @keyframes typing {
-              from { max-width: 0 }
-              to { max-width: 250px }
-            }
-            @keyframes blink {
-              50% { border-color: transparent }
-            }
-            .typewriter {
-              display: inline-block;
-              overflow: hidden;
-              white-space: nowrap;
-              border-right: 2px solid white;
-              animation: typing 2s steps(12, end) forwards, blink 0.75s step-end infinite;
-            }
-            .stagger-1 { animation: slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards; opacity: 0; }
-            .stagger-2 { animation: slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards; opacity: 0; }
-            .stagger-3 { animation: slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.8s forwards; opacity: 0; }
-          `}</style>
-
-          <div className="mb-12 inline-flex">
-            <h3 className="text-[14px] font-bold text-white uppercase tracking-[0.15em] bg-black px-4 py-2 rounded-md shadow-sm">
-              <span className="typewriter">OUR TIMELINE</span>
-            </h3>
-          </div>
-
-          <div className="flex flex-col items-center relative w-full">
-            {/* The Connecting Zigzag Line */}
-            <div className="absolute inset-0 z-0 pointer-events-none opacity-40 stagger-1">
-              <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" fill="none">
-                <path d="M 15 12 L 85 12 L 15 48.5 L 85 48.5 L 15 86.5 L 85 86.5" stroke="url(#zigzag-grad)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeDasharray="4 4" />
-                <defs>
-                  <linearGradient id="zigzag-grad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#6B705C" />
-                    <stop offset="0.5" stopColor="#A67C52" />
-                    <stop offset="1" stopColor="#2F6662" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-
-            {/* Level 1 */}
-            <div className="flex items-center w-full justify-between relative z-10 group cursor-default px-2 stagger-1">
-              <div className="w-[84px] h-[84px] rounded-full flex flex-col items-center justify-center transition-transform duration-500 hover:scale-105"
-                style={{ backgroundColor: '#F2E8CF', borderColor: '#6B705C', borderWidth: 1 }}>
-                <span className="text-[13px] font-medium italic" style={{ color: '#6B705C' }}>Sadiya</span>
-              </div>
-
-              <div className="w-[84px] h-[84px] rounded-full flex flex-col items-center justify-center transition-transform duration-500 hover:scale-105"
-                style={{ backgroundColor: '#EBF0F2', borderColor: '#5E7480', borderWidth: 1 }}>
-                <span className="text-[13px] font-medium italic" style={{ color: '#5E7480' }}>Haadi</span>
-
-              </div>
-            </div>
-
-            {/* Gap */}
-            <div className="h-10 w-full"></div>
-
-            {/* Level 2 */}
-            <div className="flex items-center w-full justify-between relative z-10 group cursor-default px-2 stagger-2">
-              <div className="w-[90px] h-[90px] rounded-full flex flex-col items-center justify-center transition-transform duration-500 hover:scale-105"
-                style={{ backgroundColor: '#F9EED9', borderColor: '#A67C52', borderWidth: 1 }}>
-                <span className="text-[14px] font-semibold italic" style={{ color: '#A67C52' }}>Squirrel</span>
-              </div>
-
-              <div className="w-[90px] h-[90px] rounded-full flex flex-col items-center justify-center transition-transform duration-500 hover:scale-105"
-                style={{ backgroundColor: '#E5EDE8', borderColor: '#547A64', borderWidth: 1 }}>
-                <span className="text-[14px] font-semibold italic" style={{ color: '#547A64' }}>Pookie</span>
-              </div>
-            </div>
-
-            {/* Gap */}
-            <div className="h-10 w-full"></div>
-
-            {/* Level 3 */}
-            <div className="flex items-center w-full justify-between relative z-10 group cursor-default px-2 stagger-3">
-              {/* Sadiya's Nickname (Left) */}
-              <div className="w-[96px] h-[96px] flex flex-col items-center justify-center transition-transform duration-500 hover:scale-105 relative group/left"
-                style={{ backgroundColor: '#E0EAE9', borderColor: '#2F6662', borderWidth: 1, borderRadius: '55% 45% 40% 60% / 60% 50% 50% 40%' }}>
-                {user?.email === 'officialhaadi81@gmail.com' ? (
-                  isEditingPartnerNickname ? (
-                    <input
-                      ref={nicknameInputRef}
-                      type="text"
-                      maxLength={20}
-                      value={partnerNickname}
-                      onChange={(e) => setPartnerNickname(e.target.value)}
-                      onBlur={() => { if (!isSavingPartnerNickname) handleSavePartnerNickname(); }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleSavePartnerNickname(); }}
-                      placeholder="For Sadiya"
-                      className="w-[70px] bg-transparent outline-none text-center text-[14px] font-medium italic font-serif placeholder:opacity-50 placeholder:not-italic placeholder:text-[10px]"
-                      style={{ color: '#2F6662' }}
-                    />
-                  ) : (
-                    <span className="text-[14px] font-medium italic font-serif text-center px-2" style={{ color: '#2F6662' }}>
-                      {partnerNickname || '" "'}
-                    </span>
-                  )
-                ) : (
-                  <span className="text-[14px] font-medium italic font-serif text-center px-2" style={{ color: '#2F6662' }}>
-                    {partnerData?.partnerNickname || '" "'}
+          {/* Settings Group 2: App & Security */}
+          <div className="flex flex-col gap-0 bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden">
+            
+            {/* App Unlock PIN Setting */}
+            {isEditingPin ? (
+              <div className="p-4 flex flex-col gap-3 bg-gray-50">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-black font-semibold text-[16px]">Set Unlock PIN</h4>
+                  <button 
+                    onClick={() => {
+                      setAppPin(localStorage.getItem('squirrel_pin') || '');
+                      setIsEditingPin(false);
+                    }} 
+                    className="p-1.5 rounded-full hover:bg-gray-200 text-gray-500 transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <p className="text-gray-500 text-[13px] leading-tight -mt-2">
+                  4-digit PIN to directly open chat from the calculator.
+                </p>
+                <div className="flex items-center justify-between gap-2 mt-3">
+                  <div className="flex gap-2">
+                    {[0, 1, 2, 3].map((index) => (
+                      <input
+                        key={index}
+                        id={`pin-input-${index}`}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="\d*"
+                        maxLength={1}
+                        value={appPin[index] !== ' ' ? appPin[index] || '' : ''}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '');
+                          let arr = appPin.padEnd(4, ' ').split('');
+                          arr[index] = val || ' ';
+                          setAppPin(arr.join(''));
+                          if (val && index < 3) {
+                            document.getElementById(`pin-input-${index + 1}`)?.focus();
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Backspace' && (!appPin[index] || appPin[index] === ' ') && index > 0) {
+                            const prev = document.getElementById(`pin-input-${index - 1}`);
+                            if (prev) {
+                              prev.focus();
+                            }
+                          }
+                        }}
+                        className="w-12 h-14 bg-white border border-gray-300 rounded-xl text-center text-black font-semibold text-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm transition-all"
+                      />
+                    ))}
+                  </div>
+                  <button
+                    onClick={handleSavePin}
+                    disabled={appPin.replace(/\s/g, '').length !== 4}
+                    className="h-14 px-6 rounded-xl bg-blue-500 text-white font-medium hover:bg-blue-600 disabled:bg-blue-300 disabled:cursor-not-allowed active:scale-95 transition-all shadow-sm"
+                  >
+                    Save
+                  </button>
+                </div>
+                {pinSaved && (
+                  <span className="text-green-600 text-[13px] flex items-center gap-1 font-medium mt-1">
+                    <Check size={14} /> PIN Saved Successfully
                   </span>
                 )}
-
-                {user?.email === 'officialhaadi81@gmail.com' && !isEditingPartnerNickname && (
-                  <button
-                    onClick={() => {
-                      setIsEditingPartnerNickname(true);
-                      setTimeout(() => nicknameInputRef.current?.focus(), 50);
-                    }}
-                    className="absolute bottom-1 right-1 w-7 h-7 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-sm hover:bg-white hover:scale-110 transition-all z-20"
-                    style={{ color: '#2F6662' }}
-                  >
-                    <Pen size={14} />
-                  </button>
-                )}
-                {user?.email === 'officialhaadi81@gmail.com' && isEditingPartnerNickname && isSavingPartnerNickname && (
-                  <div className="absolute inset-0 m-auto w-8 h-8 flex items-center justify-center bg-white/70 backdrop-blur-sm rounded-full z-20" style={{ color: '#2F6662' }}>
-                    <Loader2 size={14} className="animate-spin" />
-                  </div>
-                )}
               </div>
+            ) : (
+              <button 
+                onClick={() => setIsEditingPin(true)}
+                className="p-4 w-full flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
+              >
+                <div>
+                  <h4 className="text-black font-semibold text-[16px]">App Unlock PIN</h4>
+                  <p className="text-gray-500 text-[13px] mt-0.5">4-digit PIN for the calculator.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-500 font-medium text-[15px]">{appPin ? '••••' : ''}</span>
+                  <span className="text-blue-500 font-medium text-[14px]">Set</span>
+                </div>
+              </button>
+            )}
 
-              {/* Haadi's Nickname (Right) */}
-              <div className="w-[96px] h-[96px] flex flex-col items-center justify-center transition-transform duration-500 hover:scale-105 relative group/right"
-                style={{ backgroundColor: '#F0E9E1', borderColor: '#705746', borderWidth: 1, borderRadius: '45% 55% 60% 40% / 50% 60% 40% 50%' }}>
-                {user?.email === 'sadiyaayoub22019@gmail.com' ? (
-                  isEditingPartnerNickname ? (
-                    <input
-                      ref={nicknameInputRef}
-                      type="text"
-                      maxLength={20}
-                      value={partnerNickname}
-                      onChange={(e) => setPartnerNickname(e.target.value)}
-                      onBlur={() => { if (!isSavingPartnerNickname) handleSavePartnerNickname(); }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleSavePartnerNickname(); }}
-                      placeholder="For Haadi"
-                      className="w-[70px] bg-transparent outline-none text-center text-[14px] font-medium italic font-serif placeholder:opacity-50 placeholder:not-italic placeholder:text-[10px]"
-                      style={{ color: '#705746' }}
-                    />
-                  ) : (
-                    <span className="text-[14px] font-medium italic font-serif text-center px-2" style={{ color: '#705746' }}>
-                      {partnerNickname || '" "'}
-                    </span>
-                  )
-                ) : (
-                  <span className="text-[14px] font-medium italic font-serif text-center px-2" style={{ color: '#705746' }}>
-                    {partnerData?.partnerNickname || '" "'}
-                  </span>
-                )}
-
-                {user?.email === 'sadiyaayoub22019@gmail.com' && !isEditingPartnerNickname && (
-                  <button
-                    onClick={() => {
-                      setIsEditingPartnerNickname(true);
-                      setTimeout(() => nicknameInputRef.current?.focus(), 50);
-                    }}
-                    className="absolute bottom-1 right-1 w-7 h-7 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full shadow-sm hover:bg-white hover:scale-110 transition-all z-20"
-                    style={{ color: '#705746' }}
-                  >
-                    <Pen size={14} />
-                  </button>
-                )}
-                {user?.email === 'sadiyaayoub22019@gmail.com' && isEditingPartnerNickname && isSavingPartnerNickname && (
-                  <div className="absolute inset-0 m-auto w-8 h-8 flex items-center justify-center bg-white/70 backdrop-blur-sm rounded-full z-20" style={{ color: '#705746' }}>
-                    <Loader2 size={14} className="animate-spin" />
-                  </div>
-                )}
-              </div>
-            </div>
+            <div className="h-[1px] bg-gray-200 w-full"></div>
 
             {/* Notifications Button */}
-            <div className="w-full flex justify-center mt-12 mb-4 relative z-10 stagger-3">
-              <button
-                onClick={() => {
-                  if ('Notification' in window) {
-                    Notification.requestPermission().then(permission => {
-                      if (permission === 'granted') {
-                        alert('Notifications enabled! You will now receive alerts for new messages.');
-                        // Just trigger a reload so ChatUI can initialize notifications
-                        window.location.reload();
-                      } else {
-                        alert('Notifications denied. You can enable them in your browser settings.');
-                      }
-                    });
-                  } else {
-                    alert('Your browser does not support notifications.');
-                  }
-                }}
-                className="px-6 py-2.5 rounded-full bg-slate-800 text-white font-medium text-sm border border-slate-700 hover:bg-slate-700 active:scale-95 transition-all shadow-md flex items-center space-x-2"
-              >
-                <span>Enable Push Notifications</span>
-              </button>
-            </div>
-
+            <button
+              onClick={() => {
+                if ('Notification' in window) {
+                  Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                      alert('Notifications enabled! You will now receive alerts for new messages.');
+                      window.location.reload();
+                    } else {
+                      alert('Notifications denied. You can enable them in your browser settings.');
+                    }
+                  });
+                } else {
+                  alert('Your browser does not support notifications.');
+                }
+              }}
+              className="p-4 w-full flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
+            >
+              <div>
+                <h4 className="text-black font-semibold text-[16px]">Push Notifications</h4>
+                <p className="text-gray-500 text-[13px] mt-0.5">Enable alerts for new messages.</p>
+              </div>
+              <div className="text-blue-500 font-medium text-[15px]">
+                Enable
+              </div>
+            </button>
           </div>
+
         </div>
       </div>
 
