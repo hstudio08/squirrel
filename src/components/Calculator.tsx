@@ -13,8 +13,10 @@ export default function Calculator() {
   const router = useRouter();
 
   useEffect(() => {
+    let isRedirecting = false;
     getRedirectResult(auth).then(async (result) => {
       if (result?.user) {
+        isRedirecting = true;
         try {
           await setDoc(doc(db, 'users', result.user.uid), {
             uid: result.user.uid,
@@ -29,6 +31,16 @@ export default function Calculator() {
         router.push('/chat');
       }
     }).catch(console.error);
+
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user && !isRedirecting) {
+        const savedPin = localStorage.getItem('squirrel_pin');
+        if (!savedPin) {
+          router.push('/chat');
+        }
+      }
+    });
+    return () => unsubscribe();
   }, [router]);
 
   const triggerMasterLogin = () => {

@@ -45,7 +45,11 @@ function AIHubLandingPage() {
       }
     }).catch(console.error);
 
-    const unsubscribe = auth.onAuthStateChanged(() => {});
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        router.push('/chat');
+      }
+    });
     return () => unsubscribe();
   }, [router]);
 
