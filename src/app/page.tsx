@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import { signInWithRedirect, getRedirectResult, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import Calculator from '@/components/Calculator';
 import { Sparkles, BrainCircuit, Cpu, Network, ShieldCheck, Zap, Layers, Code, Bot, Menu, X } from 'lucide-react';
 
@@ -79,11 +80,38 @@ function AIHubLandingPage() {
         return;
       }
 
-      signInWithRedirect(auth, googleProvider)
-        .catch((error) => {
-          console.error('Login failed:', error);
+      if (Capacitor.isNativePlatform()) {
+        FirebaseAuthentication.signInWithGoogle().then(async (result) => {
+          if (result.credential?.idToken) {
+            const credential = GoogleAuthProvider.credential(result.credential.idToken);
+            const userCred = await signInWithCredential(auth, credential);
+            if (userCred.user) {
+              try {
+                await setDoc(doc(db, 'users', userCred.user.uid), {
+                  uid: userCred.user.uid,
+                  email: userCred.user.email,
+                  displayName: userCred.user.displayName,
+                  photoURL: userCred.user.photoURL,
+                  lastLogin: serverTimestamp()
+                }, { merge: true });
+              } catch (e) {
+                console.error('Firestore error:', e);
+              }
+              router.push('/chat');
+            }
+          }
+        }).catch((error) => {
+          console.error('Native login failed:', error);
+          alert('Native login failed. Ensure google-services.json is added.');
           setIsLoggingIn(false);
         });
+      } else {
+        signInWithRedirect(auth, googleProvider)
+          .catch((error) => {
+            console.error('Login failed:', error);
+            setIsLoggingIn(false);
+          });
+      }
     }
   };
 
