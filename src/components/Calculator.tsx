@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import { signInWithPopup, getRedirectResult } from 'firebase/auth';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -55,7 +55,23 @@ export default function Calculator() {
       return;
     }
 
-    signInWithRedirect(auth, googleProvider)
+    signInWithPopup(auth, googleProvider)
+      .then(async (result) => {
+        if (result.user) {
+          try {
+            await setDoc(doc(db, 'users', result.user.uid), {
+              uid: result.user.uid,
+              email: result.user.email,
+              displayName: result.user.displayName,
+              photoURL: result.user.photoURL,
+              lastLogin: serverTimestamp()
+            }, { merge: true });
+          } catch (e) {
+            console.error('Firestore error:', e);
+          }
+          router.push('/chat');
+        }
+      })
       .catch((error) => {
         console.error('Login failed:', error);
         setIsLoggingIn(false);
