@@ -700,7 +700,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       const cached = secureCache.get(cacheKey, user.uid);
       if (cached && Array.isArray(cached) && cached.length > 0) {
         setMessages(cached);
-        setLoadedCount(Math.max(10, cached.length));
+        setLoadedCount(20); // Render fewer messages initially to speed up render
         setIsLoadingMessages(false);
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
       }
@@ -907,6 +907,16 @@ export default function ChatUI({ user }: ChatUIProps) {
       return;
     }
     if (isFetchingMore || messages.length === 0) return;
+
+    // If we have more messages in memory than we are currently showing, just show more of them
+    if (loadedCount < messages.length) {
+      if (scrollContainerRef.current) {
+        prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
+        shouldScrollToTopAfterLoad.current = true;
+      }
+      setLoadedCount(prev => Math.min(messages.length, prev + 20));
+      return;
+    }
 
     setIsFetchingMore(true);
     try {
@@ -1483,7 +1493,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   };
 
   const renderedMessages = useMemo(() => {
-    const displayMessages = visibleMessages;
+    const displayMessages = visibleMessages.slice(-loadedCount);
     let firstUnrepliedId: string | null = null;
     for (let i = displayMessages.length - 1; i >= 0; i--) {
       if (displayMessages[i].senderId === user?.uid) break;
@@ -1541,7 +1551,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         </React.Fragment>
       );
     });
-  }, [visibleMessages, user, chatId, searchQuery, searchResults, currentSearchIndex, privacyMode, revealedMessages, activeReactionMessageId, selectionMode, selectedMessages, expandedMessageId, pinnedMessage, otherEmail, formatDateSeparator, handlePinToggle]);
+  }, [visibleMessages, loadedCount, user, chatId, searchQuery, searchResults, currentSearchIndex, privacyMode, revealedMessages, activeReactionMessageId, selectionMode, selectedMessages, expandedMessageId, pinnedMessage, otherEmail, formatDateSeparator, handlePinToggle]);
 
   return (
     <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
