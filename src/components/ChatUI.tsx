@@ -1017,7 +1017,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       }
 
       const idToken = await user.getIdToken();
-      const sigRes = await fetch('https://mysquirrel.vercel.app/api/upload-signature', {
+      const sigRes = await fetch('/api/upload-signature', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
@@ -1230,7 +1230,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       const senderName = user.email ? user.email.split('@')[0] : 'user';
       const publicId = `${senderName}_${audioCount.toString().padStart(2, '0')}`;
 
-      const sigRes = await fetch('https://mysquirrel.vercel.app/api/upload-signature', {
+      const sigRes = await fetch('/api/upload-signature', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
@@ -1335,7 +1335,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             compressedFile = file;
           }
 
-          const sigRes = await fetch('https://mysquirrel.vercel.app/api/upload-signature', {
+          const sigRes = await fetch('/api/upload-signature', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${idToken}`,

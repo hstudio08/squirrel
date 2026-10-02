@@ -30,7 +30,7 @@ service cloud.firestore {
         allow create: if isAuthorizedUser()
                       && request.resource.data.keys().hasAll(['senderId', 'createdAt', 'seen'])
                       && request.resource.data.keys().hasOnly([
-                           'text', 'senderId', 'createdAt', 'seen',
+                           'text', 'senderId', 'createdAt', 'seen', 'delivered', 'deliveredAt',
                            'imageUrl', 'imageUrls', 'audioUrl',
                            'replyToId', 'replyToText', 'replyToSenderId',
                            'isDeletedForEveryone', 'isEdited'
@@ -52,12 +52,12 @@ service cloud.firestore {
                          ));
                       
         allow update: if isAuthorizedUser() && (
-          // Case 1: Recipient marks as seen
+          // Case 1: Recipient marks as seen or delivered
           (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen', 'seenAt'])
-            && request.resource.data.seen == true
-            && request.resource.data.seenAt == request.time
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen', 'seenAt', 'delivered', 'deliveredAt'])
             && resource.data.senderId != request.auth.uid
+            && (!('seen' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.seen == true && request.resource.data.seenAt == request.time))
+            && (!('delivered' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.delivered == true && request.resource.data.deliveredAt == request.time))
           ) ||
           // Case 2: Sender edits text (within 10 minutes)
           (
