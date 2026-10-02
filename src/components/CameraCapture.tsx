@@ -13,6 +13,9 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   
   const [zoom, setZoom] = useState(1);
+  const [zoomMin, setZoomMin] = useState(1);
+  const [zoomMax, setZoomMax] = useState(5);
+  const [hasNativeZoom, setHasNativeZoom] = useState(false);
   const initialPinchDistance = useRef<number | null>(null);
   const initialZoom = useRef<number>(1);
 
@@ -21,6 +24,19 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
 
     const startCamera = async () => {
       try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor.isNativePlatform()) {
+          const { Camera } = await import('@capacitor/camera');
+          const status = await Camera.checkPermissions();
+          if (status.camera !== 'granted') {
+            const req = await Camera.requestPermissions();
+            if (req.camera !== 'granted') {
+              setError('Camera permission denied.');
+              return;
+            }
+          }
+        }
+
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(t => t.stop());
         }
@@ -39,6 +55,22 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
+
+        const track = stream.getVideoTracks()[0];
+        if (track && track.getCapabilities) {
+          const caps = track.getCapabilities() as any;
+          if (caps.zoom) {
+            setHasNativeZoom(true);
+            setZoomMin(caps.zoom.min || 1);
+            setZoomMax(caps.zoom.max || 5);
+            setZoom(caps.zoom.min || 1);
+          } else {
+            setHasNativeZoom(false);
+            setZoomMin(1);
+            setZoomMax(5);
+            setZoom(1);
+          }
+        }
       } catch (err: any) {
         setError(err.message || 'Unable to access camera.');
       }
@@ -54,9 +86,20 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
     };
   }, [facingMode]);
 
+  useEffect(() => {
+    if (streamRef.current && hasNativeZoom) {
+      const track = streamRef.current.getVideoTracks()[0];
+      if (track) {
+        track.applyConstraints({
+          advanced: [{ zoom }]
+        } as any).catch((e) => console.log('Zoom apply error:', e));
+      }
+    }
+  }, [zoom, hasNativeZoom]);
+
   const toggleCamera = () => {
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
-    setZoom(1);
+    setZoom(hasNativeZoom ? zoomMin : 1);
   };
 
   const handleCapture = () => {
@@ -76,11 +119,18 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
         ctx.scale(-1, 1);
       }
 
-      // Apply zoom crop
-      const sWidth = w / zoom;
-      const sHeight = h / zoom;
-      const sx = (w - sWidth) / 2;
-      const sy = (h - sHeight) / 2;
+      // Apply zoom crop if fake zoom
+      let sx = 0;
+      let sy = 0;
+      let sWidth = w;
+      let sHeight = h;
+      
+      if (!hasNativeZoom) {
+        sWidth = w / zoom;
+        sHeight = h / zoom;
+        sx = (w - sWidth) / 2;
+        sy = (h - sHeight) / 2;
+      }
 
       ctx.drawImage(videoRef.current, sx, sy, sWidth, sHeight, 0, 0, w, h);
       
@@ -108,7 +158,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
       const touch2 = e.touches[1];
       const distance = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
       const scale = distance / initialPinchDistance.current;
-      const newZoom = Math.min(Math.max(1, initialZoom.current * scale), 5); // Max zoom 5x
+      const newZoom = Math.min(Math.max(zoomMin, initialZoom.current * scale), zoomMax);
       setZoom(newZoom);
     }
   };
@@ -118,7 +168,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
   };
 
   const handleWheel = (e: React.WheelEvent) => {
-    setZoom(prev => Math.min(Math.max(1, prev - e.deltaY * 0.01), 5));
+    setZoom(prev => Math.min(Math.max(zoomMin, prev - e.deltaY * 0.01), zoomMax));
   };
 
   return (
@@ -166,7 +216,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
             playsInline 
             muted 
             style={{ 
-              transform: `scale(${zoom}) ${facingMode === 'user' ? 'scaleX(-1)' : ''}`,
+              transform: `${!hasNativeZoom ? `scale(${zoom}) ` : ''}${facingMode === 'user' ? 'scaleX(-1)' : ''}`,
               transition: 'transform 0.1s ease-out'
             }}
             className="w-full h-full object-cover"
@@ -177,17 +227,17 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
       {!error && (
         <>
           <div className="absolute bottom-32 left-1/2 -translate-x-1/2 w-64 z-50 flex items-center space-x-3 bg-black/40 p-2 rounded-full backdrop-blur-md">
-            <span className="text-white text-xs font-medium w-8 text-center">1x</span>
+            <span className="text-white text-xs font-medium w-8 text-center">{zoomMin}x</span>
             <input 
               type="range" 
-              min="1" 
-              max="5" 
+              min={zoomMin} 
+              max={zoomMax} 
               step="0.1" 
               value={zoom} 
               onChange={(e) => setZoom(parseFloat(e.target.value))}
               className="flex-1 accent-white"
             />
-            <span className="text-white text-xs font-medium w-8 text-center">{zoom.toFixed(1)}x</span>
+            <span className="text-white text-xs font-medium w-8 text-center">{zoomMax}x</span>
           </div>
 
           <div className="absolute bottom-10 left-0 right-0 flex justify-center pb-[max(env(safe-area-inset-bottom),1rem)] z-50">

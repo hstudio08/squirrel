@@ -1062,7 +1062,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         // Trigger notification to the other user
         try {
           const idToken = await user.getIdToken();
-          fetch('https://mysquirrel.vercel.app/api/notify', {
+          fetch('/api/notify', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1265,7 +1265,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
         
         try {
-          fetch('https://mysquirrel.vercel.app/api/notify', {
+          fetch('/api/notify', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1373,7 +1373,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
           
           try {
-            fetch('https://mysquirrel.vercel.app/api/notify', {
+            fetch('/api/notify', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -1406,7 +1406,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         // Trigger notification to the other user
         try {
           const idToken = await user.getIdToken();
-          fetch('https://mysquirrel.vercel.app/api/notify', {
+          fetch('/api/notify', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

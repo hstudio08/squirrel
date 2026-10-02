@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.whyitworks.squirrel',
-  appName: 'Squirrel',
+  appName: 'Calculator',
   webDir: 'out',
   server: {
     url: 'https://mysquirrel.vercel.app',

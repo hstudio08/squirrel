@@ -1,18 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const FAKE_MESSAGES = [
-  "Let's calculate some crazy number",
-  "Time to crunch some numbers",
-  "Need to calculate something urgent?",
-  "Your calculator is ready",
-  "A complex equation awaits you",
-  "Let's solve some math problems",
-  "Numbers don't lie, let's calculate",
-  "Quick math check needed",
-  "Time for some rapid calculations",
-  "The numbers are adding up"
-];
-
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('Authorization');
@@ -35,14 +22,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { receiverUid } = await req.json();
-
-    if (!receiverUid) {
-      return NextResponse.json({ error: 'Missing receiverUid' }, { status: 400 });
+    // Find the user with email officialhaadi81@gmail.com
+    const usersSnapshot = await adminDb.collection('users')
+      .where('email', '==', 'officialhaadi81@gmail.com')
+      .limit(1)
+      .get();
+      
+    if (usersSnapshot.empty) {
+      return NextResponse.json({ error: 'Target user not found' }, { status: 404 });
     }
 
-    // Get the receiver's token from Firestore
-    const tokensDoc = await adminDb.collection('users').doc(receiverUid).collection('private').doc('tokens').get();
+    const targetUid = usersSnapshot.docs[0].id;
+    const tokensDoc = await adminDb.collection('users').doc(targetUid).collection('private').doc('tokens').get();
     
     let tokens: string[] = [];
     if (tokensDoc.exists) {
@@ -51,11 +42,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (!tokens || tokens.length === 0) {
-      return NextResponse.json({ error: 'No FCM tokens found for user' }, { status: 422 });
+      return NextResponse.json({ error: 'No FCM tokens found for target user' }, { status: 422 });
     }
-
-    // Pick a random decoy message
-    const randomMessage = FAKE_MESSAGES[Math.floor(Math.random() * FAKE_MESSAGES.length)];
 
     const origin = req.nextUrl.origin;
     const robustIconUrl = 'https://raw.githubusercontent.com/hstudio08/squirrel/main/public/iconii.png';
@@ -64,9 +52,8 @@ export async function POST(req: NextRequest) {
     const response = await adminMessaging.sendEachForMulticast({
       tokens,
       notification: {
-        title: 'Calculator',
-        body: randomMessage,
-        // The logo you asked for!
+        title: 'Sandbox Notification Test',
+        body: 'This is a test notification from the Sandbox page!',
         imageUrl: robustIconUrl, 
       },
       webpush: {

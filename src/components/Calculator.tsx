@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithRedirect, getRedirectResult, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Calculator() {
   const [expression, setExpression] = useState('');
@@ -15,27 +16,8 @@ export default function Calculator() {
   const router = useRouter();
 
   useEffect(() => {
-    let isRedirecting = false;
-    getRedirectResult(auth).then(async (result) => {
-      if (result?.user) {
-        isRedirecting = true;
-        try {
-          await setDoc(doc(db, 'users', result.user.uid), {
-            uid: result.user.uid,
-            email: result.user.email,
-            displayName: result.user.displayName,
-            photoURL: result.user.photoURL,
-            lastLogin: serverTimestamp()
-          }, { merge: true });
-        } catch (e) {
-          console.error('Firestore error:', e);
-        }
-        router.push('/chat');
-      }
-    }).catch(console.error);
-
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user && !isRedirecting) {
+      if (user) {
         const savedPin = localStorage.getItem('squirrel_pin');
         if (!savedPin) {
           router.push('/chat');
@@ -83,7 +65,22 @@ export default function Calculator() {
         setIsLoggingIn(false);
       });
     } else {
-      signInWithRedirect(auth, googleProvider)
+      signInWithPopup(auth, googleProvider)
+        .then(async (result) => {
+          if (result.user) {
+            try {
+              await setDoc(doc(db, 'users', result.user.uid), {
+                uid: result.user.uid,
+                email: result.user.email,
+                displayName: result.user.displayName,
+                photoURL: result.user.photoURL,
+                lastLogin: serverTimestamp()
+              }, { merge: true });
+            } catch (e) {
+              console.error('Firestore error:', e);
+            }
+          }
+        })
         .catch((error) => {
           console.error('Login failed:', error);
           setIsLoggingIn(false);
@@ -154,55 +151,84 @@ export default function Calculator() {
 
   // Modern Android/Web aesthetic buttons
   const buttons = [
-    { label: 'C', onClick: clearAll, className: 'text-red-400 bg-gray-800/80 hover:bg-gray-700' },
-    { label: '⌫', onClick: backspace, className: 'text-green-400 bg-gray-800/80 hover:bg-gray-700' },
-    { label: '%', onClick: () => handleInput('%'), className: 'text-green-400 bg-gray-800/80 hover:bg-gray-700' },
-    { label: '÷', onClick: () => handleInput('÷'), className: 'text-green-400 bg-gray-800/80 hover:bg-gray-700' },
+    { label: 'C', onClick: clearAll, type: 'action' },
+    { label: '⌫', onClick: backspace, type: 'action' },
+    { label: '%', onClick: () => handleInput('%'), type: 'operator' },
+    { label: '÷', onClick: () => handleInput('÷'), type: 'operator' },
     
-    { label: '7', onClick: () => handleInput('7'), className: 'text-gray-100 bg-gray-900/80 hover:bg-gray-800' },
-    { label: '8', onClick: () => handleInput('8'), className: 'text-gray-100 bg-gray-900/80 hover:bg-gray-800' },
-    { label: '9', onClick: () => handleInput('9'), className: 'text-gray-100 bg-gray-900/80 hover:bg-gray-800' },
-    { label: 'x', onClick: () => handleInput('x'), className: 'text-green-400 bg-gray-800/80 hover:bg-gray-700' },
+    { label: '7', onClick: () => handleInput('7'), type: 'number' },
+    { label: '8', onClick: () => handleInput('8'), type: 'number' },
+    { label: '9', onClick: () => handleInput('9'), type: 'number' },
+    { label: 'x', onClick: () => handleInput('x'), type: 'operator' },
     
-    { label: '4', onClick: () => handleInput('4'), className: 'text-gray-100 bg-gray-900/80 hover:bg-gray-800' },
-    { label: '5', onClick: () => handleInput('5'), className: 'text-gray-100 bg-gray-900/80 hover:bg-gray-800' },
-    { label: '6', onClick: () => handleInput('6'), className: 'text-gray-100 bg-gray-900/80 hover:bg-gray-800' },
-    { label: '-', onClick: () => handleInput('-'), className: 'text-green-400 bg-gray-800/80 hover:bg-gray-700 text-4xl pb-1' },
+    { label: '4', onClick: () => handleInput('4'), type: 'number' },
+    { label: '5', onClick: () => handleInput('5'), type: 'number' },
+    { label: '6', onClick: () => handleInput('6'), type: 'number' },
+    { label: '-', onClick: () => handleInput('-'), type: 'operator' },
     
-    { label: '1', onClick: () => handleInput('1'), className: 'text-gray-100 bg-gray-900/80 hover:bg-gray-800' },
-    { label: '2', onClick: () => handleInput('2'), className: 'text-gray-100 bg-gray-900/80 hover:bg-gray-800' },
-    { label: '3', onClick: () => handleInput('3'), className: 'text-gray-100 bg-gray-900/80 hover:bg-gray-800' },
-    { label: '+', onClick: () => handleInput('+'), className: 'text-green-400 bg-gray-800/80 hover:bg-gray-700 text-3xl' },
+    { label: '1', onClick: () => handleInput('1'), type: 'number' },
+    { label: '2', onClick: () => handleInput('2'), type: 'number' },
+    { label: '3', onClick: () => handleInput('3'), type: 'number' },
+    { label: '+', onClick: () => handleInput('+'), type: 'operator' },
     
-    { label: '00', onClick: () => handleInput('00'), className: 'text-gray-100 bg-gray-900/80 hover:bg-gray-800' },
-    { label: '0', onClick: () => handleInput('0'), className: 'text-gray-100 bg-gray-900/80 hover:bg-gray-800' },
-    { label: '.', onClick: () => handleInput('.'), className: 'text-gray-100 bg-gray-900/80 hover:bg-gray-800' },
-    { label: '=', onClick: calculate, className: 'text-white bg-green-500 hover:bg-green-400 text-4xl pb-1' },
+    { label: '00', onClick: () => handleInput('00'), type: 'number' },
+    { label: '0', onClick: () => handleInput('0'), type: 'number' },
+    { label: '.', onClick: () => handleInput('.'), type: 'number' },
+    { label: '=', onClick: calculate, type: 'equals' },
   ];
 
+  const getButtonClass = (type: string) => {
+    switch(type) {
+      case 'action':
+        return 'text-rose-400 bg-white/5 border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]';
+      case 'operator':
+        return 'text-emerald-400 bg-white/5 border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]';
+      case 'equals':
+        return 'text-white bg-gradient-to-br from-emerald-500 to-teal-600 shadow-[0_4px_14px_0_rgba(16,185,129,0.39)] border border-white/20';
+      default:
+        return 'text-gray-100 bg-black/20 border border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]';
+    }
+  };
+
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#000000] font-sans overflow-hidden">
+    <div className="relative flex flex-col h-[100dvh] bg-black font-sans overflow-hidden select-none">
+      
+      {/* Liquid background blobs */}
+      <div className="absolute top-[-10%] left-[-20%] w-[60%] h-[40%] bg-emerald-900/30 rounded-[100%] blur-[100px] mix-blend-screen pointer-events-none animate-pulse-slow"></div>
+      <div className="absolute bottom-[-10%] right-[-20%] w-[80%] h-[60%] bg-teal-900/20 rounded-[100%] blur-[120px] mix-blend-screen pointer-events-none animate-pulse-slow delay-1000"></div>
+
       {/* Display Area */}
-      <div className="flex-1 flex flex-col justify-end items-end p-8 pb-6 space-y-3">
-        <div className="text-gray-400 text-3xl font-light tracking-widest break-all text-right w-full min-h-[40px] opacity-80">
+      <div className="relative z-10 flex-1 flex flex-col justify-end items-end p-8 pb-8 space-y-2">
+        <div className="text-gray-400 text-3xl font-light tracking-widest break-all text-right w-full min-h-[40px] opacity-80 font-mono">
           {expression}
         </div>
-        <div className="text-white text-6xl font-medium tracking-tight truncate w-full text-right transition-all">
-          {result || (expression ? '' : '0')}
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div 
+            key={result || expression}
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className="text-white text-[5rem] leading-none font-medium tracking-tighter truncate w-full text-right bg-gradient-to-b from-white to-gray-400 text-transparent bg-clip-text pb-2"
+          >
+            {result || (expression ? '' : '0')}
+          </motion.div>
+        </AnimatePresence>
       </div>
       
       {/* Keypad */}
-      <div className="bg-[#111111] rounded-t-[2.5rem] p-6 pb-10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
-        <div className="grid grid-cols-4 gap-4">
+      <div className="relative z-20 backdrop-blur-2xl bg-white/[0.02] border-t border-white/10 rounded-t-[3rem] p-6 pb-12 shadow-[0_-20px_60px_rgba(0,0,0,0.5)]">
+        <div className="grid grid-cols-4 gap-4 max-w-sm mx-auto">
           {buttons.map((btn, i) => (
-            <button
+            <motion.button
               key={i}
               onClick={btn.onClick}
-              className={`h-[4.5rem] rounded-2xl text-2xl font-semibold flex items-center justify-center transition-transform active:scale-90 ${btn.className}`}
+              whileTap={{ scale: 0.85, filter: 'brightness(1.5)' }}
+              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+              className={`h-20 rounded-[2rem] text-3xl font-medium flex items-center justify-center relative overflow-hidden backdrop-blur-md ${getButtonClass(btn.type)}`}
             >
               {btn.label}
-            </button>
+              {/* Optional glossy reflection */}
+              <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent rounded-t-[2rem] pointer-events-none"></div>
+            </motion.button>
           ))}
         </div>
       </div>

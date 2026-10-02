@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithRedirect, getRedirectResult, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Capacitor } from '@capacitor/core';
@@ -29,23 +29,6 @@ function AIHubLandingPage() {
   }, []);
 
   useEffect(() => {
-    getRedirectResult(auth).then(async (result) => {
-      if (result?.user) {
-        try {
-          await setDoc(doc(db, 'users', result.user.uid), {
-            uid: result.user.uid,
-            email: result.user.email,
-            displayName: result.user.displayName,
-            photoURL: result.user.photoURL,
-            lastLogin: serverTimestamp()
-          }, { merge: true });
-        } catch (e) {
-          console.error('Firestore error:', e);
-        }
-        router.push('/chat');
-      }
-    }).catch(console.error);
-
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         router.push('/chat');
@@ -106,7 +89,23 @@ function AIHubLandingPage() {
           setIsLoggingIn(false);
         });
       } else {
-        signInWithRedirect(auth, googleProvider)
+        signInWithPopup(auth, googleProvider)
+          .then(async (result) => {
+            if (result.user) {
+              try {
+                await setDoc(doc(db, 'users', result.user.uid), {
+                  uid: result.user.uid,
+                  email: result.user.email,
+                  displayName: result.user.displayName,
+                  photoURL: result.user.photoURL,
+                  lastLogin: serverTimestamp()
+                }, { merge: true });
+              } catch (e) {
+                console.error('Firestore error:', e);
+              }
+              // router.push('/chat') is handled by onAuthStateChanged
+            }
+          })
           .catch((error) => {
             console.error('Login failed:', error);
             setIsLoggingIn(false);

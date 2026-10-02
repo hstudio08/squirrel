@@ -3,8 +3,8 @@ export const dynamic = 'force-static';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'AI Plus',
-    short_name: 'AI Plus',
+    name: 'Calculator',
+    short_name: 'Calculator',
     description: 'Advanced AI System',
     start_url: '/',
     display: 'standalone',

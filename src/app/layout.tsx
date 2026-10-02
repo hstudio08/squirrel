@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import LockManager from "@/components/LockManager";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,14 +14,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Plus",
+  title: "Calculator",
   description: "Advanced AI System",
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'AI Plus'
+    title: 'Calculator'
   },
-  applicationName: 'AI Plus',
+  applicationName: 'Calculator',
 };
 
 export const viewport: Viewport = {
@@ -43,6 +44,7 @@ export default function RootLayout({
         
       </head>
       <body className="bg-black text-white overscroll-none">
+        <LockManager />
         {children}
         <script
           dangerouslySetInnerHTML={{

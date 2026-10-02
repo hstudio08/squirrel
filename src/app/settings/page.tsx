@@ -23,16 +23,16 @@ export default function SettingsPage() {
   const [isCropping, setIsCropping] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(typeof window !== 'undefined' ? localStorage.getItem('squirrel_status') || '' : '');
   const [isSavingStatus, setIsSavingStatus] = useState(false);
   const [statusSaved, setStatusSaved] = useState(false);
 
-  const [displayName, setDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState(typeof window !== 'undefined' ? localStorage.getItem('squirrel_displayName') || '' : '');
   const [isEditingName, setIsEditingName] = useState(false);
   const [isSavingName, setIsSavingName] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
 
-  const [partnerNickname, setPartnerNickname] = useState('');
+  const [partnerNickname, setPartnerNickname] = useState(typeof window !== 'undefined' ? localStorage.getItem('squirrel_partnerNickname') || '' : '');
   const [isSavingPartnerNickname, setIsSavingPartnerNickname] = useState(false);
   const [partnerNicknameSaved, setPartnerNicknameSaved] = useState(false);
   const [partnerData, setPartnerData] = useState<any>(null);
@@ -43,6 +43,8 @@ export default function SettingsPage() {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const [quickLock, setQuickLock] = useState(false);
 
   // App PIN state
   const [appPin, setAppPin] = useState('');
@@ -61,6 +63,10 @@ export default function SettingsPage() {
     if (savedPin) {
       setAppPin(savedPin);
     }
+    const savedQuickLock = localStorage.getItem('squirrel_quick_lock');
+    if (savedQuickLock === 'true') {
+      setQuickLock(true);
+    }
     return () => unsubscribe();
   }, []);
 
@@ -71,13 +77,25 @@ export default function SettingsPage() {
       import('firebase/firestore').then(({ getDoc, doc }) => {
         getDoc(doc(db, 'users', user.uid)).then(snap => {
           if (snap.exists()) {
-            if (snap.data().status !== undefined) setStatus(snap.data().status);
-            if (snap.data().displayName !== undefined) setDisplayName(snap.data().displayName);
-            else if (user.displayName) setDisplayName(user.displayName);
+            if (snap.data().status !== undefined) {
+              setStatus(snap.data().status);
+              localStorage.setItem('squirrel_status', snap.data().status);
+            }
+            if (snap.data().displayName !== undefined) {
+              setDisplayName(snap.data().displayName);
+              localStorage.setItem('squirrel_displayName', snap.data().displayName);
+            } else if (user.displayName) {
+              setDisplayName(user.displayName);
+              localStorage.setItem('squirrel_displayName', user.displayName);
+            }
 
-            if (snap.data().partnerNickname !== undefined) setPartnerNickname(snap.data().partnerNickname);
+            if (snap.data().partnerNickname !== undefined) {
+              setPartnerNickname(snap.data().partnerNickname);
+              localStorage.setItem('squirrel_partnerNickname', snap.data().partnerNickname);
+            }
           } else if (user.displayName) {
             setDisplayName(user.displayName);
+            localStorage.setItem('squirrel_displayName', user.displayName);
           }
         });
 
@@ -179,6 +197,7 @@ export default function SettingsPage() {
     setIsSavingStatus(true);
     try {
       await updateDoc(doc(db, 'users', user.uid), { status });
+      localStorage.setItem('squirrel_status', status);
       setStatusSaved(true);
       setTimeout(() => setStatusSaved(false), 2000);
     } catch (error) {
@@ -194,6 +213,7 @@ export default function SettingsPage() {
     try {
       await updateProfile(user, { displayName });
       await updateDoc(doc(db, 'users', user.uid), { displayName });
+      localStorage.setItem('squirrel_displayName', displayName);
       await user.reload();
       setUser({ ...auth.currentUser! });
       setNameSaved(true);
@@ -227,6 +247,7 @@ export default function SettingsPage() {
     setIsSavingPartnerNickname(true);
     try {
       await updateDoc(doc(db, 'users', user.uid), { partnerNickname });
+      localStorage.setItem('squirrel_partnerNickname', partnerNickname);
       setPartnerNicknameSaved(true);
       setIsEditingPartnerNickname(false);
       setTimeout(() => setPartnerNicknameSaved(false), 2000);
@@ -601,6 +622,29 @@ export default function SettingsPage() {
                 Enable
               </div>
             </button>
+          </div>
+
+          {/* Quick Lock Setting */}
+          <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100">
+            <div className="p-4 w-full flex items-center justify-between">
+              <div>
+                <h4 className="text-black font-semibold text-[16px]">Quick Lock</h4>
+                <p className="text-gray-500 text-[13px] mt-0.5">Instantly lock when minimized</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer"
+                  checked={quickLock}
+                  onChange={(e) => {
+                    const val = e.target.checked;
+                    setQuickLock(val);
+                    localStorage.setItem('squirrel_quick_lock', val.toString());
+                  }}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+              </label>
+            </div>
           </div>
 
         </div>

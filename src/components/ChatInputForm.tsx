@@ -65,6 +65,19 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
       };
     }, []);
 
+    useEffect(() => {
+      return () => {
+        // Cleanup media recorder on unmount
+        if (timerRef.current) clearInterval(timerRef.current);
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+        if (mediaRecorderRef.current && mediaRecorderRef.current.stream) {
+          mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+        }
+      };
+    }, []);
+
     const adjustTextareaHeight = (newText: string) => {
       const textarea = textareaRef.current;
       if (textarea) {
@@ -118,6 +131,20 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
       isHoldingRef.current = true;
       isCancelledRef.current = false;
       try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor.isNativePlatform()) {
+          const { VoiceRecorder } = await import('capacitor-voice-recorder');
+          const hasPerm = await VoiceRecorder.hasAudioRecordingPermission();
+          if (!hasPerm.value) {
+            const req = await VoiceRecorder.requestAudioRecordingPermission();
+            if (!req.value) {
+              alert('Microphone permission denied.');
+              isHoldingRef.current = false;
+              return;
+            }
+          }
+        }
+
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           alert('Microphone not supported in this browser. If you are on mobile, ensure you are using a secure connection (HTTPS) as browsers block microphone access on normal HTTP.');
           isHoldingRef.current = false;

@@ -5,7 +5,7 @@ import { Message } from '@/types/chat';
 import { doc, updateDoc, serverTimestamp, arrayUnion, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Edit2, Trash2, X, Check, Pin, Plus, CheckCheck, CheckSquare } from 'lucide-react';
-import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
+import EmojiPicker, { EmojiClickData, EmojiStyle } from 'emoji-picker-react';
 import { User } from 'firebase/auth';
 import CustomAudioPlayer from './CustomAudioPlayer';
 
@@ -113,6 +113,23 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
       msgTime = Date.now();
     }
     return (Date.now() - msgTime) <= 600000; // 10 minutes
+  };
+
+  const isDeletableForEveryone = () => {
+    if (!message.createdAt) return false;
+    let msgTime;
+    if (typeof message.createdAt === 'number') {
+      msgTime = message.createdAt;
+    } else if (typeof (message.createdAt as Timestamp).toMillis === 'function') {
+      msgTime = (message.createdAt as Timestamp).toMillis();
+    } else if ((message.createdAt as Timestamp).seconds) {
+      msgTime = (message.createdAt as Timestamp).seconds * 1000;
+    } else if (message.createdAt instanceof Date) {
+      msgTime = message.createdAt.getTime();
+    } else {
+      msgTime = Date.now();
+    }
+    return (Date.now() - msgTime) <= 43200000; // 12 hours
   };
     
     const getMaskedEmail = (email: string) => {
@@ -553,6 +570,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
                 <EmojiPicker
                   onEmojiClick={(emojiData: EmojiClickData) => { handleReaction(emojiData.emoji); setShowFullEmojiPicker(false); }}
                   lazyLoadEmojis={true}
+                  emojiStyle={EmojiStyle.NATIVE}
                   width={280}
                   height={320}
                   searchDisabled={true}
@@ -630,7 +648,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
                     >
                       Delete for me
                     </button>
-                    {isMine && (
+                    {isMine && isDeletableForEveryone() && (
                       <button
                         onPointerDown={(e) => {
                           e.preventDefault();
