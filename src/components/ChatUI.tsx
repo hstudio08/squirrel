@@ -1013,14 +1013,27 @@ export default function ChatUI({ user }: ChatUIProps) {
 
   const handleClearChat = async () => {
     try {
-      const batch = writeBatch(db);
-      visibleMessages.forEach(msg => {
-        batch.update(doc(db, `conversations/${chatId}/messages`, msg.id), {
-          deletedFor: arrayUnion(user.uid)
-        });
-      });
-      await batch.commit();
+      // Instantly hide messages locally
+      const now = Date.now();
+      setClearedAt(now);
+      localStorage.setItem(`clearedAt_${user.uid}_${chatId}`, now.toString());
       setShowMenu(false);
+      setShowClearConfirm(false);
+
+      // Process in chunks of 450 to avoid Firestore 500 batch limit
+      const chunkSize = 450;
+      for (let i = 0; i < visibleMessages.length; i += chunkSize) {
+        const chunk = visibleMessages.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach(msg => {
+          if (!msg.deletedFor?.includes(user.uid)) {
+            batch.update(doc(db, `conversations/${chatId}/messages`, msg.id), {
+              deletedFor: arrayUnion(user.uid)
+            });
+          }
+        });
+        await batch.commit();
+      }
     } catch (err) {
       console.error('Failed to clear chat', err);
     }

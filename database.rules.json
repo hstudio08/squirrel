@@ -2,26 +2,26 @@
   "rules": {
     "typingStatus": {
       "private-chat": {
-        ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
+        ".read": "auth != null && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
         "$uid": {
-          ".write": "auth != null && auth.uid == $uid && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
+          ".write": "auth != null && auth.uid == $uid && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
           ".validate": "newData.isBoolean()"
         }
       }
     },
     "recordingStatus": {
       "private-chat": {
-        ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
+        ".read": "auth != null && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
         "$uid": {
-          ".write": "auth != null && auth.uid == $uid && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
+          ".write": "auth != null && auth.uid == $uid && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
           ".validate": "newData.isBoolean()"
         }
       }
     },
     "status": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
+      ".read": "auth != null && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
       "$uid": {
-        ".write": "auth != null && auth.uid == $uid && auth.token.email_verified == true && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
+        ".write": "auth != null && auth.uid == $uid && (auth.token.email == 'officialhaadi81@gmail.com' || auth.token.email == 'sadiyaayoub22019@gmail.com' || auth.token.email == 'lonehaadi81@gmail.com')",
         ".validate": "newData.hasChildren(['state', 'last_changed']) && newData.child('state').isString() && newData.child('state').val().length < 20 && newData.child('last_changed').isNumber()"
       }
     }
