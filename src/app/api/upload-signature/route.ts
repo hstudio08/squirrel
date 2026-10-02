@@ -3,14 +3,25 @@ import crypto from 'crypto';
 
 const ALLOWED_EMAILS = [
   'officialhaadi81@gmail.com',
-  'lonehaadi81@gmail.com'
+  'lonehaadi81@gmail.com',
+  'sadiyaayoub22019@gmail.com'
 ];
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return new Response(null, { headers: corsHeaders });
+}
 
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
     }
 
     const { adminAuth } = await import('@/lib/firebase-admin');
@@ -19,13 +30,13 @@ export async function POST(req: Request) {
     const email = decodedToken.email?.toLowerCase();
 
     if (!email || !ALLOWED_EMAILS.includes(email)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
     }
 
     const apiSecret = process.env.CLOUDINARY_API_SECRET;
     if (!apiSecret) {
       console.error('Missing CLOUDINARY_API_SECRET environment variable.');
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500, headers: corsHeaders });
     }
 
     const timestamp = Math.round(new Date().getTime() / 1000);
@@ -48,10 +59,10 @@ export async function POST(req: Request) {
     
     const signature = crypto.createHash('sha1').update(signatureString).digest('hex');
 
-    return NextResponse.json({ timestamp, signature, folder, public_id });
+    return NextResponse.json({ timestamp, signature, folder, public_id }, { headers: corsHeaders });
 
   } catch (error) {
     console.error('Error generating signature:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: corsHeaders });
   }
 }

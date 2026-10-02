@@ -11,7 +11,8 @@ const config: CapacitorConfig = {
       'accounts.google.com',
       'mysquirrel.firebaseapp.com',
       '*.firebaseapp.com',
-      '*.googleapis.com'
+      '*.googleapis.com',
+      '*.cloudinary.com'
     ]
   },
   android: {
@@ -21,6 +22,9 @@ const config: CapacitorConfig = {
     FirebaseAuthentication: {
       skipNativeAuth: false,
       providers: ["google.com"]
+    },
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"]
     }
   }
 };

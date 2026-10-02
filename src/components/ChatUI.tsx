@@ -1115,10 +1115,10 @@ export default function ChatUI({ user }: ChatUIProps) {
           ? new File([file], file.name || 'image.jpeg', { type: file.type || 'image/jpeg' })
           : file;
         const options = {
-          maxSizeMB: 1,
-          maxWidthOrHeight: 1600,
-          useWebWorker: true,
-          initialQuality: 0.90
+          maxSizeMB: 0.4,
+          maxWidthOrHeight: 1200,
+          useWebWorker: false,
+          initialQuality: 0.70
         };
         compressedFile = await imageCompression(fileToCompress, options);
       } catch (e) {
@@ -1411,7 +1411,6 @@ export default function ChatUI({ user }: ChatUIProps) {
     if (e) e.preventDefault();
     if ((!textToUse.trim() && pastedImages.length === 0) || textToUse.length > 2000 || isSending) return;
 
-    setIsSending(true);
     const messageText = textToUse.trim();
 
     updateTypingStatus(false);
@@ -1419,11 +1418,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
     try {
       if (pastedImages.length > 0) {
-        if (!navigator.onLine) {
-          alert('Cannot upload images while offline. Please connect to the internet.');
-          setIsSending(false);
-          return;
-        }
+        setIsSending(true);
 
         const imagesToUpload = [...pastedImages];
         setPastedImages([]);
@@ -1444,10 +1439,10 @@ export default function ChatUI({ user }: ChatUIProps) {
                 ? new File([file], file.name || 'image.jpeg', { type: file.type || 'image/jpeg' })
                 : file;
               const options = {
-                maxSizeMB: 1,
-                maxWidthOrHeight: 1600,
-                useWebWorker: true,
-                initialQuality: 0.90
+                maxSizeMB: 0.4,
+                maxWidthOrHeight: 1200,
+                useWebWorker: false,
+                initialQuality: 0.70
               };
               compressedFile = await imageCompression(fileToCompress, options);
             } catch (e) {
@@ -1591,11 +1586,21 @@ export default function ChatUI({ user }: ChatUIProps) {
       }
 
       setReplyingTo(null);
+      // Play sound for sent message
+      try {
+        const audio = new Audio('/send.mp3');
+        audio.volume = 0.5;
+        audio.play().catch(e => console.log('Audio play failed', e));
+      } catch (e) {
+        console.log('Audio init failed', e);
+      }
     } catch (error) {
       console.error("Failed to send message", error);
       if (chatInputRef.current) chatInputRef.current.setText(textToUse.trim());
     } finally {
-      setIsSending(false);
+      if (pastedImages.length > 0) {
+        setIsSending(false);
+      }
     }
   };
 

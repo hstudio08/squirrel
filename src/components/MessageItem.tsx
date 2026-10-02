@@ -411,7 +411,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
           // Revert to server state if failed
           setOptimisticReactions(message.reactions || {});
         }
-      }, 500);
+      }, 50);
       
       return newReactions;
     });
@@ -1000,3 +1000,5 @@ export default React.memo(MessageItemComponent, (prevProps, nextProps) => {
     prevProps.searchQuery === nextProps.searchQuery
   );
 });
+
+
