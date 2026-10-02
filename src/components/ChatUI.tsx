@@ -199,6 +199,13 @@ const PurePrivacyCurtain = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
+const getApiUrl = (path: string) => {
+  if (typeof window !== 'undefined' && window.origin && (window.origin === 'http://localhost' || window.origin === 'capacitor://localhost') && window.location.port !== '3000') {
+    return `https://mysquirrel.vercel.app${path}`;
+  }
+  return path;
+};
+
 export default function ChatUI({ user }: ChatUIProps) {
   const [wallpaperSettings, setWallpaperSettings] = useState<WallpaperSettings>(defaultSettings);
   const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(null);
@@ -261,6 +268,106 @@ export default function ChatUI({ user }: ChatUIProps) {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 2500);
   };
+
+  const stateRef = useRef({
+    showCamera,
+    showMenu,
+    replyingTo,
+    confirmAction,
+    isKeyboardOpen,
+    showPartnerModal,
+    showBulkDeleteModal,
+    showUnpinConfirm,
+    showClearConfirm,
+    showSearch,
+    hasSelectedImageFile: !!selectedImageFile,
+    hasPastedImages: pastedImages.length > 0,
+    showPinModal
+  });
+
+  useEffect(() => {
+    stateRef.current = {
+      showCamera,
+      showMenu,
+      replyingTo,
+      confirmAction,
+      isKeyboardOpen,
+      showPartnerModal,
+      showBulkDeleteModal,
+      showUnpinConfirm,
+      showClearConfirm,
+      showSearch,
+      hasSelectedImageFile: !!selectedImageFile,
+      hasPastedImages: pastedImages.length > 0,
+      showPinModal
+    };
+  }, [
+    showCamera, showMenu, replyingTo, confirmAction, isKeyboardOpen,
+    showPartnerModal, showBulkDeleteModal, showUnpinConfirm, showClearConfirm,
+    showSearch, selectedImageFile, pastedImages, showPinModal
+  ]);
+
+  useEffect(() => {
+    let backListener: any = null;
+    let isActive = true;
+
+    const setupBackButton = async () => {
+      const { Capacitor } = await import('@capacitor/core');
+      if (!Capacitor.isNativePlatform()) return;
+      
+      const { App: CapacitorApp } = await import('@capacitor/app');
+      
+      if (!isActive) return;
+
+      backListener = await CapacitorApp.addListener('backButton', () => {
+        const lightboxCloseBtn = document.getElementById('img-lightbox-close');
+        if (lightboxCloseBtn) {
+          lightboxCloseBtn.click();
+          return;
+        }
+
+        const s = stateRef.current;
+        
+        if (s.showPinModal) {
+          CapacitorApp.exitApp();
+        } else if (s.hasSelectedImageFile) {
+          setSelectedImageFile(null);
+        } else if (s.hasPastedImages) {
+          setPastedImages([]);
+        } else if (s.showCamera) {
+          setShowCamera(false);
+        } else if (s.showMenu) {
+          setShowMenu(false);
+        } else if (s.showPartnerModal) {
+          setShowPartnerModal(false);
+        } else if (s.showBulkDeleteModal) {
+          setShowBulkDeleteModal(false);
+        } else if (s.showUnpinConfirm) {
+          setShowUnpinConfirm(false);
+        } else if (s.showClearConfirm) {
+          setShowClearConfirm(false);
+        } else if (s.showSearch) {
+          setShowSearch(false);
+        } else if (s.replyingTo) {
+          setReplyingTo(null);
+        } else if (s.confirmAction) {
+          setConfirmAction(null);
+        } else if (!s.isKeyboardOpen) {
+          // exit app
+          CapacitorApp.exitApp();
+        }
+      });
+    };
+
+    setupBackButton();
+
+    return () => {
+      isActive = false;
+      if (backListener) {
+        backListener.remove();
+      }
+    };
+  }, []);
 
   const shouldScrollToTopAfterLoad = useRef(false);
 
@@ -1006,10 +1113,10 @@ export default function ChatUI({ user }: ChatUIProps) {
           ? new File([file], file.name || 'image.jpeg', { type: file.type || 'image/jpeg' })
           : file;
         const options = {
-          maxSizeMB: 2,
-          maxWidthOrHeight: 1920,
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1600,
           useWebWorker: true,
-          initialQuality: 0.85
+          initialQuality: 0.90
         };
         compressedFile = await imageCompression(fileToCompress, options);
       } catch (e) {
@@ -1018,7 +1125,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       }
 
       const idToken = await user.getIdToken();
-      const sigRes = await fetch('/api/upload-signature', {
+      const sigRes = await fetch(getApiUrl('/api/upload-signature'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
@@ -1063,7 +1170,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         // Trigger notification to the other user
         try {
           const idToken = await user.getIdToken();
-          fetch('/api/notify', {
+          fetch(getApiUrl('/api/notify'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1231,7 +1338,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       const senderName = user.email ? user.email.split('@')[0] : 'user';
       const publicId = `${senderName}_${audioCount.toString().padStart(2, '0')}`;
 
-      const sigRes = await fetch('/api/upload-signature', {
+      const sigRes = await fetch(getApiUrl('/api/upload-signature'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
@@ -1277,7 +1384,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         const msgRef = await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
         
         try {
-          fetch('/api/notify', {
+          fetch(getApiUrl('/api/notify'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1335,10 +1442,10 @@ export default function ChatUI({ user }: ChatUIProps) {
                 ? new File([file], file.name || 'image.jpeg', { type: file.type || 'image/jpeg' })
                 : file;
               const options = {
-                maxSizeMB: 2,
-                maxWidthOrHeight: 1920,
+                maxSizeMB: 1,
+                maxWidthOrHeight: 1600,
                 useWebWorker: true,
-                initialQuality: 0.85
+                initialQuality: 0.90
               };
               compressedFile = await imageCompression(fileToCompress, options);
             } catch (e) {
@@ -1346,7 +1453,7 @@ export default function ChatUI({ user }: ChatUIProps) {
               compressedFile = file;
             }
 
-            const sigRes = await fetch('/api/upload-signature', {
+            const sigRes = await fetch(getApiUrl('/api/upload-signature'), {
               method: 'POST',
               signal: controller.signal,
               headers: {
@@ -1398,7 +1505,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             const msgRef = await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
             
             try {
-              fetch('/api/notify', {
+              fetch(getApiUrl('/api/notify'), {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -1470,7 +1577,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         // Trigger notification to the other user
         try {
           const idToken = await user.getIdToken();
-          fetch('/api/notify', {
+          fetch(getApiUrl('/api/notify'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

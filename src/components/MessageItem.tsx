@@ -775,6 +775,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
                           };
 
                           const closeBtn = document.createElement('button');
+                          closeBtn.id = 'img-lightbox-close';
                           closeBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
                           closeBtn.style.cssText = 'position:absolute;top:20px;left:20px;width:44px;height:44px;background:rgba(255,255,255,0.15);border:none;border-radius:50%;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);transition:background .2s;z-index:10;';
                           closeBtn.onmouseenter = () => { closeBtn.style.background = 'rgba(255,255,255,0.25)'; };

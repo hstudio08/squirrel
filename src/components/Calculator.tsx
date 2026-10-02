@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signInWithPopup, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -18,6 +19,15 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
   const [result, setResult] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      const backListener = CapacitorApp.addListener('backButton', () => {
+        CapacitorApp.exitApp();
+      });
+      return () => { backListener.then(l => l.remove()); };
+    }
+  }, []);
 
   useEffect(() => {
     // Prefetch for instant loading

@@ -168,7 +168,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
           const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
           onCapture(file);
         }
-      }, 'image/jpeg', 0.95);
+      }, 'image/jpeg', 1.0);
     }
   };
 

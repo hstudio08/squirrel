@@ -14,8 +14,19 @@ import WallpaperSettingsPanel from '@/components/WallpaperSettings';
 
 const ReactCrop = dynamic(() => import('react-image-crop'), { ssr: false });
 
+const getApiUrl = (path: string) => {
+  if (typeof window !== 'undefined' && window.origin && (window.origin === 'http://localhost' || window.origin === 'capacitor://localhost') && window.location.port !== '3000') {
+    return `https://mysquirrel.vercel.app${path}`;
+  }
+  return path;
+};
+
 export default function SettingsPage() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any>(
+    typeof window !== 'undefined' 
+      ? JSON.parse(localStorage.getItem('squirrel_cachedUser') || 'null')
+      : null
+  );
   const [loading, setLoading] = useState(true);
 
   const [imgSrc, setImgSrc] = useState('');
@@ -24,6 +35,41 @@ export default function SettingsPage() {
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
   const [isCropping, setIsCropping] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const router = useRouter();
+
+  const stateRef = useRef({ isCropping });
+  useEffect(() => {
+    stateRef.current = { isCropping };
+  }, [isCropping]);
+
+  useEffect(() => {
+    let backListener: any = null;
+    let isActive = true;
+
+    const setupBackButton = async () => {
+      const { Capacitor } = await import('@capacitor/core');
+      if (!Capacitor.isNativePlatform()) return;
+      
+      const { App: CapacitorApp } = await import('@capacitor/app');
+      
+      if (!isActive) return;
+
+      backListener = await CapacitorApp.addListener('backButton', () => {
+        if (stateRef.current.isCropping) {
+          setIsCropping(false);
+        } else {
+          router.push('/chat');
+        }
+      });
+    };
+
+    setupBackButton();
+
+    return () => {
+      isActive = false;
+      if (backListener) backListener.remove();
+    };
+  }, [router]);
 
   const [status, setStatus] = useState(typeof window !== 'undefined' ? localStorage.getItem('squirrel_status') || '' : '');
   const [isSavingStatus, setIsSavingStatus] = useState(false);
@@ -54,11 +100,17 @@ export default function SettingsPage() {
   const [isEditingPin, setIsEditingPin] = useState(false);
   const [pinSaved, setPinSaved] = useState(false);
 
-  const router = useRouter();
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
+      if (u) {
+        localStorage.setItem('squirrel_cachedUser', JSON.stringify({
+          uid: u.uid,
+          email: u.email,
+          displayName: u.displayName,
+          photoURL: u.photoURL
+        }));
+      }
       setLoading(false);
     });
     // Load existing PIN if any
@@ -330,7 +382,7 @@ export default function SettingsPage() {
       });
 
       const idToken = await user.getIdToken();
-      const sigRes = await fetch('/api/upload-signature', {
+      const sigRes = await fetch(getApiUrl('/api/upload-signature'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
@@ -390,13 +442,7 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="h-dvh flex items-center justify-center bg-[#F2F2F7]">
-        <Loader2 className="animate-spin text-blue-500" size={32} />
-      </div>
-    );
-  }
+  // removed blocking loading state to allow instantaneous load
 
   if (!user) return null;
 
