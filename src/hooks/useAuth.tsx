@@ -11,7 +11,8 @@ export function useAuth() {
 
   const ALLOWED_EMAILS = [
     "officialhaadi81@gmail.com",
-    "sadiyaayoub22019@gmail.com"
+    // "sadiyaayoub22019@gmail.com",
+    "lonehaadi81@gmail.com"
   ];
 
   useEffect(() => {

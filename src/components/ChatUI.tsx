@@ -238,7 +238,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [uploadController, setUploadController] = useState<AbortController | null>(null);
 
   const chatId = 'private-chat';
-  const otherEmail = user.email === 'sadiyaayoub22019@gmail.com' ? 'officialhaadi81@gmail.com' : 'sadiyaayoub22019@gmail.com';
+  const otherEmail = user.email === 'lonehaadi81@gmail.com' ? 'officialhaadi81@gmail.com' : 'lonehaadi81@gmail.com';
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<any>(null);
@@ -268,6 +268,75 @@ export default function ChatUI({ user }: ChatUIProps) {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 2500);
   };
+
+
+  const shouldScrollToTopAfterLoad = useRef(false);
+
+  useLayoutEffect(() => {
+    if (shouldScrollToTopAfterLoad.current && scrollContainerRef.current) {
+      const diff = scrollContainerRef.current.scrollHeight - prevScrollHeightRef.current;
+      if (diff > 0) {
+        // The DOM has grown with the new older messages.
+        // The user wants to "remain at the top of the loaded chats", meaning they 
+        // want to see the oldest message in the newly loaded batch.
+        // We can just scroll to the very top (or near top so they don't immediately hit the button).
+        scrollContainerRef.current.scrollTop = 10;
+
+        prevScrollHeightRef.current = 0;
+        shouldScrollToTopAfterLoad.current = false;
+      }
+    }
+  }, [messages]);
+
+  const [otherUserName, setOtherUserName] = useState<string>('');
+  const [otherUserStatus, setOtherUserStatus] = useState<{ state: string, last_changed: number } | null>(null);
+  const [otherUid, setOtherUid] = useState<string | null>(null);
+  const [partnerData, setPartnerData] = useState<any>(null);
+  const [myDoc, setMyDoc] = useState<any>(null);
+  const [showPartnerModal, setShowPartnerModal] = useState(false);
+
+  useEffect(() => {
+    const unsubMe = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        setMyDoc(docSnap.data());
+      }
+    });
+
+    if (otherUid) {
+      const unsubPartner = onSnapshot(doc(db, 'users', otherUid), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setPartnerData(data);
+          if (data.status !== undefined) {
+            setOtherUserAbout(data.status);
+          }
+        }
+      });
+      return () => {
+        unsubMe();
+        unsubPartner();
+      };
+    }
+    return () => unsubMe();
+  }, [otherUid, user.uid]);
+  const [privacyMode, setPrivacyMode] = useState<'none' | 'blur' | 'pure'>('none');
+  const [revealedMessages, setRevealedMessages] = useState<string[]>([]);
+  const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<string[]>([]);
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [enterToSend, setEnterToSend] = useState(true);
+  const [clearedAt, setClearedAt] = useState<number>(0);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [expandedMessageId, setExpandedMessageId] = useState<string | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
+  const [isClientOffline, setIsClientOffline] = useState(false);
+  const [hideOfflineBanner, setHideOfflineBanner] = useState(false);
 
   const stateRef = useRef({
     showCamera,
@@ -368,74 +437,6 @@ export default function ChatUI({ user }: ChatUIProps) {
       }
     };
   }, []);
-
-  const shouldScrollToTopAfterLoad = useRef(false);
-
-  useLayoutEffect(() => {
-    if (shouldScrollToTopAfterLoad.current && scrollContainerRef.current) {
-      const diff = scrollContainerRef.current.scrollHeight - prevScrollHeightRef.current;
-      if (diff > 0) {
-        // The DOM has grown with the new older messages.
-        // The user wants to "remain at the top of the loaded chats", meaning they 
-        // want to see the oldest message in the newly loaded batch.
-        // We can just scroll to the very top (or near top so they don't immediately hit the button).
-        scrollContainerRef.current.scrollTop = 10;
-
-        prevScrollHeightRef.current = 0;
-        shouldScrollToTopAfterLoad.current = false;
-      }
-    }
-  }, [messages]);
-
-  const [otherUserName, setOtherUserName] = useState<string>('');
-  const [otherUserStatus, setOtherUserStatus] = useState<{ state: string, last_changed: number } | null>(null);
-  const [otherUid, setOtherUid] = useState<string | null>(null);
-  const [partnerData, setPartnerData] = useState<any>(null);
-  const [myDoc, setMyDoc] = useState<any>(null);
-  const [showPartnerModal, setShowPartnerModal] = useState(false);
-
-  useEffect(() => {
-    const unsubMe = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
-      if (docSnap.exists()) {
-        setMyDoc(docSnap.data());
-      }
-    });
-
-    if (otherUid) {
-      const unsubPartner = onSnapshot(doc(db, 'users', otherUid), (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setPartnerData(data);
-          if (data.status !== undefined) {
-            setOtherUserAbout(data.status);
-          }
-        }
-      });
-      return () => {
-        unsubMe();
-        unsubPartner();
-      };
-    }
-    return () => unsubMe();
-  }, [otherUid, user.uid]);
-  const [privacyMode, setPrivacyMode] = useState<'none' | 'blur' | 'pure'>('none');
-  const [revealedMessages, setRevealedMessages] = useState<string[]>([]);
-  const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<string[]>([]);
-  const [currentSearchIndex, setCurrentSearchIndex] = useState(-1);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [enterToSend, setEnterToSend] = useState(true);
-  const [clearedAt, setClearedAt] = useState<number>(0);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [expandedMessageId, setExpandedMessageId] = useState<string | null>(null);
-  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
-  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
-  const [isClientOffline, setIsClientOffline] = useState(false);
-  const [hideOfflineBanner, setHideOfflineBanner] = useState(false);
 
 
 

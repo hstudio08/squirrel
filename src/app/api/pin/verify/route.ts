@@ -4,7 +4,7 @@ import crypto from 'crypto';
 
 const ALLOWLIST = [
   'officialhaadi81@gmail.com',
-  'sadiyaayoub22019@gmail.com'
+  'lonehaadi81@gmail.com'
 ];
 
 export async function POST(req: Request) {

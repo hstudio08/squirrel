@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
     
-    const allowedEmails = ['officialhaadi81@gmail.com', 'sadiyaayoub22019@gmail.com'];
+    const allowedEmails = ['officialhaadi81@gmail.com', 'lonehaadi81@gmail.com'];
     if (!decodedToken.email || !allowedEmails.includes(decodedToken.email) || !decodedToken.email_verified) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
