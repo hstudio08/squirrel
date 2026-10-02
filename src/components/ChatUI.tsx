@@ -228,6 +228,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [showUnpinConfirm, setShowUnpinConfirm] = useState(false);
   const [showPinError, setShowPinError] = useState(false);
   const [uploadingImages, setUploadingImages] = useState<{urls: string[], text: string} | null>(null);
+  const [uploadController, setUploadController] = useState<AbortController | null>(null);
 
   const chatId = 'private-chat';
   const otherEmail = user.email === 'sadiyaayoub22019@gmail.com' ? 'officialhaadi81@gmail.com' : 'sadiyaayoub22019@gmail.com';
@@ -1309,12 +1310,21 @@ export default function ChatUI({ user }: ChatUIProps) {
 
     try {
       if (pastedImages.length > 0) {
+        if (!navigator.onLine) {
+          alert('Cannot upload images while offline. Please connect to the internet.');
+          setIsSending(false);
+          return;
+        }
+
         const imagesToUpload = [...pastedImages];
         setPastedImages([]);
         
         // Optimistic UI for uploading
         const objectUrls = imagesToUpload.map(file => URL.createObjectURL(file));
         setUploadingImages({ urls: objectUrls, text: messageText });
+        
+        const controller = new AbortController();
+        setUploadController(controller);
 
         const idToken = await user.getIdToken();
         const uploadPromises = imagesToUpload.map(async (file) => {
@@ -1337,6 +1347,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
           const sigRes = await fetch('/api/upload-signature', {
             method: 'POST',
+            signal: controller.signal,
             headers: {
               'Authorization': `Bearer ${idToken}`,
               'Content-Type': 'application/json'
@@ -1355,6 +1366,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
           const res = await fetch(`https://api.cloudinary.com/v1_1/wusvh42x/image/upload`, {
             method: 'POST',
+            signal: controller.signal,
             body: formData
           });
 
@@ -1395,10 +1407,18 @@ export default function ChatUI({ user }: ChatUIProps) {
             });
           } catch (e) {}
         }
-
-        // Cleanup optimistic UI
-        objectUrls.forEach(url => URL.revokeObjectURL(url));
-        setUploadingImages(null);
+        } catch (e: any) {
+          if (e.name === 'AbortError') {
+            console.log('Upload cancelled');
+          } else {
+            console.error('Upload failed', e);
+          }
+        } finally {
+          // Cleanup optimistic UI
+          objectUrls.forEach(url => URL.revokeObjectURL(url));
+          setUploadingImages(null);
+          setUploadController(null);
+        }
       } else {
         const newMessageData: any = {
           text: messageText,
@@ -2093,10 +2113,19 @@ export default function ChatUI({ user }: ChatUIProps) {
         {uploadingImages && (
           <div className="flex w-full justify-end mb-2.5 animate-message-sent">
             <div className="max-w-[85%] sm:max-w-[70%] rounded-[22px] px-2.5 pt-1.5 pb-1 shadow-sm border bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] opacity-70">
-              <div className="flex flex-col relative pointer-events-none select-none">
+              <div className="flex flex-col relative select-none">
                 <div className={`mb-1.5 ${uploadingImages.urls.length > 1 ? 'grid grid-cols-2 gap-1 rounded-xl overflow-hidden' : 'rounded-xl overflow-hidden relative'}`} style={!(uploadingImages.urls.length > 1) ? { minWidth: '150px', minHeight: '150px' } : undefined}>
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/10 z-10 rounded-xl">
-                    <div className="w-8 h-8 border-4 border-white border-t-teal-500 rounded-full animate-spin shadow-md"></div>
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-10 rounded-xl transition-all group">
+                    <button
+                      onClick={() => {
+                        console.log("Cancelling upload");
+                        uploadController?.abort();
+                      }}
+                      className="w-12 h-12 bg-red-500/90 text-white rounded-full flex items-center justify-center hover:bg-red-600 active:scale-95 shadow-lg"
+                      title="Cancel Upload"
+                    >
+                      <X size={24} strokeWidth={2.5} />
+                    </button>
                   </div>
                   {uploadingImages.urls.map((url, idx) => (
                     <div key={idx} className={`relative overflow-hidden ${uploadingImages.urls.length > 1 ? 'aspect-square' : 'w-full h-auto'} ${uploadingImages.urls.length === 3 && idx === 2 ? 'col-span-2 aspect-[2/1]' : ''}`}>
