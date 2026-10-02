@@ -159,7 +159,8 @@ export default function SettingsPage() {
         });
 
         // Fetch partner data
-        const partnerEmail = user.email === 'lonehaadi81@gmail.com' ? 'officialhaadi81@gmail.com' : 'lonehaadi81@gmail.com';
+        const isPartner = user.email === 'sadiyaayoub22019@gmail.com' || user.email === 'lonehaadi81@gmail.com';
+        const partnerEmail = isPartner ? 'officialhaadi81@gmail.com' : 'lonehaadi81@gmail.com';
         import('firebase/firestore').then(({ collection, query, where, getDocs }) => {
           const q = query(collection(db, 'users'), where('email', '==', partnerEmail));
           getDocs(q).then(snapshot => {
