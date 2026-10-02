@@ -103,11 +103,11 @@ body {
 }
 
 .animate-message-sent {
-  animation: messagePopInRight 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.2) forwards;
+  animation: messagePopInRight 0.15s cubic-bezier(0.2, 0.8, 0.2, 1.1) forwards;
 }
 
 .animate-message-received {
-  animation: messagePopInLeft 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.2) forwards;
+  animation: messagePopInLeft 0.15s cubic-bezier(0.2, 0.8, 0.2, 1.1) forwards;
 }
 
 @keyframes pulseSlow {

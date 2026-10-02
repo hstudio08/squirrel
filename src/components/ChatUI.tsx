@@ -6,6 +6,7 @@ import imageCompression from 'browser-image-compression';
 import React, { useState, useEffect, useRef, useLayoutEffect, FormEvent, useMemo } from 'react';
 import { User } from 'firebase/auth';
 import { db, rtdb } from '@/lib/firebase';
+import { getWallpaperSettings, getWallpaperUrl, WallpaperSettings, defaultSettings } from '@/lib/wallpaper';
 import {
   collection,
   query,
@@ -97,23 +98,16 @@ const secureCache = {
   set: (key: string, data: any, secret: string) => {
     try {
       const text = JSON.stringify(data);
+      // Fast obfuscation using native functions
       const encoded = encodeURIComponent(text);
-      let xored = '';
-      for (let i = 0; i < encoded.length; i++) {
-        xored += String.fromCharCode(encoded.charCodeAt(i) ^ secret.charCodeAt(i % secret.length));
-      }
-      localStorage.setItem(key, btoa(xored));
+      localStorage.setItem(key, btoa(encoded));
     } catch (e) { console.error('Cache set error'); }
   },
   get: (key: string, secret: string) => {
     try {
       const cached = localStorage.getItem(key);
       if (!cached) return null;
-      const xored = atob(cached);
-      let decoded = '';
-      for (let i = 0; i < xored.length; i++) {
-        decoded += String.fromCharCode(xored.charCodeAt(i) ^ secret.charCodeAt(i % secret.length));
-      }
+      const decoded = atob(cached);
       return JSON.parse(decodeURIComponent(decoded));
     } catch (e) {
       return null;
@@ -206,6 +200,8 @@ const PurePrivacyCurtain = ({ onClose }: { onClose: () => void }) => {
 };
 
 export default function ChatUI({ user }: ChatUIProps) {
+  const [wallpaperSettings, setWallpaperSettings] = useState<WallpaperSettings>(defaultSettings);
+  const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [isSending, setIsSending] = useState(false);
@@ -789,12 +785,16 @@ export default function ChatUI({ user }: ChatUIProps) {
         if (time > newestMsgTimeRef.current) newestMsgTimeRef.current = time;
 
         if (data.senderId !== user.uid && !data.seen && document.visibilityState === 'visible') {
-          batch.update(doc(db, 'conversations', chatId, 'messages', msgDoc.id), { seen: true, seenAt: serverTimestamp() });
+          batch.update(doc(db, 'conversations', chatId, 'messages', msgDoc.id), { seen: true, seenAt: serverTimestamp(), delivered: true });
+          hasUnseen = true;
+        } else if (data.senderId !== user.uid && !data.delivered) {
+          // Mark as delivered even if not yet seen (app is open but message not visible yet)
+          batch.update(doc(db, 'conversations', chatId, 'messages', msgDoc.id), { delivered: true });
           hasUnseen = true;
         }
       });
 
-      if (hasUnseen) batch.commit().catch(e => console.error('Failed to mark seen', e));
+      if (hasUnseen) batch.commit().catch(e => console.error('Failed to mark seen/delivered', e));
 
       const liveMessages = fetchedMessages.reverse();
 
@@ -1096,6 +1096,17 @@ export default function ChatUI({ user }: ChatUIProps) {
       date1.getDate() === date2.getDate();
   };
 
+  useEffect(() => {
+    const updateWallpaper = async () => {
+      const s = await getWallpaperSettings();
+      setWallpaperSettings(s);
+      setWallpaperUrl(await getWallpaperUrl(s));
+    };
+    updateWallpaper();
+    window.addEventListener('squirrel-wallpaper-changed', updateWallpaper);
+    return () => window.removeEventListener('squirrel-wallpaper-changed', updateWallpaper);
+  }, []);
+
   const formatDateSeparator = (d: any) => {
     if (!d) return '';
     const date = d.toDate ? d.toDate() : new Date(d);
@@ -1359,7 +1370,8 @@ export default function ChatUI({ user }: ChatUIProps) {
             senderId: user.uid,
             text: messageText,
             createdAt: serverTimestamp(),
-            seen: false
+            seen: false,
+            delivered: false
           };
           if (validUrls.length === 1) newMessageData.imageUrl = validUrls[0];
           if (validUrls.length > 1) newMessageData.imageUrls = validUrls;
@@ -1392,7 +1404,8 @@ export default function ChatUI({ user }: ChatUIProps) {
           text: messageText,
           senderId: user.uid,
           createdAt: serverTimestamp(),
-          seen: false
+          seen: false,
+          delivered: false
         };
 
         if (replyingTo) {
@@ -1401,7 +1414,35 @@ export default function ChatUI({ user }: ChatUIProps) {
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
-        await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+        // Optimistic UI: add message to local state immediately
+        const optimisticId = `optimistic_${Date.now()}`;
+        const optimisticMsg: Message = {
+          id: optimisticId,
+          text: messageText,
+          senderId: user.uid,
+          createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 } as any,
+          seen: false,
+          delivered: false,
+          ...(replyingTo ? {
+            replyToId: replyingTo.id,
+            replyToText: replyingTo.text || 'Photo',
+            replyToSenderId: replyingTo.senderId
+          } : {})
+        };
+        setMessages(prev => [...prev, optimisticMsg]);
+        
+        // Scroll immediately
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        });
+
+        // Fire and forget - don't await
+        addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData).catch(err => {
+          console.error('Failed to send message', err);
+          // Remove optimistic message on error
+          setMessages(prev => prev.filter(m => m.id !== optimisticId));
+          if (chatInputRef.current) chatInputRef.current.setText(messageText);
+        });
 
         // Trigger notification to the other user
         try {
@@ -1418,10 +1459,9 @@ export default function ChatUI({ user }: ChatUIProps) {
       }
 
       setReplyingTo(null);
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     } catch (error) {
       console.error("Failed to send message", error);
-      if (chatInputRef.current) chatInputRef.current.setText(messageText);
+      if (chatInputRef.current) chatInputRef.current.setText(textToUse.trim());
     } finally {
       setIsSending(false);
     }
@@ -1472,26 +1512,39 @@ export default function ChatUI({ user }: ChatUIProps) {
     setPinLoading(true);
     setPinError('');
     try {
-      const idToken = await user.getIdToken();
-      const res = await fetch('https://mysquirrel.vercel.app/api/pin/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ pin: finalPin })
-      });
-      if (res.ok) {
-        setPinUnlockedThisSession(true);
-        sessionStorage.setItem('pin_unlocked', 'true');
-        setShowPinModal(false);
-        setPinValue('');
-        loadMore(true);
-      } else if (res.status === 429) {
-        setPinError('Too many attempts. Try again in 15 minutes.');
-        setPinValue('');
+      // 1. Hash the PIN
+      const msgUint8 = new TextEncoder().encode(finalPin);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // 2. Fetch the pinSession document
+      const { getDoc, doc, updateDoc } = await import('firebase/firestore');
+      const docRef = doc(db, 'pinSessions', hashHex);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.used) {
+            setPinError('PIN already used.');
+            setPinValue('');
+        } else if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < new Date()) {
+            setPinError('PIN expired.');
+            setPinValue('');
+        } else {
+            await updateDoc(docRef, { used: true });
+            setPinUnlockedThisSession(true);
+            sessionStorage.setItem('pin_unlocked', 'true');
+            setShowPinModal(false);
+            setPinValue('');
+            loadMore(true);
+        }
       } else {
         setPinError('Invalid PIN');
         setPinValue('');
       }
     } catch (err) {
+      console.error(err);
       setPinError('Error verifying PIN');
       setPinValue('');
     } finally {
@@ -1571,6 +1624,17 @@ export default function ChatUI({ user }: ChatUIProps) {
 
   return (
     <div className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden">
+      {wallpaperUrl && (
+        <img
+          src={wallpaperUrl}
+          alt="Chat Wallpaper"
+          className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none transition-all duration-300 ease-in-out"
+          style={{
+            opacity: wallpaperSettings.opacity / 100,
+            filter: `blur(${wallpaperSettings.blur}px)`
+          }}
+        />
+      )}
       <OnboardingTour user={user} />
       {privacyMode === 'pure' && <PurePrivacyCurtain onClose={() => setPrivacyMode('none')} />}
       
@@ -1746,16 +1810,23 @@ export default function ChatUI({ user }: ChatUIProps) {
                   <button
                     title={generatedPin ? `PIN: ${generatedPin}` : 'Generate PIN'}
                     onClick={async () => {
-                      const idToken = await user.getIdToken();
-                      const res = await fetch('https://mysquirrel.vercel.app/api/pin/generate', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` }
-                      });
-                      if (res.ok) {
-                        const data = await res.json();
-                        setGeneratedPin(data.pin);
-                        showToast(`Generated PIN: ${data.pin}`);
-                      } else {
+                      try {
+                        const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
+                        const msgUint8 = new TextEncoder().encode(randomPin);
+                        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+                        const hashArray = Array.from(new Uint8Array(hashBuffer));
+                        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                        
+                        const { doc, setDoc } = await import('firebase/firestore');
+                        await setDoc(doc(db, 'pinSessions', hashHex), {
+                            createdAt: new Date(),
+                            expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+                            used: false
+                        });
+                        
+                        setGeneratedPin(randomPin);
+                        showToast(`Generated PIN: ${randomPin}`);
+                      } catch(e) {
                         showToast('Failed to generate PIN.');
                       }
                     }}

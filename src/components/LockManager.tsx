@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Calculator from './Calculator';
 
 export default function LockManager() {
+  const [isLocked, setIsLocked] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -17,16 +19,23 @@ export default function LockManager() {
           const { App } = await import('@capacitor/app');
           
           appListener = await App.addListener('appStateChange', ({ isActive }) => {
+            const bypassLock = localStorage.getItem('squirrel_bypass_lock');
+            const isBypassValid = bypassLock && (Date.now() - parseInt(bypassLock, 10) < 120000);
+            
             if (!isActive) {
+              if (isBypassValid) return; // Skip lock
+              
               const quickLock = localStorage.getItem('squirrel_quick_lock');
               if (quickLock === 'true' && pathname !== '/') {
-                // Instantly lock by going to calculator
-                router.replace('/');
+                // Instantly lock by overlaying calculator
+                setIsLocked(true);
               } else if (quickLock !== 'true' && pathname !== '/') {
                 // If off, we could record the time it went to background
                 localStorage.setItem('squirrel_background_time', Date.now().toString());
               }
             } else {
+              if (isBypassValid) return; // Skip lock logic on return
+
               // App came back to foreground
               const quickLock = localStorage.getItem('squirrel_quick_lock');
               if (quickLock !== 'true' && pathname !== '/') {
@@ -36,7 +45,7 @@ export default function LockManager() {
                   const now = Date.now();
                   // 3 minutes timeout if quick lock is off
                   if (now - bgTime > 3 * 60 * 1000) {
-                    router.replace('/');
+                    setIsLocked(true);
                   }
                   localStorage.removeItem('squirrel_background_time');
                 }
@@ -46,14 +55,21 @@ export default function LockManager() {
         } else {
           // Web fallback
           const handleVisibilityChange = () => {
+            const bypassLock = localStorage.getItem('squirrel_bypass_lock');
+            const isBypassValid = bypassLock && (Date.now() - parseInt(bypassLock, 10) < 120000);
+            
             if (document.hidden) {
+              if (isBypassValid) return;
+              
               const quickLock = localStorage.getItem('squirrel_quick_lock');
               if (quickLock === 'true' && window.location.pathname !== '/') {
-                window.location.replace('/');
+                setIsLocked(true);
               } else if (quickLock !== 'true' && window.location.pathname !== '/') {
                 localStorage.setItem('squirrel_background_time', Date.now().toString());
               }
             } else {
+              if (isBypassValid) return;
+              
               const quickLock = localStorage.getItem('squirrel_quick_lock');
               if (quickLock !== 'true' && window.location.pathname !== '/') {
                 const bgTimeStr = localStorage.getItem('squirrel_background_time');
@@ -61,7 +77,7 @@ export default function LockManager() {
                   const bgTime = parseInt(bgTimeStr, 10);
                   const now = Date.now();
                   if (now - bgTime > 3 * 60 * 1000) {
-                    window.location.replace('/');
+                    setIsLocked(true);
                   }
                   localStorage.removeItem('squirrel_background_time');
                 }
@@ -84,6 +100,14 @@ export default function LockManager() {
       }
     };
   }, [router, pathname]);
+
+  if (isLocked) {
+    return (
+      <div className="fixed inset-0 z-[999999] bg-black">
+        <Calculator onUnlock={() => setIsLocked(false)} />
+      </div>
+    );
+  }
 
   return null;
 }

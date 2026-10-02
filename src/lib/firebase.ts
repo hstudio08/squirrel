@@ -45,7 +45,8 @@ try {
   db = getFirestore(app);
 }
 const rtdb = getDatabase(app);
-let storage;
+import { FirebaseStorage } from "firebase/storage";
+let storage: FirebaseStorage | undefined;
 try {
   storage = getStorage(app);
 } catch (e) {

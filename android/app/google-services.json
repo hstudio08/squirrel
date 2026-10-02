@@ -15,11 +15,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "794362383109-cel5qt7ab5g7hkehsmdgsprvv93aco3l.apps.googleusercontent.com",
+          "client_id": "794362383109-adm1fu8adj5eq3djrppsip4us7ec448m.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.whyitworks.squirrel",
-            "certificate_hash": "e8ab06d9a67e63ccc7be779ad9865345a270e8c4"
+            "certificate_hash": "9f0dd10cb709a2bb0d4a542ea7bfc23f46f394c4"
           }
         },
         {

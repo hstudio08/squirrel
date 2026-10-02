@@ -1,6 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Smile, Send, Loader2, Image as ImageIcon, Camera, Mic, Trash2, StopCircle } from 'lucide-react';
-import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
+import dynamic from 'next/dynamic';
+import { EmojiClickData, Theme } from 'emoji-picker-react';
+
+const EmojiPicker = dynamic(
+  () => import('emoji-picker-react'),
+  { ssr: false }
+);
 
 export interface ChatInputFormProps {
   isSending: boolean;
@@ -317,13 +323,14 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
               />
               <label
                 htmlFor="image-upload"
+                onClick={() => localStorage.setItem('squirrel_bypass_lock', Date.now().toString())}
                 className={`shrink-0 p-2 sm:p-3 transition-colors self-end cursor-pointer ${isSending ? 'text-slate-300 pointer-events-none' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 {isSending ? <Loader2 size={24} className="animate-spin" strokeWidth={1.5} /> : <ImageIcon size={24} strokeWidth={1.5} />}
               </label>
               <button
                 type="button"
-                onClick={onCameraClick}
+                onClick={() => { localStorage.setItem('squirrel_bypass_lock', Date.now().toString()); onCameraClick(); }}
                 disabled={isSending}
                 className={`shrink-0 p-2 sm:p-3 transition-colors self-end ${isSending ? 'text-slate-300 pointer-events-none' : 'text-slate-500 hover:text-slate-700'}`}
               >

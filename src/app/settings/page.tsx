@@ -1,14 +1,16 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, storage } from '@/lib/firebase';
 import { onAuthStateChanged, updateProfile, User } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { ArrowLeft, ArrowDown, Camera, Check, Loader2, ImagePlus, Save, X, RotateCcw, Pen, Trash2 } from 'lucide-react';
 import type { Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import WallpaperSettingsPanel from '@/components/WallpaperSettings';
 
 const ReactCrop = dynamic(() => import('react-image-crop'), { ssr: false });
 
@@ -45,6 +47,7 @@ export default function SettingsPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [quickLock, setQuickLock] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   // App PIN state
   const [appPin, setAppPin] = useState('');
@@ -66,6 +69,10 @@ export default function SettingsPage() {
     const savedQuickLock = localStorage.getItem('squirrel_quick_lock');
     if (savedQuickLock === 'true') {
       setQuickLock(true);
+    }
+    const savedNotifs = localStorage.getItem('squirrel_notifications');
+    if (savedNotifs === 'true') {
+      setNotificationsEnabled(true);
     }
     return () => unsubscribe();
   }, []);
@@ -142,14 +149,30 @@ export default function SettingsPage() {
 
   async function openCamera() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1080 } }
-      });
-      setCameraStream(stream);
-      setIsCameraOpen(true);
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+        const image = await Camera.getPhoto({
+          quality: 90,
+          allowEditing: false,
+          resultType: CameraResultType.DataUrl,
+          source: CameraSource.Camera,
+          width: 1080
+        });
+        if (image.dataUrl) {
+          setImgSrc(image.dataUrl);
+          setCrop(undefined);
+          setIsCropping(true);
+        }
+      } else {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1080 } }
+        });
+        setCameraStream(stream);
+        setIsCameraOpen(true);
+      }
     } catch (err) {
-      console.error("Camera access denied or error:", err);
-      alert("Could not access the camera. Please check permissions.");
+      console.error("Camera access denied, error, or user cancelled:", err);
     }
   }
 
@@ -167,7 +190,7 @@ export default function SettingsPage() {
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext('2d');
-      if (ctx) {
+      if (ctx && canvas.width > 0 && canvas.height > 0) {
         // Mirror the image horizontally if it's front-facing
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
@@ -183,13 +206,14 @@ export default function SettingsPage() {
 
   async function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     const { width, height } = e.currentTarget;
-    const { centerCrop, makeAspectCrop } = await import('react-image-crop');
+    const { centerCrop, makeAspectCrop, convertToPixelCrop } = await import('react-image-crop');
     const crop = centerCrop(
       makeAspectCrop({ unit: '%', width: 90 }, 1, width, height),
       width,
       height
     );
-    setCrop(crop);
+    setCrop(crop); 
+    setCompletedCrop(convertToPixelCrop(crop, width, height));
   }
 
   const handleSaveStatus = async () => {
@@ -305,33 +329,10 @@ export default function SettingsPage() {
         }, 'image/jpeg', 0.9);
       });
 
-      const idToken = await user.getIdToken();
-      const sigRes = await fetch('https://mysquirrel.vercel.app/api/upload-signature', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ upload_preset: 'Squirrel' })
-      });
-      if (!sigRes.ok) throw new Error('Failed to get upload signature');
-      const { timestamp, signature } = await sigRes.json();
-
-      const formData = new FormData();
-      formData.append('file', blob);
-      formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || '');
-      formData.append('timestamp', timestamp.toString());
-      formData.append('upload_preset', 'Squirrel');
-      formData.append('signature', signature);
-
-      const res = await fetch(`https://api.cloudinary.com/v1_1/wusvh42x/image/upload`, {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await res.json();
-      if (!data.secure_url) throw new Error('Upload to Cloudinary failed');
-      const downloadURL = data.secure_url;
+      if (!storage) throw new Error("Firebase storage not initialized");
+      const storageRef = ref(storage, `profile_pictures/${user.uid}_${Date.now()}.jpg`);
+      await uploadBytes(storageRef, blob);
+      const downloadURL = await getDownloadURL(storageRef);
 
       await updateProfile(user, { photoURL: downloadURL });
       await updateDoc(doc(db, 'users', user.uid), { photoURL: downloadURL });
@@ -412,11 +413,11 @@ export default function SettingsPage() {
 
             {/* Avatar Actions */}
             <div className="flex gap-3 mt-1">
-              <label className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-all text-gray-700 shadow-sm">
+              <label onClick={() => localStorage.setItem('squirrel_bypass_lock', Date.now().toString())} className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-all text-gray-700 shadow-sm">
                 <ImagePlus size={18} />
                 <input type="file" accept="image/*" onChange={onSelectFile} className="hidden" />
               </label>
-              <button onClick={openCamera} className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-all text-gray-700 shadow-sm">
+              <button onClick={(e) => { localStorage.setItem('squirrel_bypass_lock', Date.now().toString()); openCamera(); }} className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-all text-gray-700 shadow-sm">
                 <Camera size={18} />
               </button>
               {user.photoURL && (
@@ -430,31 +431,41 @@ export default function SettingsPage() {
             <div className="w-full mt-2">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1 mb-1 block">Name</label>
               {isEditingName ? (
-                <div className="flex items-center bg-gray-50 rounded-xl border border-gray-300 overflow-hidden pr-1 focus-within:border-blue-500 transition-colors shadow-sm">
-                  <input
-                    type="text"
-                    maxLength={50}
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="flex-1 min-w-0 bg-transparent outline-none text-black text-[17px] px-3 py-2.5 placeholder:text-gray-400"
-                    autoFocus
-                    onBlur={() => {
-                      if (displayName === user.displayName || displayName.trim() === '') {
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center bg-gray-50 rounded-xl border border-blue-500 px-1 py-1 transition-colors shadow-sm">
+                    <input
+                      type="text"
+                      maxLength={50}
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      className="flex-1 min-w-0 bg-transparent outline-none text-black text-[16px] px-3 py-2 placeholder:text-gray-400"
+                      autoFocus
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleSaveName();
+                        setIsEditingName(false);
+                      }}
+                      disabled={isSavingName || displayName.length > 50 || displayName === user.displayName || displayName.trim() === ''}
+                      className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all ${nameSaved ? 
+                        'bg-green-500 text-white' : 'bg-blue-500 text-white active:scale-95 hover:bg-blue-600'
+                      } disabled:opacity-50 flex items-center gap-1 shrink-0`}
+                    >
+                      {isSavingName ? <Loader2 size={14} className="animate-spin" /> : nameSaved ? 'Saved' : 'Save'}
+                    </button>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => {
                         setIsEditingName(false);
                         setDisplayName(user.displayName || '');
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={() => {
-                      handleSaveName();
-                      setIsEditingName(false);
-                    }}
-                    disabled={isSavingName || displayName.length > 50 || displayName === user.displayName}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-500 text-white active:scale-95 disabled:opacity-40 shrink-0 transition-transform"
-                  >
-                    {isSavingName ? <Loader2 size={14} className="animate-spin" /> : <Check size={16} strokeWidth={2.5} />}
-                  </button>
+                      }}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center justify-between bg-gray-50 rounded-xl border border-gray-200 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => setIsEditingName(true)}>
@@ -513,41 +524,23 @@ export default function SettingsPage() {
                 <p className="text-gray-500 text-[13px] leading-tight -mt-2">
                   4-digit PIN to directly open chat from the calculator.
                 </p>
-                <div className="flex items-center justify-between gap-2 mt-3">
-                  <div className="flex gap-2">
-                    {[0, 1, 2, 3].map((index) => (
-                      <input
-                        key={index}
-                        id={`pin-input-${index}`}
-                        type="text"
-                        inputMode="numeric"
-                        pattern="\d*"
-                        maxLength={1}
-                        value={appPin[index] !== ' ' ? appPin[index] || '' : ''}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, '');
-                          let arr = appPin.padEnd(4, ' ').split('');
-                          arr[index] = val || ' ';
-                          setAppPin(arr.join(''));
-                          if (val && index < 3) {
-                            document.getElementById(`pin-input-${index + 1}`)?.focus();
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Backspace' && (!appPin[index] || appPin[index] === ' ') && index > 0) {
-                            const prev = document.getElementById(`pin-input-${index - 1}`);
-                            if (prev) {
-                              prev.focus();
-                            }
-                          }
-                        }}
-                        className="w-12 h-14 bg-white border border-gray-300 rounded-xl text-center text-black font-semibold text-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm transition-all"
-                      />
-                    ))}
-                  </div>
+                <div className="flex items-center gap-2 mt-3">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="\d*"
+                    maxLength={4}
+                    placeholder="Enter 4 digits"
+                    value={appPin.replace(/\s/g, '')}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                      setAppPin(val);
+                    }}
+                    className="flex-1 h-14 px-4 bg-white border border-gray-300 rounded-xl text-black font-semibold text-lg tracking-widest outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm transition-all"
+                  />
                   <button
                     onClick={handleSavePin}
-                    disabled={appPin.replace(/\s/g, '').length !== 4}
+                    disabled={appPin.replace(/\s/g, '').length !== 4 && appPin.replace(/\s/g, '').length !== 0}
                     className="h-14 px-6 rounded-xl bg-blue-500 text-white font-medium hover:bg-blue-600 disabled:bg-blue-300 disabled:cursor-not-allowed active:scale-95 transition-all shadow-sm"
                   >
                     Save
@@ -580,47 +573,74 @@ export default function SettingsPage() {
             {/* Notifications Button */}
             <button
               onClick={async () => {
-                try {
-                  const { Capacitor } = await import('@capacitor/core');
-                  if (Capacitor.isNativePlatform()) {
-                    const { PushNotifications } = await import('@capacitor/push-notifications');
-                    let permStatus = await PushNotifications.checkPermissions();
-                    if (permStatus.receive === 'prompt') {
-                      permStatus = await PushNotifications.requestPermissions();
-                    }
-                    if (permStatus.receive === 'granted') {
-                      alert('Notifications enabled! You will now receive alerts for new messages.');
-                      window.location.reload();
-                    } else {
-                      alert('Notifications denied. You can enable them in your device settings.');
-                    }
-                  } else {
-                    if ('Notification' in window) {
-                      Notification.requestPermission().then(permission => {
-                        if (permission === 'granted') {
-                          alert('Notifications enabled! You will now receive alerts for new messages.');
-                          window.location.reload();
-                        } else {
-                          alert('Notifications denied. You can enable them in your browser settings.');
+                const val = !notificationsEnabled;
+                if (val) {
+                  try {
+                    const { Capacitor } = await import('@capacitor/core');
+                    if (Capacitor.isNativePlatform()) {
+                      const { LocalNotifications } = await import('@capacitor/local-notifications');
+                      let permStatus = await LocalNotifications.checkPermissions();
+                      if (permStatus.display !== 'granted') {
+                        permStatus = await LocalNotifications.requestPermissions();
+                      }
+                      if (permStatus.display === 'granted') {
+                        setNotificationsEnabled(true);
+                        localStorage.setItem('squirrel_notifications', 'true');
+                        if (user) {
+                          import('firebase/firestore').then(({ doc, updateDoc }) => {
+                            updateDoc(doc(db, 'users', user.uid), { notificationsEnabled: true }).catch(() => {});
+                          });
                         }
-                      });
+                      } else {
+                        alert('Notifications permission denied.');
+                      }
                     } else {
-                      alert('Your browser does not support notifications.');
+                      if ('Notification' in window) {
+                        Notification.requestPermission().then(permission => {
+                          if (permission === 'granted') {
+                            setNotificationsEnabled(true);
+                            localStorage.setItem('squirrel_notifications', 'true');
+                            if (user) {
+                              import('firebase/firestore').then(({ doc, updateDoc }) => {
+                                updateDoc(doc(db, 'users', user.uid), { notificationsEnabled: true }).catch(() => {});
+                              });
+                            }
+                          } else {
+                            alert('Notifications permission denied.');
+                          }
+                        });
+                      } else {
+                        alert('Your browser does not support notifications.');
+                      }
                     }
+                  } catch (e) {
+                    alert('Error setting up notifications');
                   }
-                } catch (e) {
-                  alert('Error setting up notifications');
+                } else {
+                  setNotificationsEnabled(false);
+                  localStorage.setItem('squirrel_notifications', 'false');
+                  if (user) {
+                    import('firebase/firestore').then(({ doc, updateDoc }) => {
+                      updateDoc(doc(db, 'users', user.uid), { notificationsEnabled: false }).catch(() => {});
+                    });
+                  }
                 }
               }}
               className="p-4 w-full flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
             >
               <div>
-                <h4 className="text-black font-semibold text-[16px]">Push Notifications</h4>
-                <p className="text-gray-500 text-[13px] mt-0.5">Enable alerts for new messages.</p>
+                <h4 className="text-black font-semibold text-[16px]">App Notifications</h4>
+                <p className="text-gray-500 text-[13px] mt-0.5">Dummy calculator alerts for messages.</p>
               </div>
-              <div className="text-blue-500 font-medium text-[15px]">
-                Enable
-              </div>
+              <label className="relative inline-flex items-center cursor-pointer pointer-events-none">
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer"
+                  checked={notificationsEnabled}
+                  readOnly
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+              </label>
             </button>
           </div>
 
@@ -646,6 +666,8 @@ export default function SettingsPage() {
               </label>
             </div>
           </div>
+
+          <WallpaperSettingsPanel />
 
         </div>
       </div>

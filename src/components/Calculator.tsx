@@ -9,18 +9,26 @@ import { auth, db, googleProvider } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function Calculator() {
+interface CalculatorProps {
+  onUnlock?: () => void;
+}
+
+export default function Calculator({ onUnlock }: CalculatorProps = {}) {
   const [expression, setExpression] = useState('');
   const [result, setResult] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    // Prefetch for instant loading
+    router.prefetch('/chat');
+
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         const savedPin = localStorage.getItem('squirrel_pin');
         if (!savedPin) {
-          router.push('/chat');
+          if (onUnlock) onUnlock();
+          else router.push('/chat');
         }
       }
     });
@@ -35,7 +43,8 @@ export default function Calculator() {
     
     if (auth.currentUser) {
       setIsLoggingIn(false);
-      router.push('/chat');
+      if (onUnlock) onUnlock();
+      else router.push('/chat');
       return;
     }
 
@@ -92,7 +101,8 @@ export default function Calculator() {
     setExpression('');
     setResult('');
     if (auth.currentUser) {
-      router.push('/chat');
+      if (onUnlock) onUnlock();
+      else router.push('/chat');
     }
   };
 

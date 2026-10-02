@@ -5,8 +5,14 @@ import { Message } from '@/types/chat';
 import { doc, updateDoc, serverTimestamp, arrayUnion, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Edit2, Trash2, X, Check, Pin, Plus, CheckCheck, CheckSquare } from 'lucide-react';
-import EmojiPicker, { EmojiClickData, EmojiStyle } from 'emoji-picker-react';
+import dynamic from 'next/dynamic';
+import { EmojiClickData, EmojiStyle } from 'emoji-picker-react';
 import { User } from 'firebase/auth';
+
+const EmojiPicker = dynamic(
+  () => import('emoji-picker-react'),
+  { ssr: false }
+);
 import CustomAudioPlayer from './CustomAudioPlayer';
 
 const formatMessageText = (text: string) => {
@@ -899,9 +905,9 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
                           </span>
                         )}
                       </div>
-                    ) : (
+                    ) : message.delivered ? (
                       <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-green-400 drop-shadow-sm' : 'bg-green-500'}`}></div>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -979,6 +985,7 @@ export default React.memo(MessageItemComponent, (prevProps, nextProps) => {
     prevProps.message.text === nextProps.message.text &&
     prevProps.message.isDeletedForEveryone === nextProps.message.isDeletedForEveryone &&
     prevProps.message.seen === nextProps.message.seen &&
+    prevProps.message.delivered === nextProps.message.delivered &&
     JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions) &&
     prevProps.isFirstUnreplied === nextProps.isFirstUnreplied &&
     prevProps.isAnonymousMode === nextProps.isAnonymousMode &&

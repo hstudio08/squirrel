@@ -19,6 +19,8 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
   const initialPinchDistance = useRef<number | null>(null);
   const initialZoom = useRef<number>(1);
 
+  const [useNativeCamera, setUseNativeCamera] = useState(false);
+
   useEffect(() => {
     let active = true;
 
@@ -26,15 +28,9 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
       try {
         const { Capacitor } = await import('@capacitor/core');
         if (Capacitor.isNativePlatform()) {
-          const { Camera } = await import('@capacitor/camera');
-          const status = await Camera.checkPermissions();
-          if (status.camera !== 'granted') {
-            const req = await Camera.requestPermissions();
-            if (req.camera !== 'granted') {
-              setError('Camera permission denied.');
-              return;
-            }
-          }
+          // On native, we'll use Capacitor Camera for high-quality photos
+          setUseNativeCamera(true);
+          return;
         }
 
         if (streamRef.current) {
@@ -42,7 +38,12 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
         }
         
         const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode }, 
+          video: { 
+            facingMode, 
+            width: { ideal: 3840, min: 1920 }, 
+            height: { ideal: 2160, min: 1080 },
+            zoom: true 
+          } as any, 
           audio: false 
         });
         
@@ -102,7 +103,35 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
     setZoom(hasNativeZoom ? zoomMin : 1);
   };
 
-  const handleCapture = () => {
+  const handleCapture = async () => {
+    // Native path: use Capacitor Camera for maximum quality
+    if (useNativeCamera) {
+      try {
+        const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+        const image = await Camera.getPhoto({
+          quality: 95,
+          allowEditing: false,
+          resultType: CameraResultType.Uri,
+          source: CameraSource.Camera,
+          width: 4096,
+          height: 4096,
+          saveToGallery: false,
+          correctOrientation: true
+        });
+        if (image.webPath) {
+          const response = await fetch(image.webPath);
+          const blob = await response.blob();
+          const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+          onCapture(file);
+        }
+      } catch (err) {
+        // User cancelled or error - just close
+        onClose();
+      }
+      return;
+    }
+
+    // Web path
     if (!videoRef.current) return;
     
     const canvas = document.createElement('canvas');
@@ -139,7 +168,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
           const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
           onCapture(file);
         }
-      }, 'image/jpeg', 0.9);
+      }, 'image/jpeg', 0.95);
     }
   };
 
@@ -170,6 +199,19 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
   const handleWheel = (e: React.WheelEvent) => {
     setZoom(prev => Math.min(Math.max(zoomMin, prev - e.deltaY * 0.01), zoomMax));
   };
+
+  // On native, immediately trigger the native camera
+  useEffect(() => {
+    if (useNativeCamera) {
+      handleCapture();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useNativeCamera]);
+
+  // If using native camera, don't render the web camera UI
+  if (useNativeCamera) {
+    return <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center"><div className="text-white text-sm animate-pulse">Opening camera...</div></div>;
+  }
 
   return (
     <div 

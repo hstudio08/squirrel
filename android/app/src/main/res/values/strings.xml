@@ -5,4 +5,5 @@
     <string name="package_name">com.whyitworks.squirrel</string>
     <string name="custom_url_scheme">com.whyitworks.squirrel</string>
     <string name="default_web_client_id">794362383109-slhj9uc231acqffgpnnri6127nqaaq9o.apps.googleusercontent.com</string>
+    <string name="server_client_id">794362383109-slhj9uc231acqffgpnnri6127nqaaq9o.apps.googleusercontent.com</string>
 </resources>

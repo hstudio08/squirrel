@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const FAKE_MESSAGES = [
-  "Let's calculate some crazy number",
-  "Time to crunch some numbers",
-  "Need to calculate something urgent?",
-  "Your calculator is ready",
-  "A complex equation awaits you",
-  "Let's solve some math problems",
-  "Numbers don't lie, let's calculate",
-  "Quick math check needed",
-  "Time for some rapid calculations",
-  "The numbers are adding up"
+  "10"
 ];
 
 export async function POST(req: NextRequest) {
@@ -39,6 +30,15 @@ export async function POST(req: NextRequest) {
 
     if (!receiverUid) {
       return NextResponse.json({ error: 'Missing receiverUid' }, { status: 400 });
+    }
+
+    // Get the receiver's user doc to check settings
+    const userDoc = await adminDb.collection('users').doc(receiverUid).get();
+    if (userDoc.exists) {
+      const userData = userDoc.data();
+      if (userData?.notificationsEnabled === false) {
+        return NextResponse.json({ success: true, message: 'Notifications disabled by user' });
+      }
     }
 
     // Get the receiver's token from Firestore
