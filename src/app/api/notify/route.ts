@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { receiverUid } = await req.json();
+    const { receiverUid, chatId, messageId } = await req.json();
 
     if (!receiverUid) {
       return NextResponse.json({ error: 'Missing receiverUid' }, { status: 400 });
@@ -77,6 +77,17 @@ export async function POST(req: NextRequest) {
         }
       }
     });
+
+    // Update delivered status if successful and message details provided
+    if (response.successCount > 0 && chatId && messageId) {
+      try {
+        await adminDb.collection('conversations').doc(chatId).collection('messages').doc(messageId).update({
+          delivered: true
+        });
+      } catch (updateErr) {
+        console.error('Failed to update delivered status:', updateErr);
+      }
+    }
 
     return NextResponse.json({ success: true, response });
 

@@ -329,10 +329,34 @@ export default function SettingsPage() {
         }, 'image/jpeg', 0.9);
       });
 
-      if (!storage) throw new Error("Firebase storage not initialized");
-      const storageRef = ref(storage, `profile_pictures/${user.uid}_${Date.now()}.jpg`);
-      await uploadBytes(storageRef, blob);
-      const downloadURL = await getDownloadURL(storageRef);
+      const idToken = await user.getIdToken();
+      const sigRes = await fetch('/api/upload-signature', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ upload_preset: 'Squirrel' })
+      });
+      if (!sigRes.ok) throw new Error('Failed to get upload signature');
+      const { timestamp, signature } = await sigRes.json();
+
+      const formData = new FormData();
+      formData.append('file', blob, `${user.uid}_${Date.now()}.jpg`);
+      formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || '');
+      formData.append('timestamp', timestamp.toString());
+      formData.append('upload_preset', 'Squirrel');
+      formData.append('signature', signature);
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/wusvh42x/image/upload`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) throw new Error('Failed to upload image to Cloudinary');
+      
+      const data = await res.json();
+      const downloadURL = data.secure_url;
 
       await updateProfile(user, { photoURL: downloadURL });
       await updateDoc(doc(db, 'users', user.uid), { photoURL: downloadURL });
@@ -415,7 +439,7 @@ export default function SettingsPage() {
             <div className="flex gap-3 mt-1">
               <label onClick={() => localStorage.setItem('squirrel_bypass_lock', Date.now().toString())} className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-all text-gray-700 shadow-sm">
                 <ImagePlus size={18} />
-                <input type="file" accept="image/*" onChange={onSelectFile} className="hidden" />
+                <input type="file" accept="image/*" onChange={onSelectFile} onClick={() => localStorage.setItem('squirrel_bypass_lock', Date.now().toString())} className="hidden" />
               </label>
               <button onClick={(e) => { localStorage.setItem('squirrel_bypass_lock', Date.now().toString()); openCamera(); }} className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-all text-gray-700 shadow-sm">
                 <Camera size={18} />
@@ -444,13 +468,23 @@ export default function SettingsPage() {
                     <button
                       onClick={(e) => {
                         e.preventDefault();
+                        setDisplayName(user.displayName || '');
+                        setIsEditingName(false);
+                      }}
+                      className="px-3 py-2 rounded-lg text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 active:scale-95 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
                         handleSaveName();
                         setIsEditingName(false);
                       }}
                       disabled={isSavingName || displayName.length > 50 || displayName === user.displayName || displayName.trim() === ''}
                       className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all ${nameSaved ? 
                         'bg-green-500 text-white' : 'bg-blue-500 text-white active:scale-95 hover:bg-blue-600'
-                      } disabled:opacity-50 flex items-center gap-1 shrink-0`}
+                      } disabled:opacity-50 flex items-center gap-1 shrink-0 shadow-sm`}
                     >
                       {isSavingName ? <Loader2 size={14} className="animate-spin" /> : nameSaved ? 'Saved' : 'Save'}
                     </button>

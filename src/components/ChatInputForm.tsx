@@ -319,6 +319,7 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
                 className="hidden"
                 id="image-upload"
                 onChange={onImageUpload}
+                onClick={() => localStorage.setItem('squirrel_bypass_lock', Date.now().toString())}
                 disabled={isSending}
               />
               <label

@@ -1006,10 +1006,10 @@ export default function ChatUI({ user }: ChatUIProps) {
           ? new File([file], file.name || 'image.jpeg', { type: file.type || 'image/jpeg' })
           : file;
         const options = {
-          maxSizeMB: 0.5,
-          maxWidthOrHeight: 1080,
+          maxSizeMB: 2,
+          maxWidthOrHeight: 1920,
           useWebWorker: true,
-          initialQuality: 0.7
+          initialQuality: 0.85
         };
         compressedFile = await imageCompression(fileToCompress, options);
       } catch (e) {
@@ -1058,7 +1058,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
-        await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+        const msgRef = await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
 
         // Trigger notification to the other user
         try {
@@ -1069,7 +1069,7 @@ export default function ChatUI({ user }: ChatUIProps) {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${idToken}`
             },
-            body: JSON.stringify({ receiverUid: otherUid })
+            body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: msgRef.id })
           });
         } catch (e) {
           console.error('Failed to trigger notification', e);
@@ -1274,7 +1274,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
-        await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+        const msgRef = await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
         
         try {
           fetch('/api/notify', {
@@ -1283,7 +1283,7 @@ export default function ChatUI({ user }: ChatUIProps) {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${idToken}`
             },
-            body: JSON.stringify({ receiverUid: otherUid })
+            body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: msgRef.id })
           });
         } catch (e) {}
       }
@@ -1326,87 +1326,88 @@ export default function ChatUI({ user }: ChatUIProps) {
         const controller = new AbortController();
         setUploadController(controller);
 
-        const idToken = await user.getIdToken();
-        const uploadPromises = imagesToUpload.map(async (file) => {
-          let compressedFile = file;
-          try {
-            const fileToCompress = (!file.type || !file.type.startsWith('image/'))
-              ? new File([file], file.name || 'image.jpeg', { type: file.type || 'image/jpeg' })
-              : file;
-            const options = {
-              maxSizeMB: 0.5,
-              maxWidthOrHeight: 1080,
-              useWebWorker: true,
-              initialQuality: 0.7
-            };
-            compressedFile = await imageCompression(fileToCompress, options);
-          } catch (e) {
-            console.warn('Compression failed, using original file', e);
-            compressedFile = file;
-          }
+        try {
+          const idToken = await user.getIdToken();
+          const uploadPromises = imagesToUpload.map(async (file) => {
+            let compressedFile = file;
+            try {
+              const fileToCompress = (!file.type || !file.type.startsWith('image/'))
+                ? new File([file], file.name || 'image.jpeg', { type: file.type || 'image/jpeg' })
+                : file;
+              const options = {
+                maxSizeMB: 2,
+                maxWidthOrHeight: 1920,
+                useWebWorker: true,
+                initialQuality: 0.85
+              };
+              compressedFile = await imageCompression(fileToCompress, options);
+            } catch (e) {
+              console.warn('Compression failed, using original file', e);
+              compressedFile = file;
+            }
 
-          const sigRes = await fetch('/api/upload-signature', {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              'Authorization': `Bearer ${idToken}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ upload_preset: 'Squirrel' })
-          });
-          if (!sigRes.ok) throw new Error('Failed to get upload signature');
-          const { timestamp, signature } = await sigRes.json();
-
-          const formData = new FormData();
-          formData.append('file', compressedFile);
-          formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || '');
-          formData.append('timestamp', timestamp.toString());
-          formData.append('upload_preset', 'Squirrel');
-          formData.append('signature', signature);
-
-          const res = await fetch(`https://api.cloudinary.com/v1_1/wusvh42x/image/upload`, {
-            method: 'POST',
-            signal: controller.signal,
-            body: formData
-          });
-
-          const data = await res.json();
-          return data.secure_url as string;
-        });
-
-        const urls = await Promise.all(uploadPromises);
-        const validUrls = urls.filter(Boolean);
-
-        if (validUrls.length > 0) {
-          const newMessageData: any = {
-            senderId: user.uid,
-            text: messageText,
-            createdAt: serverTimestamp(),
-            seen: false,
-            delivered: false
-          };
-          if (validUrls.length === 1) newMessageData.imageUrl = validUrls[0];
-          if (validUrls.length > 1) newMessageData.imageUrls = validUrls;
-
-          if (replyingTo) {
-            newMessageData.replyToId = replyingTo.id;
-            newMessageData.replyToText = replyingTo.text || 'Photo';
-            newMessageData.replyToSenderId = replyingTo.senderId;
-          }
-
-          await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
-          
-          try {
-            fetch('/api/notify', {
+            const sigRes = await fetch('/api/upload-signature', {
               method: 'POST',
+              signal: controller.signal,
               headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${idToken}`
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ receiverUid: otherUid })
+              body: JSON.stringify({ upload_preset: 'Squirrel' })
             });
-          } catch (e) {}
-        }
+            if (!sigRes.ok) throw new Error('Failed to get upload signature');
+            const { timestamp, signature } = await sigRes.json();
+
+            const formData = new FormData();
+            formData.append('file', compressedFile);
+            formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || '');
+            formData.append('timestamp', timestamp.toString());
+            formData.append('upload_preset', 'Squirrel');
+            formData.append('signature', signature);
+
+            const res = await fetch(`https://api.cloudinary.com/v1_1/wusvh42x/image/upload`, {
+              method: 'POST',
+              signal: controller.signal,
+              body: formData
+            });
+
+            const data = await res.json();
+            return data.secure_url as string;
+          });
+
+          const urls = await Promise.all(uploadPromises);
+          const validUrls = urls.filter(Boolean);
+
+          if (validUrls.length > 0) {
+            const newMessageData: any = {
+              senderId: user.uid,
+              text: messageText,
+              createdAt: serverTimestamp(),
+              seen: false,
+              delivered: false
+            };
+            if (validUrls.length === 1) newMessageData.imageUrl = validUrls[0];
+            if (validUrls.length > 1) newMessageData.imageUrls = validUrls;
+
+            if (replyingTo) {
+              newMessageData.replyToId = replyingTo.id;
+              newMessageData.replyToText = replyingTo.text || 'Photo';
+              newMessageData.replyToSenderId = replyingTo.senderId;
+            }
+
+            const msgRef = await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
+            
+            try {
+              fetch('/api/notify', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${idToken}`
+                },
+                body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: msgRef.id })
+              });
+            } catch (e) {}
+          }
         } catch (e: any) {
           if (e.name === 'AbortError') {
             console.log('Upload cancelled');
@@ -1434,8 +1435,10 @@ export default function ChatUI({ user }: ChatUIProps) {
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
-        // Optimistic UI: add message to local state immediately
-        const optimisticId = `optimistic_${Date.now()}`;
+        // Pre-generate Firestore ID to prevent duplicates in snapshot
+        const newMsgRef = doc(collection(db, `conversations/${chatId}/messages`));
+        const optimisticId = newMsgRef.id;
+        
         const optimisticMsg: Message = {
           id: optimisticId,
           text: messageText,
@@ -1457,7 +1460,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         });
 
         // Fire and forget - don't await
-        addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData).catch(err => {
+        setDoc(newMsgRef, newMessageData).catch(err => {
           console.error('Failed to send message', err);
           // Remove optimistic message on error
           setMessages(prev => prev.filter(m => m.id !== optimisticId));
@@ -1473,7 +1476,7 @@ export default function ChatUI({ user }: ChatUIProps) {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${idToken}`
             },
-            body: JSON.stringify({ receiverUid: otherUid })
+            body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: newMsgRef.id })
           });
         } catch (e) {}
       }
