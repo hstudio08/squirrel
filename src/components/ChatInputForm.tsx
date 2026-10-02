@@ -149,8 +149,17 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
               return;
             }
           }
+          await VoiceRecorder.startRecording();
+          setIsRecording(true);
+          if (updateRecordingStatus) updateRecordingStatus(true);
+          setRecordingTime(0);
+          timerRef.current = setInterval(() => {
+            setRecordingTime(prev => prev + 1);
+          }, 1000);
+          return; // Native recording started, return early
         }
 
+        // --- Web Fallback ---
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           alert('Microphone not supported in this browser. If you are on mobile, ensure you are using a secure connection (HTTPS) as browsers block microphone access on normal HTTP.');
           isHoldingRef.current = false;
@@ -204,20 +213,47 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
       }
     };
 
-    const stopRecording = (cancel: boolean = false) => {
+    const stopRecording = async (cancel: boolean = false) => {
       isHoldingRef.current = false;
       setSlideOffset(0);
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (cancel) {
-        isCancelledRef.current = true;
-        audioChunksRef.current = []; 
-      }
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
       setIsRecording(false);
       if (updateRecordingStatus) updateRecordingStatus(false);
+      if (timerRef.current) clearInterval(timerRef.current);
       setRecordingTime(0);
+
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor.isNativePlatform()) {
+          const { VoiceRecorder } = await import('capacitor-voice-recorder');
+          const result = await VoiceRecorder.stopRecording();
+          
+          if (cancel) {
+            isCancelledRef.current = true;
+          } else if (!isCancelledRef.current && result.value && result.value.recordDataBase64) {
+            const mimeType = result.value.mimeType || 'audio/aac';
+            const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('aac') ? 'aac' : mimeType.includes('webm') ? 'webm' : 'm4a';
+            // Convert base64 to Blob
+            const res = await fetch(`data:${mimeType};base64,${result.value.recordDataBase64}`);
+            const blob = await res.blob();
+            const file = new File([blob], `voice_note_${Date.now()}.${ext}`, { type: mimeType });
+            
+            if (onSendAudio) {
+              onSendAudio(file);
+            }
+          }
+        } else {
+          // --- Web Fallback ---
+          if (cancel) {
+            isCancelledRef.current = true;
+            audioChunksRef.current = []; 
+          }
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+          }
+        }
+      } catch (err) {
+        console.error('Failed to stop recording', err);
+      }
     };
 
     const formatTime = (seconds: number) => {
