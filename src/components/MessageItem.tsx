@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useRef, useState, FormEvent } from 'react';
 import { Message } from '@/types/chat';

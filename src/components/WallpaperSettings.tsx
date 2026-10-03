@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { WallpaperSettings, defaultSettings, getWallpaperSettings, saveWallpaperSettings, saveCustomWallpaper, getCustomWallpapers, deleteCustomWallpaper, getWallpaperUrl } from '@/lib/wallpaper';
 import { Image as ImageIcon, Plus, Trash2, X } from 'lucide-react';
