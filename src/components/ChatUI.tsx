@@ -2227,9 +2227,9 @@ export default function ChatUI({ user }: ChatUIProps) {
         className={`flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative scroll-smooth w-full max-w-4xl mx-auto transition-all duration-500 ${privacyMode === 'pure' ? 'opacity-30 saturate-0 brightness-75' : 'opacity-100 saturate-100 brightness-100'}`}
       >
         {/* Spacers to prevent content from hiding under the floating header */}
-        <div className="shrink-0 h-[60px]" />
+        <div className="shrink-0 h-[120px]" />
         {pinnedMessage && !isKeyboardOpen && <div className="shrink-0 h-[50px]" />}
-        {messages.length >= loadedCount && (
+        {messages.length >= 10 && (
           <div className="flex justify-center mb-6 z-10">
             <button
               onClick={() => loadMore()}
