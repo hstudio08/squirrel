@@ -58,28 +58,28 @@ const StatusIndicator = ({ state, timestamp, isTyping }: { state: string | undef
     if (isTyping) {
       return (
         <div className="grid h-[14px] place-items-end">
-          <div className={`col-start-1 row-start-1 flex items-center space-x-1.5 transition-opacity duration-500 ease-in-out ${toggle ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`col-start-1 row-start-1 flex items-center space-x-1.5 transition-opacity duration-500 ease-in-out bg-white/80 px-1.5 py-0.5 rounded-full ${toggle ? 'opacity-100' : 'opacity-0'}`}>
             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]"></div>
-            <span className="text-[11px] font-bold text-blue-500">Online</span>
+            <span className="text-[11px] font-bold text-blue-600">Online</span>
           </div>
-          <div className={`col-start-1 row-start-1 flex items-center transition-opacity duration-500 ease-in-out ${!toggle ? 'opacity-100' : 'opacity-0'}`}>
-            <span className="text-[11px] font-bold text-blue-500 italic">Typing...</span>
+          <div className={`col-start-1 row-start-1 flex items-center transition-opacity duration-500 ease-in-out bg-white/80 px-1.5 py-0.5 rounded-full ${!toggle ? 'opacity-100' : 'opacity-0'}`}>
+            <span className="text-[11px] font-bold text-blue-600 italic">Typing...</span>
           </div>
         </div>
       );
     }
     return (
-      <div className="flex items-center justify-end h-[14px] space-x-1.5">
+      <div className="flex items-center justify-end h-[14px] space-x-1.5 bg-white/80 px-1.5 py-0.5 rounded-full mt-0.5">
         <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse shadow-[0_0_6px_rgba(59,130,246,0.8)]"></div>
-        <span className="text-[11px] font-bold text-blue-500">Online</span>
+        <span className="text-[11px] font-bold text-blue-600">Online</span>
       </div>
     );
   }
 
   if (!timestamp) {
     return (
-      <div className="flex items-center justify-end h-[14px]">
-        <span className="text-[11px] font-semibold text-slate-500 truncate text-right">Offline</span>
+      <div className="flex items-center justify-end h-[14px] mt-0.5">
+        <span className="text-[11px] font-bold text-slate-600 bg-white/80 px-1.5 py-0.5 rounded-full truncate text-right">Offline</span>
       </div>
     );
   }
@@ -88,8 +88,8 @@ const StatusIndicator = ({ state, timestamp, isTyping }: { state: string | undef
   const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear().toString().slice(-2)} | ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
 
   return (
-    <div className="flex items-center justify-end h-[14px] animate-fade-in">
-      <span className="text-[11px] font-semibold text-slate-500 text-right whitespace-nowrap">{formattedDate}</span>
+    <div className="flex items-center justify-end h-[14px] animate-fade-in mt-0.5">
+      <span className="text-[11px] font-bold text-slate-600 bg-white/80 px-1.5 py-0.5 rounded-full text-right whitespace-nowrap shadow-sm border border-white/50">{formattedDate}</span>
     </div>
   );
 };
@@ -1095,6 +1095,8 @@ export default function ChatUI({ user }: ChatUIProps) {
       snapshot.forEach(docSnap => {
         fetched.push({ id: docSnap.id, ...docSnap.data() } as Message);
       });
+
+      console.log(`[loadMore] Fetched ${fetched.length} older messages from Firestore`);
 
       if (fetched.length < 20) {
         setHasMoreMessages(false);
