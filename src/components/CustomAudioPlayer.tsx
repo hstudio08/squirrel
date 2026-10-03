@@ -16,8 +16,26 @@ export default function CustomAudioPlayer({ src, autoPreload = false }: CustomAu
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const getAudioUrl = (url: string) => {
-    if (url.includes('cloudinary.com') && url.includes('/upload/') && !url.includes('f_mp3')) {
-      return url.replace('/upload/', '/upload/f_mp3,q_auto/');
+    if (!url) return url;
+    if (url.includes('cloudinary.com')) {
+      // Remove any existing f_mp3,q_auto if it was already added by mistake in DB
+      let cleanUrl = url.replace('/upload/f_mp3,q_auto/', '/upload/');
+      cleanUrl = cleanUrl.replace('/upload/f_mp3/', '/upload/');
+      
+      // Replace the extension with .mp3 to force audio-only container
+      // This prevents Android MediaPlayer from detecting it as a video
+      // and triggering Smart Stay (front camera polling).
+      try {
+        const urlObj = new URL(cleanUrl);
+        const pathParts = urlObj.pathname.split('.');
+        if (pathParts.length > 1) {
+          pathParts.pop();
+        }
+        urlObj.pathname = pathParts.join('.') + '.mp3';
+        return urlObj.toString();
+      } catch (e) {
+        return cleanUrl;
+      }
     }
     return url;
   };
