@@ -222,13 +222,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [isOtherRecording, setIsOtherRecording] = useState(false);
   const [loadedCount, setLoadedCount] = useState(10);
-  const [sessionId, setSessionId] = useState('');
-  const [pinUnlockedThisSession, setPinUnlockedThisSession] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [pinValue, setPinValue] = useState('');
-  const [generatedPin, setGeneratedPin] = useState<string | null>(null);
-  const [pinError, setPinError] = useState('');
-  const [pinLoading, setPinLoading] = useState(false);
+
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -358,8 +352,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     showClearConfirm,
     showSearch,
     hasSelectedImageFile: !!selectedImageFile,
-    hasPastedImages: pastedImages.length > 0,
-    showPinModal
+    hasPastedImages: pastedImages.length > 0
   });
 
   useEffect(() => {
@@ -375,13 +368,12 @@ export default function ChatUI({ user }: ChatUIProps) {
       showClearConfirm,
       showSearch,
       hasSelectedImageFile: !!selectedImageFile,
-      hasPastedImages: pastedImages.length > 0,
-      showPinModal
+      hasPastedImages: pastedImages.length > 0
     };
   }, [
     showCamera, showMenu, replyingTo, confirmAction, isKeyboardOpen,
     showPartnerModal, showBulkDeleteModal, showUnpinConfirm, showClearConfirm,
-    showSearch, selectedImageFile, pastedImages, showPinModal
+    showSearch, selectedImageFile, pastedImages
   ]);
 
   useEffect(() => {
@@ -405,9 +397,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
         const s = stateRef.current;
         
-        if (s.showPinModal) {
-          CapacitorApp.exitApp();
-        } else if (s.hasSelectedImageFile) {
+        if (s.hasSelectedImageFile) {
           setSelectedImageFile(null);
         } else if (s.hasPastedImages) {
           setPastedImages([]);
@@ -458,17 +448,6 @@ export default function ChatUI({ user }: ChatUIProps) {
     setIsClientOffline(typeof navigator !== 'undefined' && !navigator.onLine);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
-
-    let sid = sessionStorage.getItem('pin_session_id');
-    if (!sid) {
-      sid = crypto.randomUUID();
-      sessionStorage.setItem('pin_session_id', sid);
-    }
-    setSessionId(sid);
-
-    if (sessionStorage.getItem('pin_unlocked') === 'true') {
-      setPinUnlockedThisSession(true);
-    }
 
     return () => {
       window.removeEventListener('offline', handleOffline);
@@ -852,7 +831,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     const q = query(
       collection(db, `conversations/${chatId}/messages`),
       orderBy('createdAt', 'desc'),
-      firestoreLimit(10)
+      firestoreLimit(20)
     );
 
     let isFirstSnapshot = true;
@@ -1072,11 +1051,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   };
 
 
-  const loadMore = async (overridePin = false) => {
-    if (!pinUnlockedThisSession && !overridePin) {
-      setShowPinModal(true);
-      return;
-    }
+  const loadMore = async () => {
     if (isFetchingMore || messages.length === 0) return;
 
     // If we have more messages in memory than we are currently showing, just show more of them
@@ -1085,7 +1060,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
         shouldScrollToTopAfterLoad.current = true;
       }
-      setLoadedCount(prev => Math.min(messages.length, prev + 50));
+      setLoadedCount(prev => Math.min(messages.length, prev + 20));
       return;
     }
 
@@ -1103,7 +1078,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         collection(db, `conversations/${chatId}/messages`),
         orderBy('createdAt', 'desc'),
         startAfter(oldestDocSnap),
-        firestoreLimit(50)
+        firestoreLimit(20)
       );
 
       const snapshot = await getDocs(q);
@@ -1719,59 +1694,6 @@ export default function ChatUI({ user }: ChatUIProps) {
     return date.toDateString();
   }).filter(Boolean)).size;
 
-  const submitPin = async (finalPin: string) => {
-    if (pinLoading) return;
-    setPinLoading(true);
-    setPinError('');
-    try {
-      // 1. Hash the PIN
-      const msgUint8 = new TextEncoder().encode(finalPin);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-      // 2. Fetch the pinSession document
-      const { getDoc, doc, updateDoc } = await import('firebase/firestore');
-      const docRef = doc(db, 'pinSessions', hashHex);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.used) {
-            setPinError('PIN already used.');
-            setPinValue('');
-        } else if (data.expiresAt && data.expiresAt.toDate && data.expiresAt.toDate() < new Date()) {
-            setPinError('PIN expired.');
-            setPinValue('');
-        } else {
-            await updateDoc(docRef, { used: true });
-            setPinUnlockedThisSession(true);
-            sessionStorage.setItem('pin_unlocked', 'true');
-            setShowPinModal(false);
-            setPinValue('');
-            loadMore(true);
-        }
-      } else {
-        setPinError('Invalid PIN');
-        setPinValue('');
-      }
-    } catch (err) {
-      console.error(err);
-      setPinError('Error verifying PIN');
-      setPinValue('');
-    } finally {
-      setPinLoading(false);
-    }
-  };
-
-  const handlePinDigit = (digit: string) => {
-    if (pinValue.length >= 4 || pinLoading) return;
-    const newVal = pinValue + digit;
-    setPinValue(newVal);
-    if (newVal.length === 4) {
-      submitPin(newVal);
-    }
-  };
 
   const renderedMessages = useMemo(() => {
     const displayMessages = visibleMessages.slice(-loadedCount);
@@ -1999,34 +1921,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
               {user.email === 'officialhaadi81@gmail.com' && (
                 <>
-                  <button
-                    title={generatedPin ? `PIN: ${generatedPin}` : 'Generate PIN'}
-                    onClick={async () => {
-                      try {
-                        const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
-                        const msgUint8 = new TextEncoder().encode(randomPin);
-                        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-                        const hashArray = Array.from(new Uint8Array(hashBuffer));
-                        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-                        
-                        const { doc, setDoc } = await import('firebase/firestore');
-                        await setDoc(doc(db, 'pinSessions', hashHex), {
-                            createdAt: new Date(),
-                            expiresAt: new Date(Date.now() + 30 * 60 * 1000),
-                            used: false
-                        });
-                        
-                        setGeneratedPin(randomPin);
-                        showToast(`Generated PIN: ${randomPin}`);
-                      } catch(e) {
-                        showToast('Failed to generate PIN.');
-                      }
-                    }}
-                    className="p-3 text-slate-600 bg-white/40 hover:bg-white/60 active:bg-white/80 rounded-full transition-all ring-1 ring-[#D4AF37]/50"
-                  >
-                    <Lock size={20} />
-                  </button>
-  
+
                   <button
                     title="Copy all messages"
                     onClick={() => {
@@ -2511,80 +2406,6 @@ export default function ChatUI({ user }: ChatUIProps) {
           animation: slideUpFullScreen 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
         }
       `}} />
-      {showPinModal && (
-        <div className="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center animate-slide-up-fullscreen overflow-hidden touch-none">
-          <div className="relative z-10 flex flex-col items-center w-full max-w-sm px-8 pt-4 pb-12 h-full justify-between bg-white">
-            
-            <div className="flex flex-col items-center mt-12 w-full">
-              <div className="w-16 h-16 bg-blue-50/80 rounded-full flex items-center justify-center mb-6 shadow-sm border border-blue-100">
-                <Lock size={32} className="text-blue-500" />
-              </div>
-              
-              <h4 className="text-[22px] font-bold text-slate-800 tracking-wide mb-2">
-                Older Messages
-              </h4>
-              <p className="text-slate-500 font-medium text-sm">Enter 4-digit PIN to load</p>
-
-              <div className="flex justify-center space-x-6 mt-12 mb-6 w-full">
-                {[...Array(4)].map((_, i) => (
-                  <div 
-                    key={i} 
-                    className={`w-3.5 h-3.5 rounded-full transition-all duration-300 ${
-                      i < pinValue.length 
-                        ? 'bg-blue-600 scale-110' 
-                        : 'bg-slate-200 border border-slate-300/50'
-                    }`} 
-                  />
-                ))}
-              </div>
-
-              <div className="h-6 w-full flex justify-center items-center">
-                {pinError && <p className="text-rose-500 text-sm font-semibold tracking-wide animate-pulse bg-rose-50 px-4 py-1 rounded-full">{pinError}</p>}
-                {pinLoading && <p className="text-blue-600 text-sm font-semibold tracking-wide animate-pulse flex items-center gap-2 bg-blue-50 px-4 py-1 rounded-full"><Loader2 className="w-4 h-4 animate-spin" /> Verifying...</p>}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-x-6 gap-y-4 w-full max-w-[280px] mb-8">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                <button
-                  key={num}
-                  disabled={pinLoading}
-                  onClick={() => handlePinDigit(num.toString())}
-                  className="w-[78px] h-[78px] rounded-full text-slate-800 text-[32px] font-light flex items-center justify-center transition-all duration-150 active:bg-slate-200 active:scale-95 hover:bg-slate-50 border border-transparent hover:border-slate-100 disabled:opacity-50 select-none mx-auto"
-                >
-                  {num}
-                </button>
-              ))}
-
-              {/* Skip */}
-              <button
-                onClick={() => { setShowPinModal(false); setPinValue(''); setPinError(''); }}
-                className="w-[78px] h-[78px] rounded-full text-emerald-600 text-base font-semibold flex items-center justify-center transition-all duration-150 active:bg-emerald-100 active:scale-95 hover:bg-emerald-50 border border-transparent hover:border-emerald-100/50 select-none mx-auto"
-              >
-                Skip
-              </button>
-
-              {/* 0 */}
-              <button
-                disabled={pinLoading}
-                onClick={() => handlePinDigit('0')}
-                className="w-[78px] h-[78px] rounded-full text-slate-800 text-[32px] font-light flex items-center justify-center transition-all duration-150 active:bg-slate-200 active:scale-95 hover:bg-slate-50 border border-transparent hover:border-slate-100 disabled:opacity-50 select-none mx-auto"
-              >
-                0
-              </button>
-
-              {/* Delete */}
-              <button
-                disabled={pinLoading}
-                onClick={() => setPinValue(prev => prev.slice(0, -1))}
-                className="w-[78px] h-[78px] rounded-full text-slate-500 flex items-center justify-center transition-all duration-150 active:bg-slate-200 active:text-slate-800 active:scale-95 hover:bg-slate-50 border border-transparent hover:border-slate-100 disabled:opacity-50 select-none mx-auto"
-              >
-                <Trash2 size={24} strokeWidth={2} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-12 left-1/2 -translate-x-1/2 z-[9999] bg-[#f9f9f9]/90 backdrop-blur-2xl text-black px-6 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] text-[15px] font-semibold animate-pop-in border border-black/5 pointer-events-none tracking-tight">
