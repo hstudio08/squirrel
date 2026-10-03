@@ -1073,7 +1073,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
 
   const loadMore = async (overridePin = false) => {
-    if (loadedCount >= 100 && !pinUnlockedThisSession && !overridePin) {
+    if (!pinUnlockedThisSession && !overridePin) {
       setShowPinModal(true);
       return;
     }
@@ -1085,7 +1085,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
         shouldScrollToTopAfterLoad.current = true;
       }
-      setLoadedCount(prev => Math.min(messages.length, prev + 10));
+      setLoadedCount(prev => Math.min(messages.length, prev + 50));
       return;
     }
 
@@ -1103,7 +1103,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         collection(db, `conversations/${chatId}/messages`),
         orderBy('createdAt', 'desc'),
         startAfter(oldestDocSnap),
-        firestoreLimit(10)
+        firestoreLimit(50)
       );
 
       const snapshot = await getDocs(q);
