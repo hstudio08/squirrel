@@ -224,8 +224,8 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
     <div className="relative flex flex-col h-[100dvh] bg-black font-sans overflow-hidden select-none">
       
       {/* Liquid background blobs */}
-      <div className="absolute top-[-10%] left-[-20%] w-[60%] h-[40%] bg-emerald-900/30 rounded-[100%] blur-[100px] mix-blend-screen pointer-events-none animate-pulse-slow"></div>
-      <div className="absolute bottom-[-10%] right-[-20%] w-[80%] h-[60%] bg-teal-900/20 rounded-[100%] blur-[120px] mix-blend-screen pointer-events-none animate-pulse-slow delay-1000"></div>
+      <div className="absolute top-[-10%] left-[-20%] w-[60%] h-[40%] bg-emerald-900/30 rounded-[100%]   pointer-events-none animate-pulse-slow"></div>
+      <div className="absolute bottom-[-10%] right-[-20%] w-[80%] h-[60%] bg-teal-900/20 rounded-[100%]   pointer-events-none animate-pulse-slow delay-1000"></div>
 
       {/* Display Area */}
       <div className="relative z-10 flex-1 flex flex-col justify-end items-end p-8 pb-8 space-y-2">
@@ -245,7 +245,7 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
       </div>
       
       {/* Keypad */}
-      <div className="relative z-20 backdrop-blur-2xl bg-white/[0.02] border-t border-white/10 rounded-t-[3rem] p-6 pb-12 shadow-[0_-20px_60px_rgba(0,0,0,0.5)]">
+      <div className="relative z-20  bg-white/[0.02] border-t border-white/10 rounded-t-[3rem] p-6 pb-12 shadow-[0_-20px_60px_rgba(0,0,0,0.5)]">
         <div className="grid grid-cols-4 gap-4 max-w-sm mx-auto">
           {buttons.map((btn, i) => (
             <motion.button
@@ -253,7 +253,7 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
               onClick={btn.onClick}
               whileTap={{ scale: 0.85, filter: 'brightness(1.5)' }}
               transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              className={`h-[4.5rem] sm:h-16 rounded-[1.75rem] text-3xl font-medium flex items-center justify-center relative overflow-hidden backdrop-blur-md ${getButtonClass(btn.type)}`}
+              className={`h-[4.5rem] sm:h-16 rounded-[1.75rem] text-3xl font-medium flex items-center justify-center relative overflow-hidden  ${getButtonClass(btn.type)}`}
             >
               {btn.label}
               {/* Optional glossy reflection */}

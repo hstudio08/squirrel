@@ -138,7 +138,7 @@ export default function MultiImagePreviewModal({
       </div>
 
       {/* Bottom Area: Caption and Thumbnails */}
-      <div className="bg-[#0b141a]/90 backdrop-blur-md flex flex-col p-4 w-full z-20 absolute bottom-0 left-0 right-0">
+      <div className="bg-[#0b141a]/90  flex flex-col p-4 w-full z-20 absolute bottom-0 left-0 right-0">
         {/* Caption Input */}
         <div className="w-full max-w-4xl mx-auto flex items-center bg-[#2a3942] rounded-full px-4 py-3 shadow-lg mb-4 border border-white/10">
           <input

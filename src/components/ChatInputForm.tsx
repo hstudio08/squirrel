@@ -434,7 +434,7 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
             <button
               type="submit"
               disabled={isSending}
-              className="group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-all duration-300 ease-out outline-none bg-blue-500/80 backdrop-blur-md backdrop-saturate-150 border border-blue-400/50 text-white shadow-[0_4px_16px_rgba(59,130,246,0.25)] hover:bg-blue-500/90 hover:scale-105 active:scale-95"
+              className="group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-all duration-300 ease-out outline-none bg-blue-500/80   border border-blue-400/50 text-white shadow-[0_4px_16px_rgba(59,130,246,0.25)] hover:bg-blue-500/90 hover:scale-105 active:scale-95"
             >
               {isSending ? (
                 <Loader2 size={20} className="animate-spin" strokeWidth={2.5} />

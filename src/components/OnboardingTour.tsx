@@ -111,9 +111,9 @@ export default function OnboardingTour({ user }: OnboardingTourProps) {
   const stepData = TOUR_STEPS[currentStep];
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-lg px-6 pointer-events-auto transition-all duration-500">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40  px-6 pointer-events-auto transition-all duration-500">
       <div 
-        className="relative w-full max-w-[340px] bg-white/80 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.08)] overflow-hidden animate-fade-in border border-white/60"
+        className="relative w-full max-w-[340px] bg-white/80   rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.08)] overflow-hidden animate-fade-in border border-white/60"
       >
         <div className="p-10 flex flex-col items-center text-center transition-all duration-500 ease-out">
           <div className="opacity-90">

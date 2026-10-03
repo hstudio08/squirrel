@@ -224,7 +224,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
       <div className="absolute top-4 left-4 z-50 flex items-center space-x-4">
         <button 
           onClick={onClose}
-          className="p-3 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-full transition-colors shadow-sm"
+          className="p-3 bg-black/40 hover:bg-black/60  text-white rounded-full transition-colors shadow-sm"
         >
           <X size={24} />
         </button>
@@ -233,7 +233,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
       <div className="absolute top-4 right-4 z-50">
         <button 
           onClick={toggleCamera}
-          className="p-3 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-full transition-colors shadow-sm"
+          className="p-3 bg-black/40 hover:bg-black/60  text-white rounded-full transition-colors shadow-sm"
         >
           <RefreshCcw size={24} />
         </button>
@@ -268,7 +268,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
 
       {!error && (
         <>
-          <div className="absolute bottom-32 left-1/2 -translate-x-1/2 w-64 z-50 flex items-center space-x-3 bg-black/40 p-2 rounded-full backdrop-blur-md">
+          <div className="absolute bottom-32 left-1/2 -translate-x-1/2 w-64 z-50 flex items-center space-x-3 bg-black/40 p-2 rounded-full ">
             <span className="text-white text-xs font-medium w-8 text-center">{zoomMin}x</span>
             <input 
               type="range" 
@@ -285,7 +285,7 @@ export default function CameraCapture({ onCapture, onClose }: CameraCaptureProps
           <div className="absolute bottom-10 left-0 right-0 flex justify-center pb-[max(env(safe-area-inset-bottom),1rem)] z-50">
             <button 
               onClick={handleCapture}
-              className="w-[72px] h-[72px] rounded-full flex items-center justify-center border-[4px] border-white/80 backdrop-blur-md active:scale-95 transition-transform shadow-lg"
+              className="w-[72px] h-[72px] rounded-full flex items-center justify-center border-[4px] border-white/80  active:scale-95 transition-transform shadow-lg"
             >
               <div className="w-[56px] h-[56px] bg-white rounded-full shadow-sm"></div>
             </button>

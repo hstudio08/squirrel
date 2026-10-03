@@ -19,7 +19,7 @@ export default function ChatPage() {
     return (
       <main className="flex min-h-[100dvh] flex-col items-center justify-center bg-zinc-950 relative overflow-hidden">
         {/* Ambient background glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-600/10 rounded-full blur-[80px] pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-600/10 rounded-full  pointer-events-none"></div>
         
         <div className="flex flex-col items-center space-y-8 z-10">
           {/* Complex Loader Ring */}

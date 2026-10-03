@@ -686,7 +686,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
 
 
         {message.replyToId && !message.isDeletedForEveryone && (
-          <div onClick={(e) => { e.stopPropagation(); scrollToMessage(message.replyToId!); }} className={`mb-1.5 p-1.5 bg-black/5 rounded flex flex-col border-l-[3px] border-l-teal-500 overflow-hidden text-left relative before:absolute before:inset-0 before:bg-white/40 before:-z-10 cursor-pointer hover:bg-black/10 transition-colors ${shouldMask ? 'blur-[3.5px] opacity-60 select-none' : ''}`}>
+          <div onClick={(e) => { e.stopPropagation(); scrollToMessage(message.replyToId!); }} className={`mb-1.5 p-1.5 bg-black/5 rounded flex flex-col border-l-[3px] border-l-teal-500 overflow-hidden text-left relative before:absolute before:inset-0 before:bg-white/40 before:-z-10 cursor-pointer hover:bg-black/10 transition-colors ${shouldMask ? ' opacity-60 select-none' : ''}`}>
             <span className="text-[11px] font-semibold text-teal-600 truncate leading-tight">
               {message.replyToSenderId === user.uid ? 'You' : 'They'}
             </span>
@@ -739,7 +739,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
               const remainingCount = urls.length > 4 ? urls.length - 4 : 0;
               
               return (
-                <div className={`mb-1.5 pointer-events-auto ${isGrid ? 'grid grid-cols-2 gap-[2px] rounded-xl overflow-hidden bg-black/10' : 'rounded-xl overflow-hidden bg-black/5 relative'} animate-pop-in ${shouldMask ? 'blur-[8px] opacity-60 select-none pointer-events-none' : ''}`} style={!isGrid ? { maxWidth: '200px', maxHeight: '240px' } : { width: '100%', maxWidth: '240px' }}>
+                <div className={`mb-1.5 pointer-events-auto ${isGrid ? 'grid grid-cols-2 gap-[2px] rounded-xl overflow-hidden bg-black/10' : 'rounded-xl overflow-hidden bg-black/5 relative'} animate-pop-in ${shouldMask ? ' opacity-60 select-none pointer-events-none' : ''}`} style={!isGrid ? { maxWidth: '200px', maxHeight: '240px' } : { width: '100%', maxWidth: '240px' }}>
                   {displayUrls.map((url, idx) => {
                     const isLastDisplay = idx === 3;
                     const isThirdOfThree = urls.length === 3 && idx === 2;
@@ -865,7 +865,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
             })()}
             
             {message.audioUrl && !message.isDeletedForEveryone && (
-              <div className={`mt-1 mb-1 relative z-10 w-[240px] ${shouldMask ? 'blur-[3.5px] opacity-60 select-none' : ''}`}>
+              <div className={`mt-1 mb-1 relative z-10 w-[240px] ${shouldMask ? ' opacity-60 select-none' : ''}`}>
                 <CustomAudioPlayer 
                   src={message.audioUrl}
                   autoPreload={autoPreloadAudio}
@@ -873,7 +873,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
               </div>
             )}
 
-            <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''} ${shouldMask ? 'blur-[3.5px] opacity-60 select-none' : ''}`}>
+            <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''} ${shouldMask ? ' opacity-60 select-none' : ''}`}>
               {message.isDeletedForEveryone ? (
                 <>
                   <span className="italic font-light text-[14px] text-black/50 tracking-wide">This message was deleted</span>
@@ -882,7 +882,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
                 formatMessageText(message.text)
               )}
             </p>
-            <div className={`flex items-center space-x-1 ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'absolute bottom-[4px] right-[4px] bg-black/40 text-white/90 rounded-full px-1.5 py-[1px] z-10 backdrop-blur-sm scale-[0.85] origin-bottom-right' : 'mt-0.5 justify-end self-end float-right'}`}>
+            <div className={`flex items-center space-x-1 ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'absolute bottom-[4px] right-[4px] bg-black/40 text-white/90 rounded-full px-1.5 py-[1px] z-10  scale-[0.85] origin-bottom-right' : 'mt-0.5 justify-end self-end float-right'}`}>
               <div className="flex items-center space-x-1">
                 {!message.isDeletedForEveryone && message.isEdited && (
                   <span className={`text-[10px] italic mr-1 ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'text-white/80' : 'text-black/40'}`}>
@@ -945,7 +945,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
       </div>
 
       {showReactionDetails && optimisticReactions && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" onClick={(e) => { e.stopPropagation(); setShowReactionDetails(false); }}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 " onClick={(e) => { e.stopPropagation(); setShowReactionDetails(false); }}>
           <div className="bg-white rounded-[16px] p-3 w-full max-w-[200px] shadow-xl border border-slate-100 animate-pop-in flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-2">
               <span className="text-[13px] font-bold text-slate-800">Reactions</span>

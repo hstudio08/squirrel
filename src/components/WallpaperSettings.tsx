@@ -73,7 +73,7 @@ export default function WallpaperSettingsPanel() {
           <div className="text-gray-500 text-sm">No Wallpaper</div>
         )}
         {/* Mock Chat UI */}
-        <div className="z-10 bg-white/80 backdrop-blur-md px-4 py-2 rounded-full text-black text-xs shadow-sm self-end mb-4 font-medium">
+        <div className="z-10 bg-white/80  px-4 py-2 rounded-full text-black text-xs shadow-sm self-end mb-4 font-medium">
           Hello! How are you?
         </div>
       </div>

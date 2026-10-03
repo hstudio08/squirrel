@@ -450,7 +450,7 @@ export default function SettingsPage() {
   return (
     <div className="h-dvh bg-[#F2F2F7] text-black flex flex-col font-sans overflow-hidden">
       {/* Header (Clean iOS Style) */}
-      <div className="px-4 py-3 flex items-center shrink-0 bg-white/80 backdrop-blur-xl border-b border-gray-200 z-20 sticky top-0">
+      <div className="px-4 py-3 flex items-center shrink-0 bg-white/80  border-b border-gray-200 z-20 sticky top-0">
         <button
           onClick={() => router.push('/chat')}
           className="relative z-10 w-10 h-10 flex items-center justify-center text-blue-500 hover:bg-gray-100 rounded-full transition-all"

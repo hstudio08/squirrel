@@ -25,7 +25,8 @@ import {
   deleteField,
   setDoc,
   startAfter,
-  getDoc
+  getDoc,
+  Timestamp
 } from 'firebase/firestore';
 import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
 import { Message } from '@/types/chat';
@@ -176,7 +177,7 @@ const PurePrivacyCurtain = ({ onClose }: { onClose: () => void }) => {
           onPointerDown={handleTextPointerDown}
           style={{ transform: `translateX(${swipeX}px)`, opacity: Math.max(0, 1 - swipeX / 150) }}
         >
-          <h2 className="text-white font-black text-5xl sm:text-6xl uppercase tracking-[0.2em] whitespace-nowrap drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] bg-white/10 backdrop-blur-md px-10 py-5 border-y-4 border-white/20 select-none">
+          <h2 className="text-white font-black text-5xl sm:text-6xl uppercase tracking-[0.2em] whitespace-nowrap drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] bg-white/10  px-10 py-5 border-y-4 border-white/20 select-none">
             PERSONAL
           </h2>
           <span className="text-white/80 text-sm mt-4 tracking-widest font-medium select-none uppercase">
@@ -224,6 +225,7 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [loadedCount, setLoadedCount] = useState(10);
 
   const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
 
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -279,16 +281,14 @@ export default function ChatUI({ user }: ChatUIProps) {
       const diff = scrollContainerRef.current.scrollHeight - prevScrollHeightRef.current;
       if (diff > 0) {
         // The DOM has grown with the new older messages.
-        // The user wants to "remain at the top of the loaded chats", meaning they 
-        // want to see the oldest message in the newly loaded batch.
-        // We can just scroll to the very top (or near top so they don't immediately hit the button).
-        scrollContainerRef.current.scrollTop = 10;
+        // We want to remain at the exact message the user was looking at.
+        scrollContainerRef.current.scrollTop = diff;
 
         prevScrollHeightRef.current = 0;
         shouldScrollToTopAfterLoad.current = false;
       }
     }
-  }, [messages]);
+  }, [messages, loadedCount]);
 
   const [otherUserName, setOtherUserName] = useState<string>('');
   const [otherUserStatus, setOtherUserStatus] = useState<{ state: string, last_changed: number } | null>(null);
@@ -1052,7 +1052,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
 
   const loadMore = async () => {
-    if (isFetchingMore || messages.length === 0) return;
+    if (isFetchingMore || messages.length === 0 || !hasMoreMessages) return;
 
     // If we have more messages in memory than we are currently showing, just show more of them
     if (loadedCount < messages.length) {
@@ -1072,20 +1072,33 @@ export default function ChatUI({ user }: ChatUIProps) {
       }
 
       const oldestMsg = messages[0];
-      const oldestDocSnap = await getDoc(doc(db, `conversations/${chatId}/messages`, oldestMsg.id));
-
-      const q = query(
+      
+      let q = query(
         collection(db, `conversations/${chatId}/messages`),
         orderBy('createdAt', 'desc'),
-        startAfter(oldestDocSnap),
         firestoreLimit(20)
       );
+
+      const oldestDocSnap = await getDoc(doc(db, `conversations/${chatId}/messages`, oldestMsg.id));
+      
+      if (oldestDocSnap.exists()) {
+        q = query(q, startAfter(oldestDocSnap));
+      } else {
+        const tsMillis = oldestMsg.createdAt?.seconds 
+          ? oldestMsg.createdAt.seconds * 1000 
+          : (typeof oldestMsg.createdAt === 'number' ? oldestMsg.createdAt : Date.now());
+        q = query(q, startAfter(Timestamp.fromMillis(tsMillis)));
+      }
 
       const snapshot = await getDocs(q);
       const fetched: Message[] = [];
       snapshot.forEach(docSnap => {
         fetched.push({ id: docSnap.id, ...docSnap.data() } as Message);
       });
+
+      if (fetched.length < 20) {
+        setHasMoreMessages(false);
+      }
 
       if (fetched.length > 0) {
         const newOlder = fetched.reverse();
@@ -1733,7 +1746,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         <React.Fragment key={msg.id}>
           {showDate && (
             <div className="flex justify-center mb-4 mt-2 z-10 relative pointer-events-none">
-              <div className="bg-white/80 backdrop-blur-md text-slate-600 font-medium text-[11px] px-3 py-1 rounded-full shadow-sm border border-black/5 tracking-wide">
+              <div className="bg-white/80  text-slate-600 font-medium text-[11px] px-3 py-1 rounded-full shadow-sm border border-black/5 tracking-wide">
                 {formatDateSeparator(msg.createdAt)}
               </div>
             </div>
@@ -1834,7 +1847,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         </div>
       )}
       {isClientOffline && !hideOfflineBanner && (
-        <div className="fixed top-[75px] left-1/2 -translate-x-1/2 bg-red-500/80 backdrop-blur-xl text-white text-[12px] font-medium py-1.5 px-3.5 rounded-full shadow-md border border-red-400/20 flex items-center justify-center space-x-2 z-[9999] animate-pop-in">
+        <div className="fixed top-[75px] left-1/2 -translate-x-1/2 bg-red-500/80  text-white text-[12px] font-medium py-1.5 px-3.5 rounded-full shadow-md border border-red-400/20 flex items-center justify-center space-x-2 z-[9999] animate-pop-in">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"></path><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"></path><line x1="2" y1="2" x2="22" y2="22"></line></svg>
           <span className="whitespace-nowrap leading-none mt-px tracking-wide">No Internet Connection</span>
           <div className="w-px h-3 bg-white/30 mx-1"></div>
@@ -1849,9 +1862,9 @@ export default function ChatUI({ user }: ChatUIProps) {
       {/* Floating Top Section */}
       <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none w-full items-center">
         {/* Header */}
-        <div className={`pointer-events-auto flex flex-col px-4 py-2 bg-white/20 backdrop-blur-md backdrop-saturate-150 shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] border border-white/40 shrink-0 relative max-w-5xl w-[calc(100%-1rem)] mb-1 will-change-transform transform-gpu mt-2 pt-[max(env(safe-area-inset-top),0.5rem)] overflow-hidden transition-all duration-300 ease-in-out ${showMenu ? 'rounded-[24px]' : 'rounded-[32px]'}`}>
+        <div className={`pointer-events-auto flex flex-col px-4 py-2 bg-white/20   shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] border border-white/40 shrink-0 relative max-w-5xl w-[calc(100%-1rem)] mb-1 will-change-transform transform-gpu mt-2 pt-[max(env(safe-area-inset-top),0.5rem)] overflow-hidden transition-all duration-300 ease-in-out ${showMenu ? 'rounded-[24px]' : 'rounded-[32px]'}`}>
           {/* Sleek yellow shade line */}
-          <div className="absolute bottom-0 left-[10%] right-[10%] h-[1.5px] bg-gradient-to-r from-transparent via-yellow-400/90 to-transparent pointer-events-none rounded-full blur-[0.3px]"></div>
+          <div className="absolute bottom-0 left-[10%] right-[10%] h-[1.5px] bg-gradient-to-r from-transparent via-yellow-400/90 to-transparent pointer-events-none rounded-full "></div>
 
           <div className="flex items-center justify-between w-full relative z-10">
             {selectionMode ? (
@@ -1888,7 +1901,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                   <button
                     id="menu-toggle-btn"
                     onClick={() => setShowMenu(!showMenu)}
-                    className={`relative w-10 h-10 flex items-center justify-center rounded-full transition-all duration-500 ease-out overflow-hidden backdrop-blur-xl backdrop-saturate-200 border border-amber-300/60 shadow-[0_4px_12px_rgba(251,191,36,0.15),inset_0_1px_2px_rgba(255,255,255,0.9)] hover:shadow-[0_6px_16px_rgba(251,191,36,0.25),inset_0_1px_3px_rgba(255,255,255,1)] hover:scale-105 active:scale-95 ${showMenu ? 'bg-amber-100/50 text-amber-900' : 'bg-white/40 text-slate-700 hover:text-amber-800'}`}
+                    className={`relative w-10 h-10 flex items-center justify-center rounded-full transition-all duration-500 ease-out overflow-hidden   border border-amber-300/60 shadow-[0_4px_12px_rgba(251,191,36,0.15),inset_0_1px_2px_rgba(255,255,255,0.9)] hover:shadow-[0_6px_16px_rgba(251,191,36,0.25),inset_0_1px_3px_rgba(255,255,255,1)] hover:scale-105 active:scale-95 ${showMenu ? 'bg-amber-100/50 text-amber-900' : 'bg-white/40 text-slate-700 hover:text-amber-800'}`}
                   >
                     <div className="absolute inset-0 bg-gradient-to-br from-white/70 to-transparent pointer-events-none rounded-full" />
                     <ChevronDown className={`relative z-10 transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${showMenu ? '-rotate-180' : ''}`} size={22} strokeWidth={2.5} />
@@ -2054,7 +2067,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         {pinnedMessage && !isKeyboardOpen && (
           <div
             ref={pinBannerRef}
-            className="mx-2 max-w-5xl mx-auto w-[calc(100%-1rem)] bg-white/70 backdrop-blur-md rounded-[20px] shadow-sm border border-white/40 px-4 py-2 mt-1 mb-1 flex items-center justify-between shrink-0 relative z-20 pointer-events-auto cursor-pointer hover:bg-white/80 transition-transform select-none"
+            className="mx-2 max-w-5xl mx-auto w-[calc(100%-1rem)] bg-white/70  rounded-[20px] shadow-sm border border-white/40 px-4 py-2 mt-1 mb-1 flex items-center justify-between shrink-0 relative z-20 pointer-events-auto cursor-pointer hover:bg-white/80 transition-transform select-none"
             onClick={(e) => {
               if (pinSwipeDraggingRef.current) {
                 e.preventDefault();
@@ -2135,7 +2148,7 @@ export default function ChatUI({ user }: ChatUIProps) {
               setShowSearch(false);
               setSearchQuery('');
             }}
-            className="shrink-0 relative w-11 h-11 rounded-full bg-white/40 backdrop-blur-md backdrop-saturate-150 shadow-[0_4px_12px_rgba(0,0,0,0.1)] flex items-center justify-center text-slate-700 hover:bg-white/60 hover:scale-105 active:scale-95 transition-all overflow-hidden"
+            className="shrink-0 relative w-11 h-11 rounded-full bg-white/40   shadow-[0_4px_12px_rgba(0,0,0,0.1)] flex items-center justify-center text-slate-700 hover:bg-white/60 hover:scale-105 active:scale-95 transition-all overflow-hidden"
           >
             <svg className="absolute inset-0 w-full h-full pointer-events-none">
               <defs>
@@ -2166,17 +2179,23 @@ export default function ChatUI({ user }: ChatUIProps) {
         {/* Spacers to prevent content from hiding under the floating header */}
         <div className="shrink-0 h-[120px]" />
         {pinnedMessage && !isKeyboardOpen && <div className="shrink-0 h-[50px]" />}
-        {messages.length >= 10 && (
+        {messages.length >= 10 && hasMoreMessages && (
           <div className="flex justify-center w-full mt-4 mb-8 z-20 shrink-0">
             <button
               onClick={() => loadMore()}
               disabled={isFetchingMore}
-              className="w-11 h-11 flex items-center justify-center rounded-full bg-white border border-[#D4AF37] shadow-sm active:scale-95 transition-all duration-300 disabled:opacity-50"
+              className="px-4 py-2 flex items-center gap-2 rounded-full bg-white border border-[#D4AF37]/30 text-[#D4AF37] text-sm font-medium shadow-sm active:scale-95 transition-all duration-300 disabled:opacity-50"
             >
               {isFetchingMore ? (
-                <Loader2 className="w-5 h-5 text-[#D4AF37] animate-spin" />
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading...</span>
+                </>
               ) : (
-                <div className="w-3 h-3 rounded-full bg-[#D4AF37]" />
+                <>
+                  <ChevronUp className="w-4 h-4" />
+                  <span>Load earlier messages</span>
+                </>
               )}
             </button>
           </div>
@@ -2216,7 +2235,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                   {uploadingImages.urls.map((url, idx) => (
                     <div key={idx} className={`relative overflow-hidden ${uploadingImages.urls.length > 1 ? 'aspect-square' : 'w-full h-auto'} ${uploadingImages.urls.length === 3 && idx === 2 ? 'col-span-2 aspect-[2/1]' : ''}`}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt="Uploading" className={`w-full h-full object-cover blur-[2px] scale-105 ${!(uploadingImages.urls.length > 1) ? 'rounded-xl border border-black/5' : ''}`} />
+                      <img src={url} alt="Uploading" className={`w-full h-full object-cover  scale-105 ${!(uploadingImages.urls.length > 1) ? 'rounded-xl border border-black/5' : ''}`} />
                     </div>
                   ))}
                 </div>
@@ -2264,7 +2283,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           onClick={() => {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
           }}
-          className={`fixed right-6 sm:right-10 z-[100] p-3 rounded-full cursor-pointer animate-pop-in transition-all duration-300 ease-out bg-white/40 backdrop-blur-md backdrop-saturate-150 border border-white/60 shadow-[0_4px_12px_rgba(0,0,0,0.08)] text-slate-700 hover:text-blue-600 hover:bg-white/60 hover:scale-105 active:scale-95 ${replyingTo ? 'bottom-[145px]' : 'bottom-[90px]'}`}
+          className={`fixed right-6 sm:right-10 z-[100] p-3 rounded-full cursor-pointer animate-pop-in transition-all duration-300 ease-out bg-white/40   border border-white/60 shadow-[0_4px_12px_rgba(0,0,0,0.08)] text-slate-700 hover:text-blue-600 hover:bg-white/60 hover:scale-105 active:scale-95 ${replyingTo ? 'bottom-[145px]' : 'bottom-[90px]'}`}
         >
           {unreadCountWhileScrolled > 0 && (
             <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[11px] font-bold px-1.5 py-0.5 min-w-[20px] h-[20px] flex items-center justify-center rounded-full shadow-sm animate-pop-in border border-white/50">
@@ -2347,8 +2366,8 @@ export default function ChatUI({ user }: ChatUIProps) {
       />
 
       {showBulkDeleteModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#f2f2f2]/95 backdrop-blur-2xl rounded-[14px] shadow-2xl w-full max-w-[270px] flex flex-col overflow-hidden animate-pop-in text-center border border-white/20">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/30  animate-fade-in">
+          <div className="bg-[#f2f2f2]/95  rounded-[14px] shadow-2xl w-full max-w-[270px] flex flex-col overflow-hidden animate-pop-in text-center border border-white/20">
             <div className="px-4 pt-5 pb-4">
               <h3 className="text-[17px] font-semibold text-black tracking-tight">Delete {selectedMessages.size} message{selectedMessages.size > 1 ? 's' : ''}?</h3>
               <p className="text-[13px] text-black/70 leading-snug mt-1 px-1">This action cannot be undone.</p>
@@ -2381,8 +2400,8 @@ export default function ChatUI({ user }: ChatUIProps) {
 
       {/* Unpin Confirm Modal */}
       {showUnpinConfirm && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#f2f2f2]/95 backdrop-blur-2xl rounded-[14px] shadow-2xl w-full max-w-[270px] flex flex-col overflow-hidden animate-pop-in text-center border border-white/20">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/30  animate-fade-in">
+          <div className="bg-[#f2f2f2]/95  rounded-[14px] shadow-2xl w-full max-w-[270px] flex flex-col overflow-hidden animate-pop-in text-center border border-white/20">
             <div className="px-4 pt-5 pb-4">
               <h3 className="text-[17px] font-semibold text-black tracking-tight">Unpin this message?</h3>
               <p className="text-[13px] text-black/70 leading-snug mt-1 px-1">The message will no longer be pinned at the top of the chat for everyone.</p>
@@ -2404,7 +2423,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       {/* Pin Error Toast */}
       {showPinError && (
         <div className="fixed top-[100px] left-1/2 -translate-x-1/2 z-[100] animate-slide-up">
-          <div className="bg-slate-800/95 backdrop-blur-md text-white px-5 py-3 rounded-full shadow-lg border border-slate-700/50 flex items-center space-x-3">
+          <div className="bg-slate-800/95  text-white px-5 py-3 rounded-full shadow-lg border border-slate-700/50 flex items-center space-x-3">
             <Info size={18} className="text-amber-400" />
             <span className="text-sm font-medium tracking-wide">Cannot pin two messages. Unpin first.</span>
           </div>
@@ -2423,15 +2442,15 @@ export default function ChatUI({ user }: ChatUIProps) {
       `}} />
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-12 left-1/2 -translate-x-1/2 z-[9999] bg-[#f9f9f9]/90 backdrop-blur-2xl text-black px-6 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] text-[15px] font-semibold animate-pop-in border border-black/5 pointer-events-none tracking-tight">
+        <div className="fixed top-12 left-1/2 -translate-x-1/2 z-[9999] bg-[#f9f9f9]/90  text-black px-6 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] text-[15px] font-semibold animate-pop-in border border-black/5 pointer-events-none tracking-tight">
           {toastMessage}
         </div>
       )}
 
       {/* Confirmation Modal (iOS Style) */}
       {confirmAction && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#f2f2f2]/95 backdrop-blur-2xl rounded-[14px] shadow-2xl w-full max-w-[270px] flex flex-col overflow-hidden animate-pop-in text-center border border-white/20">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/30  animate-fade-in">
+          <div className="bg-[#f2f2f2]/95  rounded-[14px] shadow-2xl w-full max-w-[270px] flex flex-col overflow-hidden animate-pop-in text-center border border-white/20">
             <div className="px-4 pt-5 pb-4">
               <h3 className="text-[17px] font-semibold text-black tracking-tight">{confirmAction.title}</h3>
               <p className="text-[13px] text-black/70 leading-snug mt-1 px-1">{confirmAction.description}</p>
