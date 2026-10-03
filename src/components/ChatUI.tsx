@@ -78,8 +78,8 @@ const StatusIndicator = ({ state, timestamp, isTyping }: { state: string | undef
 
   if (!timestamp) {
     return (
-      <div className="flex items-center justify-end h-[14px] mt-0.5">
-        <span className="text-[11px] font-bold text-slate-600 bg-white/80 px-1.5 py-0.5 rounded-full truncate text-right">Offline</span>
+      <div className="flex items-center justify-end mt-0.5 h-auto">
+        <span className="text-[11px] font-bold text-slate-800 bg-white/95 px-2 py-0.5 rounded-full truncate text-right shadow-sm border border-slate-200/60">Offline</span>
       </div>
     );
   }
@@ -88,8 +88,8 @@ const StatusIndicator = ({ state, timestamp, isTyping }: { state: string | undef
   const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear().toString().slice(-2)} | ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
 
   return (
-    <div className="flex items-center justify-end h-[14px] animate-fade-in mt-0.5">
-      <span className="text-[11px] font-bold text-slate-600 bg-white/80 px-1.5 py-0.5 rounded-full text-right whitespace-nowrap shadow-sm border border-white/50">{formattedDate}</span>
+    <div className="flex items-center justify-end animate-fade-in mt-0.5 h-auto">
+      <span className="text-[11px] font-bold text-slate-800 bg-white/95 px-2 py-0.5 rounded-full text-right whitespace-nowrap shadow-[0_2px_4px_rgba(0,0,0,0.05)] border border-slate-200/60">{formattedDate}</span>
     </div>
   );
 };
@@ -1864,7 +1864,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       {/* Floating Top Section */}
       <div className="absolute top-0 left-0 right-0 z-40 flex flex-col pointer-events-none w-full items-center">
         {/* Header */}
-        <div className={`pointer-events-auto flex flex-col px-4 py-2 bg-white/20   shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] border border-white/40 shrink-0 relative max-w-5xl w-[calc(100%-1rem)] mb-1 will-change-transform transform-gpu mt-2 pt-[max(env(safe-area-inset-top),0.5rem)] overflow-hidden transition-all duration-300 ease-in-out ${showMenu ? 'rounded-[24px]' : 'rounded-[32px]'}`}>
+        <div className={`pointer-events-auto flex flex-col px-4 py-2 bg-white/40 backdrop-blur-xl shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_32px_rgba(0,0,0,0.12)] border border-white/40 shrink-0 relative max-w-5xl w-[calc(100%-1rem)] mb-1 will-change-transform transform-gpu mt-2 pt-[max(env(safe-area-inset-top),0.5rem)] overflow-hidden transition-all duration-300 ease-in-out ${showMenu ? 'rounded-[24px]' : 'rounded-[32px]'}`}>
           {/* Sleek yellow shade line */}
           <div className="absolute bottom-0 left-[10%] right-[10%] h-[1.5px] bg-gradient-to-r from-transparent via-yellow-400/90 to-transparent pointer-events-none rounded-full "></div>
 
@@ -1912,10 +1912,12 @@ export default function ChatUI({ user }: ChatUIProps) {
 
                 {/* Right Side: Profile & SignOut */}
                 <div className="flex items-center justify-end flex-1 min-w-0 ml-4 space-x-3">
-                  <div className="flex flex-col items-end overflow-hidden">
-                    <h1 className="text-[14px] font-bold text-slate-800 truncate w-full text-right tracking-wide leading-tight">
-                      {typeof window !== 'undefined' && localStorage.getItem('squirrel_partnerNickname') ? localStorage.getItem('squirrel_partnerNickname') : (otherUserName || 'Partner')}
-                    </h1>
+                  <div className="flex flex-col items-end overflow-hidden pb-1">
+                    <div className="bg-white/70 px-2 py-0.5 rounded-full shadow-sm border border-white/40 mb-0.5 max-w-full">
+                      <h1 className="text-[14px] font-bold text-slate-900 truncate w-full text-right tracking-wide leading-tight">
+                        {typeof window !== 'undefined' && localStorage.getItem('squirrel_partnerNickname') ? localStorage.getItem('squirrel_partnerNickname') : (otherUserName || 'Partner')}
+                      </h1>
+                    </div>
                     <StatusIndicator
                       state={otherUserStatus?.state}
                       timestamp={otherUserStatus?.last_changed || null}
@@ -2182,21 +2184,32 @@ export default function ChatUI({ user }: ChatUIProps) {
         <div className="shrink-0 h-[120px]" />
         {pinnedMessage && !isKeyboardOpen && <div className="shrink-0 h-[50px]" />}
         {messages.length >= 10 && hasMoreMessages && (
-          <div className="flex justify-center w-full mt-4 mb-8 z-20 shrink-0">
+          <div className="flex justify-center w-full mt-4 mb-8 shrink-0 relative z-[50]">
             <button
-              onClick={() => loadMore()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                loadMore();
+              }}
+              onTouchEnd={(e) => {
+                // Ensure touch triggers loadMore immediately without waiting for click event
+                if (!isFetchingMore) {
+                  e.preventDefault();
+                  loadMore();
+                }
+              }}
               disabled={isFetchingMore}
-              className="px-4 py-1.5 flex items-center gap-2 rounded-full bg-slate-800 border border-slate-700 text-white text-[13px] font-bold shadow-md active:scale-95 transition-transform duration-100 ease-out disabled:opacity-50 disabled:pointer-events-none select-none"
+              className="px-5 py-2 flex items-center gap-2 rounded-full bg-gradient-to-b from-slate-700 to-slate-800 border-t border-slate-600 border-x border-slate-700 border-b border-slate-900 text-white text-[13px] font-medium shadow-[0_4px_6px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)] active:scale-95 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] transition-all duration-100 ease-out disabled:opacity-50 select-none pointer-events-auto"
             >
               {isFetchingMore ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Loading...</span>
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-300" />
+                  <span className="text-slate-200">Loading...</span>
                 </>
               ) : (
                 <>
-                  <ChevronUp className="w-4 h-4" />
-                  <span>Load earlier messages</span>
+                  <ChevronUp className="w-4 h-4 text-slate-300" />
+                  <span className="text-slate-100">Load earlier messages</span>
                 </>
               )}
             </button>
