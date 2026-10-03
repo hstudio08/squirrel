@@ -12,9 +12,17 @@ export default function CustomAudioPlayer({ src, autoPreload = false }: CustomAu
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [hasLoaded, setHasLoaded] = useState(autoPreload);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const getAudioUrl = (url: string) => {
+    if (url.includes('cloudinary.com') && url.includes('/upload/') && !url.includes('f_mp3')) {
+      return url.replace('/upload/', '/upload/f_mp3,q_auto/');
+    }
+    return url;
+  };
+  
+  const audioSrc = getAudioUrl(src);
 
   useEffect(() => {
     if (audioRef.current && autoPreload) {
@@ -29,30 +37,22 @@ export default function CustomAudioPlayer({ src, autoPreload = false }: CustomAu
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      if (!hasLoaded) {
-        setIsLoading(true);
-        audioRef.current.load();
-        
-        // Wait for enough data to play
-        await new Promise((resolve) => {
-          if (!audioRef.current) return resolve(false);
-          const handleCanPlay = () => {
-            audioRef.current?.removeEventListener('canplay', handleCanPlay);
-            resolve(true);
-          };
-          audioRef.current.addEventListener('canplay', handleCanPlay);
-        });
-        setHasLoaded(true);
-        setIsLoading(false);
-      }
-      
+      setIsLoading(true);
       try {
-        await audioRef.current.play();
+        // Must call play() synchronously in the event handler to bypass mobile autoplay restrictions
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          await playPromise;
+        }
+        setIsLoading(false);
         setIsPlaying(true);
       } catch (err: any) {
         console.error('Error playing audio:', err);
+        setIsLoading(false);
         if (err.name === 'NotSupportedError') {
-          alert('This voice note was recorded in an unsupported format and cannot be played on your current browser.');
+          console.error('Audio format unsupported, it might be transcoding...');
+        } else if (err.name === 'NotAllowedError') {
+          console.warn('Playback blocked by browser policy. Ensure user interaction.');
         }
         setIsPlaying(false);
       }
@@ -93,24 +93,12 @@ export default function CustomAudioPlayer({ src, autoPreload = false }: CustomAu
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Ensure we request an MP3 from Cloudinary for universal browser/webview support
-  const getPlayableSrc = (url: string) => {
-    if (!url) return url;
-    if (url.includes('cloudinary.com') && url.includes('/upload/')) {
-      // Replace the extension with .mp3 to trigger Cloudinary on-the-fly transcoding
-      return url.replace(/\.[^/.]+$/, '.mp3');
-    }
-    return url;
-  };
-
-  const playableSrc = getPlayableSrc(src);
-
   return (
     <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-2 rounded-2xl w-[240px]">
       <audio
         ref={audioRef}
-        src={playableSrc}
-        preload={autoPreload ? 'auto' : 'none'}
+        src={audioSrc}
+        preload={autoPreload ? 'auto' : 'metadata'}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}

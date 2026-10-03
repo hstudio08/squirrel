@@ -907,8 +907,15 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
                         )}
                       </div>
                     ) : message.delivered ? (
-                      <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-green-400 drop-shadow-sm' : 'bg-green-500'}`}></div>
-                    ) : null}
+                      <div className="flex items-center space-x-[3px]">
+                        <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-gray-300 drop-shadow-sm' : 'bg-gray-400'}`}></div>
+                        <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-gray-300 drop-shadow-sm' : 'bg-gray-400'}`}></div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center">
+                        <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-gray-300 drop-shadow-sm' : 'bg-gray-400'}`}></div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

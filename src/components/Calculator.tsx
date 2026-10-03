@@ -147,7 +147,12 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
 
     try {
       // Basic safe eval for calculator
-      let safeExpr = expression.replace(/x/g, '*').replace(/÷/g, '/').replace(/%/g, '/100');
+      let safeExpr = expression
+        .replace(/x/g, '*')
+        .replace(/÷/g, '/')
+        .replace(/%/g, '/100')
+        .replace(/\^/g, '**')
+        .replace(/√/g, 'Math.sqrt');
       
       // Clean trailing operators if any
       safeExpr = safeExpr.replace(/[+\-*/]$/, '');
@@ -173,6 +178,11 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
   const buttons = [
     { label: 'C', onClick: clearAll, type: 'action' },
     { label: '⌫', onClick: backspace, type: 'action' },
+    { label: '(', onClick: () => handleInput('('), type: 'action' },
+    { label: ')', onClick: () => handleInput(')'), type: 'action' },
+
+    { label: '√', onClick: () => handleInput('√('), type: 'operator' },
+    { label: '^', onClick: () => handleInput('^'), type: 'operator' },
     { label: '%', onClick: () => handleInput('%'), type: 'operator' },
     { label: '÷', onClick: () => handleInput('÷'), type: 'operator' },
     
@@ -243,7 +253,7 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
               onClick={btn.onClick}
               whileTap={{ scale: 0.85, filter: 'brightness(1.5)' }}
               transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              className={`h-20 rounded-[2rem] text-3xl font-medium flex items-center justify-center relative overflow-hidden backdrop-blur-md ${getButtonClass(btn.type)}`}
+              className={`h-[4.5rem] sm:h-16 rounded-[1.75rem] text-3xl font-medium flex items-center justify-center relative overflow-hidden backdrop-blur-md ${getButtonClass(btn.type)}`}
             >
               {btn.label}
               {/* Optional glossy reflection */}

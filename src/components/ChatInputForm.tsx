@@ -11,7 +11,7 @@ const EmojiPicker = dynamic(
 export interface ChatInputFormProps {
   isSending: boolean;
   onSend: (e?: React.FormEvent, customText?: string) => void;
-  onSendAudio?: (file: File) => void;
+  onSendAudio?: (file: File | string) => void;
   pastedImagesLength: number;
   onPasteImage: (file: File) => void;
   onImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -41,6 +41,7 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const touchStartX = useRef<number>(0);
     const isHoldingRef = useRef(false);
+    const isStartingRef = useRef(false);
     const isCancelledRef = useRef(false);
 
     useEffect(() => {
@@ -134,6 +135,8 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
     };
 
     const startRecording = async () => {
+      if (isStartingRef.current) return;
+      isStartingRef.current = true;
       isHoldingRef.current = true;
       isCancelledRef.current = false;
       try {
@@ -155,16 +158,25 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
             if (!req.value) {
               alert('Microphone permission denied.');
               isHoldingRef.current = false;
+              isStartingRef.current = false;
               return;
             }
           }
           await VoiceRecorder.startRecording();
+          
+          if (!isHoldingRef.current) {
+            try { await VoiceRecorder.stopRecording(); } catch(e) {}
+            isStartingRef.current = false;
+            return;
+          }
+
           setIsRecording(true);
           if (updateRecordingStatus) updateRecordingStatus(true);
           setRecordingTime(0);
           timerRef.current = setInterval(() => {
             setRecordingTime(prev => prev + 1);
           }, 1000);
+          isStartingRef.current = false;
           return; // Native recording started, return early
         }
 
@@ -172,6 +184,7 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           alert('Microphone not supported in this browser. If you are on mobile, ensure you are using a secure connection (HTTPS) as browsers block microphone access on normal HTTP.');
           isHoldingRef.current = false;
+          isStartingRef.current = false;
           return;
         }
 
@@ -179,6 +192,7 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
         
         if (!isHoldingRef.current) {
           stream.getTracks().forEach(track => track.stop());
+          isStartingRef.current = false;
           return;
         }
 
@@ -215,10 +229,12 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
         timerRef.current = setInterval(() => {
           setRecordingTime(prev => prev + 1);
         }, 1000);
+        isStartingRef.current = false;
       } catch (err) {
         console.error('Failed to start recording', err);
         alert('Microphone access denied or unavailable. Please check your browser permissions.');
         isHoldingRef.current = false;
+        isStartingRef.current = false;
       }
     };
 
@@ -240,14 +256,10 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
             isCancelledRef.current = true;
           } else if (!isCancelledRef.current && result.value && result.value.recordDataBase64) {
             const mimeType = result.value.mimeType || 'audio/aac';
-            const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('aac') ? 'aac' : mimeType.includes('webm') ? 'webm' : 'm4a';
-            // Convert base64 to Blob
-            const res = await fetch(`data:${mimeType};base64,${result.value.recordDataBase64}`);
-            const blob = await res.blob();
-            const file = new File([blob], `voice_note_${Date.now()}.${ext}`, { type: mimeType });
+            const dataUri = `data:${mimeType};base64,${result.value.recordDataBase64}`;
             
             if (onSendAudio) {
-              onSendAudio(file);
+              onSendAudio(dataUri);
             }
           }
         } else {

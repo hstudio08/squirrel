@@ -206,6 +206,13 @@ const getApiUrl = (path: string) => {
   return path;
 };
 
+const getReplyText = (msg: Message) => {
+  if (msg.text) return msg.text;
+  if (msg.audioUrl) return 'Voice Note';
+  if (msg.imageUrl || (msg.imageUrls && msg.imageUrls.length > 0)) return 'Photo';
+  return 'Message';
+};
+
 export default function ChatUI({ user }: ChatUIProps) {
   const [wallpaperSettings, setWallpaperSettings] = useState<WallpaperSettings>(defaultSettings);
   const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(null);
@@ -1030,6 +1037,20 @@ export default function ChatUI({ user }: ChatUIProps) {
       setShowMenu(false);
       setShowClearConfirm(false);
       localStorage.removeItem(`sq_c_${chatId}_${user.uid}`);
+      localStorage.removeItem(`chat_${chatId}`);
+      
+      // Clear from memory so they don't get re-cached!
+      setMessages(prev => prev.filter(m => {
+        let time = 0;
+        if (m.createdAt?.toMillis) {
+          time = m.createdAt.toMillis();
+        } else if (m.createdAt?.seconds) {
+          time = m.createdAt.seconds * 1000;
+        } else if (m.createdAt) {
+          time = new Date(m.createdAt as any).getTime();
+        }
+        return time > now;
+      }));
 
       // Process in chunks of 450 to avoid Firestore 500 batch limit
       const chunkSize = 450;
@@ -1064,7 +1085,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
         shouldScrollToTopAfterLoad.current = true;
       }
-      setLoadedCount(prev => Math.min(messages.length, prev + 20));
+      setLoadedCount(prev => Math.min(messages.length, prev + 10));
       return;
     }
 
@@ -1129,6 +1150,33 @@ export default function ChatUI({ user }: ChatUIProps) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleCameraClick = async () => {
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+        const image = await Camera.getPhoto({
+          quality: 80, // Optimized for faster upload
+          allowEditing: false,
+          resultType: CameraResultType.Base64,
+          source: CameraSource.Camera,
+          saveToGallery: false,
+          correctOrientation: true
+        });
+        if (image.base64String) {
+          const res = await fetch(`data:image/${image.format || 'jpeg'};base64,${image.base64String}`);
+          const blob = await res.blob();
+          const file = new File([blob], `capture-${Date.now()}.${image.format || 'jpg'}`, { type: `image/${image.format || 'jpeg'}` });
+          setSelectedImageFile(file);
+        }
+      } else {
+        setShowCamera(true);
+      }
+    } catch (e) {
+      console.log('Camera error or cancelled', e);
+    }
+  };
+
   const handleSendEditedImage = async (file: File, caption: string = "") => {
     setSelectedImageFile(null);
     setIsUploadingImage(true);
@@ -1187,7 +1235,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
         if (replyingTo) {
           newMessageData.replyToId = replyingTo.id;
-          newMessageData.replyToText = replyingTo.text || (replyingTo.audioUrl ? 'Voice Note' : 'Photo');
+          newMessageData.replyToText = getReplyText(replyingTo);
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
@@ -1355,7 +1403,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     });
   };
 
-  const handleSendAudio = async (file: File) => {
+  const handleSendAudio = async (file: File | string) => {
     if (isSending) return;
     setIsSending(true);
     try {
@@ -1376,7 +1424,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       const { timestamp, signature, folder, public_id: resolvedPublicId } = await sigRes.json();
 
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', file as any);
       formData.append('api_key', '296432316579334');
       formData.append('timestamp', timestamp.toString());
       formData.append('signature', signature);
@@ -1405,7 +1453,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
         if (replyingTo) {
           newMessageData.replyToId = replyingTo.id;
-          newMessageData.replyToText = replyingTo.text || 'Voice Note';
+          newMessageData.replyToText = getReplyText(replyingTo);
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
@@ -1522,7 +1570,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
             if (replyingTo) {
               newMessageData.replyToId = replyingTo.id;
-              newMessageData.replyToText = replyingTo.text || (replyingTo.audioUrl ? 'Voice Note' : 'Photo');
+              newMessageData.replyToText = getReplyText(replyingTo);
               newMessageData.replyToSenderId = replyingTo.senderId;
             }
 
@@ -1562,7 +1610,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
         if (replyingTo) {
           newMessageData.replyToId = replyingTo.id;
-          newMessageData.replyToText = replyingTo.text || (replyingTo.audioUrl ? 'Voice Note' : 'Photo');
+          newMessageData.replyToText = getReplyText(replyingTo);
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
@@ -1579,7 +1627,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           delivered: false,
           ...(replyingTo ? {
             replyToId: replyingTo.id,
-            replyToText: replyingTo.text || (replyingTo.audioUrl ? 'Voice Note' : 'Photo'),
+            replyToText: getReplyText(replyingTo),
             replyToSenderId: replyingTo.senderId
           } : {})
         };
@@ -1912,33 +1960,9 @@ export default function ChatUI({ user }: ChatUIProps) {
 
                 {/* Right Side: Profile & SignOut */}
                 <div className="flex items-center justify-end flex-1 min-w-0 ml-4 space-x-3">
-                  {/* Partner Profile Picture */}
-                  <button 
-                    onClick={() => setShowPartnerModal(true)}
-                    className="w-[38px] h-[38px] rounded-full shrink-0 shadow-sm hover:scale-105 active:scale-95 transition-transform flex items-center justify-center relative"
-                  >
-                    {/* Animated Gradient Background */}
-                    <div className="absolute inset-0 rounded-full overflow-hidden pointer-events-none">
-                       <div className="absolute inset-[-50%] animate-[spin_5s_linear_infinite]" 
-                            style={{ background: 'conic-gradient(from 0deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888, #87CEEB, #32CD32, #f09433)' }}>
-                       </div>
-                    </div>
-                    
-                    <div className="w-[calc(100%-4px)] h-[calc(100%-4px)] rounded-full overflow-hidden bg-slate-100 flex items-center justify-center relative z-10">
-                      {partnerData?.photoURL ? (
-                        <img src={partnerData?.photoURL} alt="Partner" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <svg className="w-5 h-5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                          <circle cx="12" cy="7" r="4" />
-                        </svg>
-                      )}
-                    </div>
-                  </button>
-
                   <div className="flex flex-col items-end overflow-hidden">
                     <h1 className="text-[14px] font-bold text-slate-800 truncate w-full text-right tracking-wide leading-tight">
-                      {getMaskedEmail(otherEmail)}
+                      {typeof window !== 'undefined' && localStorage.getItem('squirrel_partnerNickname') ? localStorage.getItem('squirrel_partnerNickname') : (otherUserName || 'Partner')}
                     </h1>
                     <StatusIndicator
                       state={otherUserStatus?.state}
@@ -1951,7 +1975,10 @@ export default function ChatUI({ user }: ChatUIProps) {
                     className="p-2 text-white bg-red-500/90 hover:bg-red-500 rounded-full shadow-sm transition-all shrink-0 active:scale-95 flex items-center justify-center"
                     aria-label="Sign Out"
                   >
-                    <Power size={18} strokeWidth={2.5} />
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2v10" />
+                      <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                    </svg>
                   </button>
                 </div>
               </>
@@ -2230,21 +2257,21 @@ export default function ChatUI({ user }: ChatUIProps) {
         <div className="shrink-0 h-[120px]" />
         {pinnedMessage && !isKeyboardOpen && <div className="shrink-0 h-[50px]" />}
         {messages.length >= 10 && (
-          <div className="flex justify-center mb-6 z-10">
+          <div className="flex justify-center w-full mt-4 mb-8 z-20 shrink-0">
             <button
               onClick={() => loadMore()}
               disabled={isFetchingMore}
-              className="w-10 h-10 flex items-center justify-center bg-white/5 shadow-sm rounded-full text-slate-500 active:scale-90 hover:scale-105 hover:bg-white/10 transition-all duration-300 disabled:opacity-50 border border-black/5 dark:border-white/5"
+              className="w-11 h-11 flex items-center justify-center rounded-full bg-white/30 backdrop-blur-md border border-[#D4AF37] shadow-[0_4px_16px_rgba(212,175,55,0.25)] active:scale-95 transition-all duration-300 disabled:opacity-50"
             >
               {isFetchingMore ? (
-                <div className="w-2.5 h-2.5 bg-slate-400 rounded-full animate-pulse" />
+                <div className="w-4 h-4 rounded-full bg-[#D4AF37] animate-ping" />
               ) : (
-                <Plus size={18} />
+                <div className="w-3 h-3 rounded-full bg-[#D4AF37]" />
               )}
             </button>
           </div>
         )}
-        <div className="flex-1" />
+        <div className="flex-1 shrink-0 min-h-0" />
 
         {/* Memoized rendered messages */}
 
@@ -2349,7 +2376,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                   {replyingTo.senderId === user?.uid ? 'You' : otherEmail}
                 </p>
                 <p className="text-[13px] text-slate-600 truncate">
-                  {replyingTo.text || 'Image'}
+                  {replyingTo.text || (replyingTo.audioUrl ? 'Voice Message' : 'Photo')}
                 </p>
               </div>
               <button
@@ -2376,7 +2403,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             updateTypingStatus={updateTypingStatus}
             updateRecordingStatus={updateRecordingStatus}
             enterToSend={enterToSend}
-            onCameraClick={() => setShowCamera(true)}
+            onCameraClick={handleCameraClick}
           />
         </div>
       </div>

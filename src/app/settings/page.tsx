@@ -582,6 +582,36 @@ export default function SettingsPage() {
                 </button>
               </div>
             </div>
+
+            {/* Partner Nickname */}
+            <div className="w-full mt-2">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1 mb-1 block">Partner Display Name</label>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center bg-gray-50 rounded-xl border border-gray-200 px-1 py-1 focus-within:border-blue-500 transition-colors shadow-sm">
+                  <input
+                    type="text"
+                    placeholder="Enter alias for partner..."
+                    maxLength={30}
+                    value={partnerNickname}
+                    onChange={(e) => setPartnerNickname(e.target.value)}
+                    className="flex-1 min-w-0 bg-transparent outline-none text-black text-[16px] px-3 py-2 placeholder:text-gray-400"
+                  />
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleSavePartnerNickname();
+                    }}
+                    disabled={isSavingPartnerNickname || partnerNickname.length > 30}
+                    className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all ${partnerNicknameSaved ? 
+                      'bg-green-500 text-white' : 'bg-blue-500 text-white active:scale-95 hover:bg-blue-600'
+                    } disabled:opacity-50 flex items-center gap-1 shrink-0 shadow-sm`}
+                  >
+                    {isSavingPartnerNickname ? <Loader2 size={14} className="animate-spin" /> : partnerNicknameSaved ? 'Saved' : 'Save'}
+                  </button>
+                </div>
+              </div>
+              <p className="text-gray-500 text-xs ml-1 mt-1.5">Overrides their original name on your device.</p>
+            </div>
           </div>
 
           {/* Settings Group 2: App & Security */}
