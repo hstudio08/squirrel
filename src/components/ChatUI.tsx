@@ -238,8 +238,8 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [uploadController, setUploadController] = useState<AbortController | null>(null);
 
   const chatId = 'private-chat';
-  const isPartner = user.email === 'sadiyaayoub22019@gmail.com' || user.email === 'lonehaadi81@gmail.com';
-  const otherEmail = isPartner ? 'officialhaadi81@gmail.com' : 'lonehaadi81@gmail.com';
+  const isPartner = user.email === 'sadiyaayoub22019@gmail.com';
+  const otherEmail = isPartner ? 'officialhaadi81@gmail.com' : 'sadiyaayoub22019@gmail.com';
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<any>(null);

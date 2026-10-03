@@ -62,7 +62,7 @@ export default function OnboardingTour({ user }: OnboardingTourProps) {
       }
       
       
-      const allowedEmails = ['officialhaadi81@gmail.com', 'lonehaadi81@gmail.com', 'sadiyaayoub22019@gmail.com'];
+      const allowedEmails = ['officialhaadi81@gmail.com', 'sadiyaayoub22019@gmail.com'];
       if (!user.email || !allowedEmails.includes(user.email)) {
         setLoading(false);
         return;
