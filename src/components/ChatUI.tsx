@@ -2,6 +2,7 @@
 import { getToken } from 'firebase/messaging';
 import { getFirebaseMessaging } from '@/lib/firebase';
 import imageCompression from 'browser-image-compression';
+import { useRouter } from 'next/navigation';
 
 import React, { useState, useEffect, useRef, useLayoutEffect, FormEvent, useMemo } from 'react';
 import { User } from 'firebase/auth';
@@ -222,6 +223,7 @@ const getReplyText = (msg: Message) => {
 };
 
 export default function ChatUI({ user }: ChatUIProps) {
+  const router = useRouter();
   const [wallpaperSettings, setWallpaperSettings] = useState<WallpaperSettings>(defaultSettings);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
@@ -1981,7 +1983,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         <div className={`absolute top-full left-0 right-0 w-full flex flex-col items-center transition-all duration-300 origin-top z-30 pt-3 will-change-transform ${showMenu ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
           <div className="flex flex-row items-center justify-center gap-3 px-4 py-1.5 bg-white border border-orange-500/50 shadow-[0_2px_12px_rgba(0,0,0,0.08)] rounded-full">
 
-            <button onClick={() => window.location.href = '/settings'} title="Settings"
+            <button onClick={() => router.push('/settings')} title="Settings"
               className="w-10 h-10 rounded-full border border-orange-400/40 hover:border-orange-500/70 bg-[#ffe6a7] flex items-center justify-center text-blue-600 hover:bg-[#ffe6a7]/80 hover:text-blue-700 transition-all active:scale-95 group">
               <Settings size={22} className="group-hover:rotate-45 transition-transform" />
             </button>
