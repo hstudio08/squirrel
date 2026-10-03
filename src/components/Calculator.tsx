@@ -233,7 +233,7 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
                 aspect-square rounded-full text-3xl sm:text-4xl font-normal flex items-center transition-colors active:opacity-70
                 ${isZero ? 'col-span-2 !aspect-auto justify-start pl-[min(8vw,1.75rem)]' : 'justify-center'}
                 ${btn.type === 'action' ? 'bg-[#a5a5a5] text-black active:bg-[#d4d4d2]' : ''}
-                ${btn.type === 'operator' ? 'bg-[#ff9f0a] text-white active:bg-[#fcc78f]' : ''}
+                ${btn.type === 'operator' ? 'bg-[#ffcc00] text-black active:bg-[#ffe6a7]' : ''}
                 ${btn.type === 'number' ? 'bg-[#333333] text-white active:bg-[#737373]' : ''}
               `}
             >
