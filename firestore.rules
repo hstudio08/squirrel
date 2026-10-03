@@ -30,7 +30,7 @@ service cloud.firestore {
                       && request.resource.data.keys().hasAll(['senderId', 'createdAt', 'seen'])
                       && request.resource.data.keys().hasOnly([
                            'text', 'senderId', 'createdAt', 'seen', 'delivered', 'deliveredAt',
-                           'imageUrl', 'imageUrls', 'audioUrl',
+                           'imageUrl', 'imageUrls', 'audioUrl', 'played', 'playedAt',
                            'replyToId', 'replyToText', 'replyToSenderId',
                            'isDeletedForEveryone', 'isEdited'
                          ])
@@ -42,6 +42,7 @@ service cloud.firestore {
                       && (!('imageUrl' in request.resource.data) || request.resource.data.imageUrl is string)
                       && (!('imageUrls' in request.resource.data) || request.resource.data.imageUrls is list)
                       && (!('audioUrl' in request.resource.data) || request.resource.data.audioUrl is string)
+                      && (!('played' in request.resource.data) || request.resource.data.played is bool)
                       && (!('isDeletedForEveryone' in request.resource.data) || request.resource.data.isDeletedForEveryone is bool)
                       && (!('isEdited' in request.resource.data) || request.resource.data.isEdited is bool)
                       && (!('replyToId' in request.resource.data) || (
@@ -51,12 +52,13 @@ service cloud.firestore {
                          ));
                       
         allow update: if isAuthorizedUser() && (
-          // Case 1: Recipient marks as seen or delivered
+          // Case 1: Recipient marks as seen, delivered, or played
           (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen', 'seenAt', 'delivered', 'deliveredAt'])
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen', 'seenAt', 'delivered', 'deliveredAt', 'played', 'playedAt'])
             && resource.data.senderId != request.auth.uid
             && (!('seen' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.seen == true && request.resource.data.seenAt == request.time))
             && (!('delivered' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.delivered == true && request.resource.data.deliveredAt == request.time))
+            && (!('played' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.played == true && request.resource.data.playedAt == request.time))
           ) ||
           // Case 2: Sender edits text (within 10 minutes)
           (

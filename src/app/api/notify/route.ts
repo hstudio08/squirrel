@@ -2,7 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 
 const FAKE_MESSAGES = [
-  "10"
+  "Your calculation has been saved to history.",
+  "Result copied to clipboard.",
+  "Cannot divide a number by zero.",
+  "Please check your expression and try again.",
+  "Value stored in calculator memory.",
+  "Calculator memory has been cleared.",
+  "Switched to scientific mode.",
+  "Conversion completed successfully.",
+  "Angle mode changed to degrees.",
+  "Dark mode is now enabled.",
+  "You haven't completed your saved calculation.",
+  "Statistics calculated for your selected values.",
+  "Calculation history has been cleared.",
+  "A new calculator feature is available. Tap to explore."
 ];
 
 const corsHeaders = {

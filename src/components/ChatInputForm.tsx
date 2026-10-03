@@ -36,10 +36,13 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
     const [slideOffset, setSlideOffset] = useState(0);
+    const [slideOffsetY, setSlideOffsetY] = useState(0);
+    const [isLockedRecording, setIsLockedRecording] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const touchStartX = useRef<number>(0);
+    const touchStartY = useRef<number>(0);
     const isHoldingRef = useRef(false);
     const isStartingRef = useRef(false);
     const isCancelledRef = useRef(false);
@@ -88,13 +91,11 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
     const adjustTextareaHeight = (newText: string) => {
       const textarea = textareaRef.current;
       if (textarea) {
-        requestAnimationFrame(() => {
-          if (newText.length < prevTextLengthRef.current || newText === '') {
-            textarea.style.height = 'auto';
-          }
-          textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
-          prevTextLengthRef.current = newText.length;
-        });
+        if (newText.length < prevTextLengthRef.current || newText === '') {
+          textarea.style.height = 'auto';
+        }
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+        prevTextLengthRef.current = newText.length;
       }
     };
 
@@ -241,7 +242,9 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
     const stopRecording = async (cancel: boolean = false) => {
       isHoldingRef.current = false;
       setSlideOffset(0);
+      setSlideOffsetY(0);
       setIsRecording(false);
+      setIsLockedRecording(false);
       if (updateRecordingStatus) updateRecordingStatus(false);
       if (timerRef.current) clearInterval(timerRef.current);
       setRecordingTime(0);
@@ -250,17 +253,32 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
         const { Capacitor } = await import('@capacitor/core');
         if (Capacitor.isNativePlatform()) {
           const { VoiceRecorder } = await import('capacitor-voice-recorder');
-          const result = await VoiceRecorder.stopRecording();
           
-          if (cancel) {
-            isCancelledRef.current = true;
-          } else if (!isCancelledRef.current && result.value && result.value.recordDataBase64) {
-            const mimeType = result.value.mimeType || 'audio/aac';
-            const dataUri = `data:${mimeType};base64,${result.value.recordDataBase64}`;
-            
-            if (onSendAudio) {
-              onSendAudio(dataUri);
+          // Only stop if actually recording
+          const status = await VoiceRecorder.getCurrentStatus();
+          if (status.status === 'RECORDING') {
+            try {
+              const result = await VoiceRecorder.stopRecording();
+              
+              if (cancel) {
+                isCancelledRef.current = true;
+              } else if (!isCancelledRef.current && result.value && result.value.recordDataBase64) {
+                const mimeType = result.value.mimeType || 'audio/aac';
+                const dataUri = `data:${mimeType};base64,${result.value.recordDataBase64}`;
+                
+                if (onSendAudio) {
+                  onSendAudio(dataUri);
+                }
+              }
+            } catch (err: any) {
+              // Ignore short recording fetch failures if canceled or short
+              if (!cancel) {
+                console.error('Failed to fetch recording:', err);
+              }
             }
+          } else {
+             // If not recording yet, startRecording's isHoldingRef check will handle cancellation.
+             if (cancel) isCancelledRef.current = true;
           }
         } else {
           // --- Web Fallback ---
@@ -273,7 +291,7 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
           }
         }
       } catch (err) {
-        console.error('Failed to stop recording', err);
+        console.error('Failed to stop recording cleanly', err);
       }
     };
 
@@ -302,18 +320,26 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
         )}
         <form onSubmit={handleSubmit} className="flex items-end space-x-2 max-w-4xl mx-auto relative z-20 pointer-events-auto w-full">
           {isRecording ? (
-            <div className="flex-1 flex items-center bg-white rounded-xl overflow-hidden px-4 h-[44px] justify-between shadow-sm animate-fade-in border border-red-100 relative">
+            <div className="flex-1 flex items-center bg-white rounded-[24px] overflow-hidden px-4 h-[44px] justify-between shadow-sm animate-fade-in border border-red-100 relative">
               <div className="flex items-center space-x-3 text-red-500 animate-pulse">
                 <Mic size={20} className="fill-red-500" />
                 <span className="font-medium text-[15px]">{formatTime(recordingTime)}</span>
               </div>
-              <div className="text-slate-400 font-medium text-sm flex items-center animate-pulse"
-                   style={{ opacity: Math.max(0, 1 - Math.abs(slideOffset) / 80) }}>
-                &lt; Slide left to cancel
+              <div className="text-slate-400 font-medium text-sm flex items-center animate-pulse gap-2"
+                   style={{ opacity: Math.max(0, 1 - Math.abs(slideOffset) / 80 - Math.abs(slideOffsetY) / 80) }}>
+                {isLockedRecording ? (
+                  <span className="text-emerald-500">Locked</span>
+                ) : (
+                  <>
+                    <span>&lt; Cancel</span>
+                    <span className="text-xs">|</span>
+                    <span>Lock ^</span>
+                  </>
+                )}
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-end bg-white rounded-xl overflow-hidden px-2 shadow-sm">
+            <div className="flex-1 flex items-end bg-white rounded-[24px] overflow-hidden px-2 shadow-sm border border-slate-200">
               <button
                 id="emoji-toggle-btn"
                 type="button"
@@ -344,7 +370,7 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
                 placeholder="Type a message"
                 className="flex-1 bg-transparent text-[#111b21] placeholder-[#8696a0] py-[10px] px-2 text-[14.5px] focus:outline-none resize-none leading-snug max-h-[100px] min-h-[40px]"
                 rows={1}
-                disabled={isSending}
+                readOnly={isSending}
                 onFocus={() => {
                   const isMobile = window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent);
                   if (isMobile && scrollContainerRef.current) {
@@ -398,42 +424,81 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
           )}
 
           {isInputEmpty ? (
-            <button
-              type="button"
-              disabled={isSending}
-              style={{ transform: slideOffset < 0 ? `translateX(${slideOffset}px)` : (isRecording ? 'scale(1.25) translateY(-8px)' : 'none') }}
-              onPointerDown={(e) => {
-                if (isSending) return;
-                e.preventDefault();
-                e.currentTarget.setPointerCapture(e.pointerId);
-                touchStartX.current = e.clientX;
-                setSlideOffset(0);
-                startRecording();
-              }}
-              onPointerMove={(e) => {
-                if (!isHoldingRef.current) return;
-                const distance = touchStartX.current - e.clientX;
-                if (distance > 0) {
-                  setSlideOffset(-distance);
-                }
-                if (distance > 100) {
-                  stopRecording(true);
+            /* VOICE RECORDING TEMPORARILY DISABLED
+            isLockedRecording ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => stopRecording(true)}
+                  className="w-11 h-11 flex items-center justify-center rounded-full bg-red-100 text-red-500 hover:bg-red-200 transition-colors"
+                >
+                  <Trash2 size={20} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => stopRecording(false)}
+                  className="w-11 h-11 flex items-center justify-center rounded-full bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-md"
+                >
+                  <Send size={20} className="ml-0.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={isSending}
+                style={{ transform: slideOffset < 0 ? `translateX(${slideOffset}px)` : slideOffsetY < 0 ? `translateY(${slideOffsetY}px)` : (isRecording ? 'scale(1.25) translateY(-8px)' : 'none') }}
+                onPointerDown={(e) => {
+                  if (isSending) return;
+                  e.preventDefault();
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  touchStartX.current = e.clientX;
+                  touchStartY.current = e.clientY;
+                  setSlideOffset(0);
+                  setSlideOffsetY(0);
+                  startRecording();
+                }}
+                onPointerMove={(e) => {
+                  if (!isHoldingRef.current) return;
+                  const distanceX = touchStartX.current - e.clientX;
+                  const distanceY = touchStartY.current - e.clientY;
+                  
+                  if (distanceX > 0) setSlideOffset(-distanceX);
+                  if (distanceY > 0) setSlideOffsetY(-distanceY);
+
+                  if (distanceX > 100) {
+                    stopRecording(true);
+                    e.currentTarget.releasePointerCapture(e.pointerId);
+                  } else if (distanceY > 80) {
+                    setIsLockedRecording(true);
+                    setSlideOffsetY(0);
+                    isHoldingRef.current = false;
+                    e.currentTarget.releasePointerCapture(e.pointerId);
+                  }
+                }}
+                onPointerUp={(e) => {
+                  if (!isHoldingRef.current) return;
                   e.currentTarget.releasePointerCapture(e.pointerId);
-                }
-              }}
-              onPointerUp={(e) => {
-                if (!isHoldingRef.current) return;
-                e.currentTarget.releasePointerCapture(e.pointerId);
-                stopRecording(false);
-              }}
-              className={`group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-colors duration-300 ease-out outline-none shadow-md touch-none ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                  stopRecording(false);
+                }}
+                className={`group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-colors duration-300 ease-out outline-none shadow-md touch-none ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+              >
+                <Mic size={22} strokeWidth={2.5} className="text-white" />
+              </button>
+            )
+            */
+            <button
+              type="submit"
+              disabled={true}
+              onPointerDown={(e) => e.preventDefault()}
+              className="group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-all duration-300 ease-out outline-none bg-blue-500/80   border border-blue-400/50 text-white shadow-[0_4px_16px_rgba(59,130,246,0.25)] opacity-50"
             >
-              <Mic size={22} strokeWidth={2.5} className="text-white" />
+              <Send size={20} strokeWidth={2.5} className="ml-0.5" />
             </button>
           ) : (
             <button
               type="submit"
               disabled={isSending}
+              onPointerDown={(e) => e.preventDefault()}
               className="group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-all duration-300 ease-out outline-none bg-blue-500/80   border border-blue-400/50 text-white shadow-[0_4px_16px_rgba(59,130,246,0.25)] hover:bg-blue-500/90 hover:scale-105 active:scale-95"
             >
               {isSending ? (

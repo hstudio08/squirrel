@@ -159,7 +159,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
     setOptimisticReactions(message.reactions || {});
   }, [message.reactions]);
 
-  const shouldMask = isAnonymousMode && !isLastMessage && !isRevealed;
+  const shouldMask = isAnonymousMode && !isRevealed;
   
   // Long press logic
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -198,6 +198,17 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [isMine, message.id, message.seen, chatId]);
+
+  const handleAudioPlay = () => {
+    if (isMine) return;
+    if (!message.played) {
+      const messageRef = doc(db, `conversations/${chatId}/messages`, message.id);
+      updateDoc(messageRef, { played: true, playedAt: serverTimestamp() }).catch(err => {
+        console.error('Failed to mark audio as played', err);
+      });
+    }
+  };
+
 
   // Menu closing is handled by the backdrop overlay
 
@@ -505,6 +516,13 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
           transition: translateX === 0 ? 'transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28)' : 'none',
           touchAction: 'pan-y'
         }}
+        onClick={(e) => {
+          if (shouldMask && onReveal) {
+            e.stopPropagation();
+            onReveal();
+            return;
+          }
+        }}
         onDoubleClick={(e) => {
               e.stopPropagation();
               if (selectionMode) { if (onToggleSelect) onToggleSelect(); return; }
@@ -686,7 +704,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
 
 
         {message.replyToId && !message.isDeletedForEveryone && (
-          <div onClick={(e) => { e.stopPropagation(); scrollToMessage(message.replyToId!); }} className={`mb-1.5 p-1.5 bg-black/5 rounded flex flex-col border-l-[3px] border-l-teal-500 overflow-hidden text-left relative before:absolute before:inset-0 before:bg-white/40 before:-z-10 cursor-pointer hover:bg-black/10 transition-colors ${shouldMask ? ' opacity-60 select-none' : ''}`}>
+          <div onClick={(e) => { e.stopPropagation(); scrollToMessage(message.replyToId!); }} className={`mb-1.5 p-1.5 bg-black/5 rounded flex flex-col border-l-[3px] border-l-teal-500 overflow-hidden text-left relative before:absolute before:inset-0 before:bg-white/40 before:-z-10 cursor-pointer hover:bg-black/10 transition-all duration-300 ${shouldMask ? ' blur-sm text-transparent bg-slate-300 opacity-80 select-none pointer-events-none' : ''}`}>
             <span className="text-[11px] font-semibold text-teal-600 truncate leading-tight">
               {message.replyToSenderId === user.uid ? 'You' : 'They'}
             </span>
@@ -739,7 +757,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
               const remainingCount = urls.length > 4 ? urls.length - 4 : 0;
               
               return (
-                <div className={`mb-1.5 pointer-events-auto ${isGrid ? 'grid grid-cols-2 gap-[2px] rounded-xl overflow-hidden bg-black/10' : 'rounded-xl overflow-hidden bg-black/5 relative'} animate-pop-in ${shouldMask ? ' opacity-60 select-none pointer-events-none' : ''}`} style={!isGrid ? { maxWidth: '200px', maxHeight: '240px' } : { width: '100%', maxWidth: '240px' }}>
+                <div className={`mb-1.5 pointer-events-auto transition-all duration-300 ${isGrid ? 'grid grid-cols-2 gap-[2px] rounded-xl overflow-hidden bg-black/10' : 'rounded-xl overflow-hidden bg-black/5 relative'} animate-pop-in ${shouldMask ? ' blur-sm text-transparent bg-slate-300 opacity-80 select-none pointer-events-none' : ''}`} style={!isGrid ? { maxWidth: '200px', maxHeight: '240px' } : { width: '100%', maxWidth: '240px' }}>
                   {displayUrls.map((url, idx) => {
                     const isLastDisplay = idx === 3;
                     const isThirdOfThree = urls.length === 3 && idx === 2;
@@ -865,15 +883,16 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
             })()}
             
             {message.audioUrl && !message.isDeletedForEveryone && (
-              <div className={`mt-1 mb-1 relative z-10 w-[240px] ${shouldMask ? ' opacity-60 select-none' : ''}`}>
+              <div className={`mt-1 mb-1 relative z-10 w-[240px] transition-all duration-300 ${shouldMask ? ' blur-sm text-transparent bg-slate-300 opacity-80 select-none pointer-events-none' : ''}`}>
                 <CustomAudioPlayer 
                   src={message.audioUrl}
                   autoPreload={autoPreloadAudio}
+                  onPlay={handleAudioPlay}
                 />
               </div>
             )}
 
-            <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''} ${shouldMask ? ' opacity-60 select-none' : ''}`}>
+            <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 transition-all duration-300 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''} ${shouldMask ? ' blur-sm text-transparent bg-slate-300 opacity-80 select-none pointer-events-none' : ''}`}>
               {message.isDeletedForEveryone ? (
                 <>
                   <span className="italic font-light text-[14px] text-black/50 tracking-wide">This message was deleted</span>
@@ -882,44 +901,58 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
                 formatMessageText(message.text)
               )}
             </p>
-            <div className={`flex items-center space-x-1 ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'absolute bottom-[4px] right-[4px] bg-black/40 text-white/90 rounded-full px-1.5 py-[1px] z-10  scale-[0.85] origin-bottom-right' : 'mt-0.5 justify-end self-end float-right'}`}>
-              <div className="flex items-center space-x-1">
-                {!message.isDeletedForEveryone && message.isEdited && (
-                  <span className={`text-[10px] italic mr-1 ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'text-white/80' : 'text-black/40'}`}>
-                    Edited
-                  </span>
-                )}
-                <span className={`text-[10.5px] font-medium tracking-tight ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'text-white' : 'text-black/45'}`}>
-                  {message.editedAt ? formatTime(message.editedAt) : formatTime(message.createdAt)}
-                </span>
-                {isMine && (
-                  <div className="flex items-center ml-1.5 opacity-90">
-                    {message.seen ? (
-                      <div className="flex items-center">
-                        <div className="flex items-center space-x-[3px] mr-1.5">
-                          <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-green-400 drop-shadow-sm' : 'bg-green-500'}`}></div>
-                          <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-green-400 drop-shadow-sm' : 'bg-green-500'}`}></div>
-                        </div>
-                        {message.seenAt && (
-                          <span className={`text-[10px] font-semibold tracking-tight ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'text-blue-300 drop-shadow-sm' : 'text-blue-500'}`}>
-                            {formatTime(message.seenAt)}
-                          </span>
+            {(() => {
+              const hasText = !!message.text && message.text.trim().length > 0;
+              const hasAudio = !!message.audioUrl;
+              const urls = message.imageUrls || (message.imageUrl ? [message.imageUrl] : []);
+              const isImageOnly = urls.length > 0 && !hasText && !hasAudio && !message.isDeletedForEveryone;
+
+              return (
+                <div className="flex items-center space-x-1 mt-0.5 justify-end self-end float-right">
+                  <div className="flex items-center space-x-1">
+                    {!message.isDeletedForEveryone && message.isEdited && (
+                      <span className="text-[10px] italic mr-1 text-black/40">
+                        Edited
+                      </span>
+                    )}
+                    <span className="text-[10.5px] font-medium tracking-tight text-black/45">
+                      {message.editedAt ? formatTime(message.editedAt) : formatTime(message.createdAt)}
+                    </span>
+                    {isMine && (
+                      <div className="flex items-center ml-1.5 opacity-90">
+                        {message.played || (message.seen && !hasAudio) ? (
+                          <div className="flex items-center">
+                            <div className="flex items-center space-x-[3px] mr-1.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                            </div>
+                            {(message.playedAt || message.seenAt) && (
+                              <span className="text-[10px] font-semibold tracking-tight text-blue-500">
+                                {formatTime(message.playedAt || message.seenAt)}
+                              </span>
+                            )}
+                          </div>
+                        ) : message.seen ? (
+                          <div className="flex items-center space-x-[3px]">
+                            <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
+                            <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
+                          </div>
+                        ) : message.delivered ? (
+                          <div className="flex items-center space-x-[3px]">
+                            <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
+                            <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
+                          </div>
                         )}
-                      </div>
-                    ) : message.delivered ? (
-                      <div className="flex items-center space-x-[3px]">
-                        <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-gray-300 drop-shadow-sm' : 'bg-gray-400'}`}></div>
-                        <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-gray-300 drop-shadow-sm' : 'bg-gray-400'}`}></div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center">
-                        <div className={`w-1.5 h-1.5 rounded-full ${(!message.text && ((message.imageUrls?.length || 0) > 0 || !!message.imageUrl)) ? 'bg-gray-300 drop-shadow-sm' : 'bg-gray-400'}`}></div>
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              );
+            })()}
             
             {/* Render Reactions below the message */}
             {optimisticReactions && Object.keys(optimisticReactions).length > 0 && (

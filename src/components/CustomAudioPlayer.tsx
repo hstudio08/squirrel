@@ -1,91 +1,128 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Loader2 } from 'lucide-react';
+import { Howl } from 'howler';
 
 interface CustomAudioPlayerProps {
   src: string;
   autoPreload?: boolean;
+  onPlay?: () => void;
 }
 
-export default function CustomAudioPlayer({ src, autoPreload = false }: CustomAudioPlayerProps) {
+export default function CustomAudioPlayer({ src, autoPreload = false, onPlay }: CustomAudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const getAudioUrl = (url: string) => {
-    if (!url) return url;
-    if (url.includes('cloudinary.com')) {
-      let cleanUrl = url.replace('/upload/f_mp3,q_auto/', '/upload/');
-      cleanUrl = cleanUrl.replace('/upload/f_mp3/', '/upload/');
-      return cleanUrl;
-    }
-    return url;
-  };
-  
-  const audioSrc = getAudioUrl(src);
+  const soundRef = useRef<Howl | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (audioRef.current && autoPreload) {
-      audioRef.current.load();
+    // Determine format to help Howler parse raw blobs
+    let format = ['mp3'];
+    if (src.startsWith('blob:')) {
+      format = ['aac', 'm4a', 'webm', 'mp3']; // Fallbacks for blob
+    } else {
+      const ext = src.split('.').pop()?.split('?')[0];
+      if (ext) format = [ext];
     }
-  }, [autoPreload]);
 
-  const togglePlay = async () => {
-    if (!audioRef.current) return;
+    soundRef.current = new Howl({
+      src: [src],
+      format: format,
+      html5: true, // Use HTML5 Audio to avoid Web Audio API decodeAudioData errors
+      preload: autoPreload,
+      onload: () => {
+        setIsLoading(false);
+        setDuration(soundRef.current?.duration() || 0);
+      },
+      onplay: () => {
+        setIsPlaying(true);
+        setIsLoading(false);
+        startTimer();
+        if (onPlay) onPlay();
+      },
+      onpause: () => {
+        setIsPlaying(false);
+        stopTimer();
+      },
+      onstop: () => {
+        setIsPlaying(false);
+        stopTimer();
+        setCurrentTime(0);
+        setProgress(0);
+      },
+      onend: () => {
+        setIsPlaying(false);
+        stopTimer();
+        setCurrentTime(0);
+        setProgress(0);
+      },
+      onloaderror: (id, err) => {
+        console.error('Howler load error:', err);
+        setIsLoading(false);
+        setIsPlaying(false);
+      },
+      onplayerror: (id, err) => {
+        console.error('Howler play error:', err);
+        soundRef.current?.once('unlock', () => {
+          soundRef.current?.play();
+        });
+      }
+    });
+
+    return () => {
+      stopTimer();
+      if (soundRef.current) {
+        soundRef.current.unload();
+      }
+    };
+  }, [src, autoPreload]);
+
+  const startTimer = () => {
+    stopTimer();
+    timerRef.current = setInterval(() => {
+      if (soundRef.current && soundRef.current.playing()) {
+        const seek = soundRef.current.seek() as number;
+        setCurrentTime(seek);
+        const dur = soundRef.current.duration();
+        if (dur) {
+          setProgress((seek / dur) * 100);
+        }
+      }
+    }, 100);
+  };
+
+  const stopTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+
+  const togglePlay = () => {
+    if (!soundRef.current) return;
 
     if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
+      soundRef.current.pause();
     } else {
-      setIsLoading(true);
-      try {
-        // Must call play() synchronously in the event handler to bypass mobile autoplay restrictions
-        const playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-          await playPromise;
-        }
-        setIsLoading(false);
-        setIsPlaying(true);
-      } catch (err: any) {
-        console.error('Error playing audio:', err);
-        setIsLoading(false);
-        if (err.name === 'NotSupportedError') {
-          console.error('Audio format unsupported, it might be transcoding...');
-        } else if (err.name === 'NotAllowedError') {
-          console.warn('Playback blocked by browser policy. Ensure user interaction.');
-        }
-        setIsPlaying(false);
+      if (soundRef.current.state() === 'unloaded') {
+        setIsLoading(true);
+        soundRef.current.load();
       }
+      setIsLoading(true); // Will be set to false in onplay or onload
+      soundRef.current.play();
     }
-  };
-
-  const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
-      setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100 || 0);
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (audioRef.current) {
-      setDuration(audioRef.current.duration);
-    }
-  };
-
-  const handleEnded = () => {
-    setIsPlaying(false);
-    setProgress(0);
-    setCurrentTime(0);
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (audioRef.current) {
-      const newTime = (parseFloat(e.target.value) / 100) * audioRef.current.duration;
-      audioRef.current.currentTime = newTime;
-      setProgress(parseFloat(e.target.value));
+    if (soundRef.current) {
+      const percent = parseFloat(e.target.value);
+      const dur = soundRef.current.duration();
+      if (dur) {
+        const newTime = (percent / 100) * dur;
+        soundRef.current.seek(newTime);
+        setCurrentTime(newTime);
+        setProgress(percent);
+      }
     }
   };
 
@@ -98,17 +135,6 @@ export default function CustomAudioPlayer({ src, autoPreload = false }: CustomAu
 
   return (
     <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-2 rounded-2xl w-[240px]">
-      <audio
-        ref={audioRef}
-        src={audioSrc}
-        preload={autoPreload ? 'auto' : 'metadata'}
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onEnded={handleEnded}
-        onPlaying={() => setIsLoading(false)}
-        onWaiting={() => setIsLoading(true)}
-      />
-      
       <button
         onClick={togglePlay}
         disabled={isLoading && !isPlaying}

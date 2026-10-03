@@ -8,7 +8,6 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface CalculatorProps {
   onUnlock?: () => void;
@@ -30,7 +29,6 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
   }, []);
 
   useEffect(() => {
-    // Prefetch for instant loading
     router.prefetch('/chat');
 
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -43,7 +41,7 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
       }
     });
     return () => unsubscribe();
-  }, [router]);
+  }, [router, onUnlock]);
 
   const triggerMasterLogin = () => {
     if (isLoggingIn) return;
@@ -75,7 +73,8 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
             } catch (e) {
               console.error('Firestore error:', e);
             }
-            router.push('/chat');
+            if (onUnlock) onUnlock();
+            else router.push('/chat');
           }
         }
       }).catch((error) => {
@@ -98,6 +97,8 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
             } catch (e) {
               console.error('Firestore error:', e);
             }
+            if (onUnlock) onUnlock();
+            else router.push('/chat');
           }
         })
         .catch((error) => {
@@ -126,9 +127,18 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
     setResult('');
   };
 
-  const backspace = () => {
-    setExpression(prev => prev.slice(0, -1));
-    setResult('');
+  const toggleSign = () => {
+    if (result) {
+      const val = String(-Number(result));
+      setResult(val);
+      setExpression(val);
+      return;
+    }
+    if (expression.startsWith('-')) {
+      setExpression(expression.substring(1));
+    } else if (expression) {
+      setExpression('-' + expression);
+    }
   };
 
   const calculate = () => {
@@ -146,21 +156,16 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
     if (!expression) return;
 
     try {
-      // Basic safe eval for calculator
       let safeExpr = expression
-        .replace(/x/g, '*')
-        .replace(/Ã·/g, '/')
-        .replace(/%/g, '/100')
-        .replace(/\^/g, '**')
-        .replace(/âˆš/g, 'Math.sqrt');
+        .replace(/×/g, '*')
+        .replace(/÷/g, '/')
+        .replace(/%/g, '/100');
       
-      // Clean trailing operators if any
       safeExpr = safeExpr.replace(/[+\-*/]$/, '');
 
       // eslint-disable-next-line no-eval
       const evalResult = eval(safeExpr);
       if (evalResult !== undefined && !isNaN(evalResult) && isFinite(evalResult)) {
-        // Format to avoid super long decimals, up to 8 decimal places
         const formattedResult = Number.isInteger(evalResult) 
           ? String(evalResult) 
           : parseFloat(evalResult.toFixed(8)).toString();
@@ -174,22 +179,16 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
     }
   };
 
-  // Modern Android/Web aesthetic buttons
   const buttons = [
-    { label: 'C', onClick: clearAll, type: 'action' },
-    { label: 'âŒ«', onClick: backspace, type: 'action' },
-    { label: '(', onClick: () => handleInput('('), type: 'action' },
-    { label: ')', onClick: () => handleInput(')'), type: 'action' },
-
-    { label: 'âˆš', onClick: () => handleInput('âˆš('), type: 'operator' },
-    { label: '^', onClick: () => handleInput('^'), type: 'operator' },
-    { label: '%', onClick: () => handleInput('%'), type: 'operator' },
-    { label: 'Ã·', onClick: () => handleInput('Ã·'), type: 'operator' },
+    { label: expression ? 'C' : 'AC', onClick: clearAll, type: 'action' },
+    { label: '±', onClick: toggleSign, type: 'action' },
+    { label: '%', onClick: () => handleInput('%'), type: 'action' },
+    { label: '÷', onClick: () => handleInput('÷'), type: 'operator' },
     
     { label: '7', onClick: () => handleInput('7'), type: 'number' },
     { label: '8', onClick: () => handleInput('8'), type: 'number' },
     { label: '9', onClick: () => handleInput('9'), type: 'number' },
-    { label: 'x', onClick: () => handleInput('x'), type: 'operator' },
+    { label: '×', onClick: () => handleInput('×'), type: 'operator' },
     
     { label: '4', onClick: () => handleInput('4'), type: 'number' },
     { label: '5', onClick: () => handleInput('5'), type: 'number' },
@@ -201,66 +200,47 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
     { label: '3', onClick: () => handleInput('3'), type: 'number' },
     { label: '+', onClick: () => handleInput('+'), type: 'operator' },
     
-    { label: '00', onClick: () => handleInput('00'), type: 'number' },
     { label: '0', onClick: () => handleInput('0'), type: 'number' },
     { label: '.', onClick: () => handleInput('.'), type: 'number' },
-    { label: '=', onClick: calculate, type: 'equals' },
+    { label: '=', onClick: calculate, type: 'operator' },
   ];
 
-  const getButtonClass = (type: string) => {
-    switch(type) {
-      case 'action':
-        return 'text-rose-400 bg-white/5 border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]';
-      case 'operator':
-        return 'text-emerald-400 bg-white/5 border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]';
-      case 'equals':
-        return 'text-white bg-gradient-to-br from-emerald-500 to-teal-600 shadow-[0_4px_14px_0_rgba(16,185,129,0.39)] border border-white/20';
-      default:
-        return 'text-gray-100 bg-black/20 border border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]';
-    }
-  };
-
   return (
-    <div className="relative flex flex-col h-[100dvh] bg-black font-sans overflow-hidden select-none">
-      
-      {/* Liquid background blobs */}
-      <div className="absolute top-[-10%] left-[-20%] w-[60%] h-[40%] bg-emerald-900/30 rounded-[100%]   pointer-events-none animate-pulse-slow"></div>
-      <div className="absolute bottom-[-10%] right-[-20%] w-[80%] h-[60%] bg-teal-900/20 rounded-[100%]   pointer-events-none animate-pulse-slow delay-1000"></div>
-
+    <div className="flex flex-col h-[100dvh] w-full bg-black font-sans select-none overflow-hidden pb-10">
       {/* Display Area */}
-      <div className="relative z-10 flex-1 flex flex-col justify-end items-end p-8 pb-8 space-y-2">
-        <div className="text-gray-400 text-3xl font-light tracking-widest break-all text-right w-full min-h-[40px] opacity-80 font-mono">
-          {expression}
+      <div className="flex-1 flex flex-col justify-end items-end p-6 mb-2 overflow-hidden">
+        <div 
+          className="text-white text-right w-full break-all font-light tracking-tight"
+          style={{
+            fontSize: (result || expression).length > 8 ? '2.5rem' : ((result || expression).length > 5 ? '4rem' : '5.5rem'),
+            lineHeight: 1.1,
+            transition: 'font-size 0.1s ease-in-out'
+          }}
+        >
+          {result || expression || '0'}
         </div>
-        <AnimatePresence mode="wait">
-          <motion.div 
-            key={result || expression}
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="text-white text-[5rem] leading-none font-medium tracking-tighter truncate w-full text-right bg-gradient-to-b from-white to-gray-400 text-transparent bg-clip-text pb-2"
-          >
-            {result || (expression ? '' : '0')}
-          </motion.div>
-        </AnimatePresence>
       </div>
       
       {/* Keypad */}
-      <div className="relative z-20  bg-white/[0.02] border-t border-white/10 rounded-t-[3rem] p-6 pb-12 shadow-[0_-20px_60px_rgba(0,0,0,0.5)]">
-        <div className="grid grid-cols-4 gap-4 max-w-sm mx-auto">
-          {buttons.map((btn, i) => (
-            <motion.button
+      <div className="grid grid-cols-4 gap-[min(4vw,14px)] max-w-[450px] w-full mx-auto px-[min(6vw,20px)]">
+        {buttons.map((btn, i) => {
+          const isZero = btn.label === '0';
+          return (
+            <button
               key={i}
               onClick={btn.onClick}
-              whileTap={{ scale: 0.85, filter: 'brightness(1.5)' }}
-              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              className={`h-[4.5rem] sm:h-16 rounded-[1.75rem] text-3xl font-medium flex items-center justify-center relative overflow-hidden  ${getButtonClass(btn.type)}`}
+              className={`
+                aspect-square rounded-full text-3xl sm:text-4xl font-normal flex items-center transition-colors active:opacity-70
+                ${isZero ? 'col-span-2 !aspect-auto justify-start pl-[min(8vw,1.75rem)]' : 'justify-center'}
+                ${btn.type === 'action' ? 'bg-[#a5a5a5] text-black active:bg-[#d4d4d2]' : ''}
+                ${btn.type === 'operator' ? 'bg-[#ff9f0a] text-white active:bg-[#fcc78f]' : ''}
+                ${btn.type === 'number' ? 'bg-[#333333] text-white active:bg-[#737373]' : ''}
+              `}
             >
               {btn.label}
-              {/* Optional glossy reflection */}
-              <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent rounded-t-[2rem] pointer-events-none"></div>
-            </motion.button>
-          ))}
-        </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

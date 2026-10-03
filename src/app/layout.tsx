@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import LockManager from "@/components/LockManager";
 
@@ -39,14 +40,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased dark`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased dark`} suppressHydrationWarning>
       <head>
         
       </head>
-      <body className="bg-black text-white overscroll-none">
+      <body className="bg-[#F2F2F7] text-black overscroll-none" suppressHydrationWarning>
         <LockManager />
         {children}
-        <script
+        <Script
+          id="sw-registration"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {

@@ -20,4 +20,6 @@ export interface Message {
   imageUrl?: string;
   imageUrls?: string[];
   audioUrl?: string;
+  played?: boolean;
+  playedAt?: Timestamp | null;
 }

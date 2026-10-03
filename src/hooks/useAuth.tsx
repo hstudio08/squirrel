@@ -5,8 +5,19 @@ import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, User }
 import { auth, googleProvider } from '@/lib/firebase';
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('squirrel_cachedUser');
+      if (cached) return JSON.parse(cached) as User;
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !localStorage.getItem('squirrel_cachedUser');
+    }
+    return true;
+  });
   const [accessDenied, setAccessDenied] = useState(false);
 
   const ALLOWED_EMAILS = [
@@ -20,16 +31,26 @@ export function useAuth() {
         // Client-side UX check. Authoritative check is in Firestore Rules.
         if (currentUser.email && ALLOWED_EMAILS.includes(currentUser.email.toLowerCase())) {
           setUser(currentUser);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('squirrel_cachedUser', JSON.stringify({
+              uid: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              photoURL: currentUser.photoURL
+            }));
+          }
           setAccessDenied(false);
         } else {
           // Immediately sign out unauthorized users
           firebaseSignOut(auth).then(() => {
             setUser(null);
+            if (typeof window !== 'undefined') localStorage.removeItem('squirrel_cachedUser');
             setAccessDenied(true);
           });
         }
       } else {
         setUser(null);
+        if (typeof window !== 'undefined') localStorage.removeItem('squirrel_cachedUser');
       }
       setLoading(false);
     });
@@ -50,6 +71,7 @@ export function useAuth() {
     try {
       await firebaseSignOut(auth);
       setUser(null);
+      if (typeof window !== 'undefined') localStorage.removeItem('squirrel_cachedUser');
       // Immediate redirect to root disguise page
       window.location.replace('/');
     } catch (error) {

@@ -23,31 +23,42 @@ export default function MultiImagePreviewModal({
   const [isEditing, setIsEditing] = useState(false);
   const [caption, setCaption] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Generate object URLs synchronously for missing ones
-  const urlsRef = useRef<Map<File, string>>(new Map());
+  const [urlsMap, setUrlsMap] = useState<Map<File, string>>(new Map());
+
+  useEffect(() => {
+    setUrlsMap(prev => {
+      const newMap = new Map(prev);
+      let changed = false;
+      const currentFiles = new Set(files);
+      
+      files.forEach(file => {
+        if (!newMap.has(file)) {
+          newMap.set(file, URL.createObjectURL(file));
+          changed = true;
+        }
+      });
+      
+      for (const [file, url] of newMap.entries()) {
+        if (!currentFiles.has(file)) {
+          URL.revokeObjectURL(url);
+          newMap.delete(file);
+          changed = true;
+        }
+      }
+      return changed ? newMap : prev;
+    });
+  }, [files]);
+
   useEffect(() => {
     return () => {
-      urlsRef.current.forEach(url => URL.revokeObjectURL(url));
+      setUrlsMap(currentMap => {
+        currentMap.forEach(url => URL.revokeObjectURL(url));
+        return new Map();
+      });
     };
   }, []);
 
-  const currentUrls = files.map(file => {
-    if (!urlsRef.current.has(file)) {
-      urlsRef.current.set(file, URL.createObjectURL(file));
-    }
-    return urlsRef.current.get(file)!;
-  });
-
-  // Cleanup removed files
-  useEffect(() => {
-    const currentFiles = new Set(files);
-    for (const [file, url] of urlsRef.current.entries()) {
-      if (!currentFiles.has(file)) {
-        URL.revokeObjectURL(url);
-        urlsRef.current.delete(file);
-      }
-    }
-  }, [files]);
+  const currentUrls = files.map(file => urlsMap.get(file) || '');
 
   // Keep active index in bounds
   if (files.length > 0 && activeIndex >= files.length) {

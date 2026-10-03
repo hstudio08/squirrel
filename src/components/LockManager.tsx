@@ -3,11 +3,47 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Calculator from './Calculator';
-
+import { useAuth } from '@/hooks/useAuth';
+import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
+import { rtdb } from '@/lib/firebase';
 export default function LockManager() {
   const [isLocked, setIsLocked] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    const myStatusRef = ref(rtdb, `/status/${user.uid}`);
+    const connectedRef = ref(rtdb, '.info/connected');
+
+    const unsubscribe = onValue(connectedRef, (snap) => {
+      if (snap.val() === true) {
+        onDisconnect(myStatusRef).set({ state: 'offline', last_changed: rtdbServerTimestamp() }).then(() => {
+          if (document.visibilityState !== 'hidden') {
+            set(myStatusRef, { state: isLocked ? 'logging_in' : 'online', last_changed: rtdbServerTimestamp() });
+          } else {
+            set(myStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
+          }
+        });
+      }
+    });
+
+    const handleVis = () => {
+      if (document.visibilityState === 'hidden') {
+        set(myStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
+      } else {
+        set(myStatusRef, { state: isLocked ? 'logging_in' : 'online', last_changed: rtdbServerTimestamp() });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVis);
+
+    return () => {
+      unsubscribe();
+      document.removeEventListener("visibilitychange", handleVis);
+      set(myStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
+    };
+  }, [user, isLocked]);
 
   useEffect(() => {
     let appListener: any;
