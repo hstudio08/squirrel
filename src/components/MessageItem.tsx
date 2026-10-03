@@ -739,7 +739,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
               const remainingCount = urls.length > 4 ? urls.length - 4 : 0;
               
               return (
-                <div className={`mb-1.5 pointer-events-auto ${isGrid ? 'grid grid-cols-2 gap-[2px] rounded-xl overflow-hidden bg-black/10' : 'rounded-xl overflow-hidden bg-black/5 relative'} animate-pop-in ${shouldMask ? 'blur-[8px] opacity-60 select-none pointer-events-none' : ''}`} style={!isGrid ? { maxWidth: '320px', maxHeight: '420px' } : { width: '100%', maxWidth: '320px' }}>
+                <div className={`mb-1.5 pointer-events-auto ${isGrid ? 'grid grid-cols-2 gap-[2px] rounded-xl overflow-hidden bg-black/10' : 'rounded-xl overflow-hidden bg-black/5 relative'} animate-pop-in ${shouldMask ? 'blur-[8px] opacity-60 select-none pointer-events-none' : ''}`} style={!isGrid ? { maxWidth: '200px', maxHeight: '240px' } : { width: '100%', maxWidth: '240px' }}>
                   {displayUrls.map((url, idx) => {
                     const isLastDisplay = idx === 3;
                     const isThirdOfThree = urls.length === 3 && idx === 2;

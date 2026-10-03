@@ -659,9 +659,22 @@ export default function ChatUI({ user }: ChatUIProps) {
 
         const { Capacitor } = await import('@capacitor/core');
         if (Capacitor.isNativePlatform()) {
+          // Pre-request Camera & Microphone permissions for smooth UX
+          try {
+            const { Camera } = await import('@capacitor/camera');
+            const camPerm = await Camera.checkPermissions();
+            if (camPerm.camera !== 'granted') await Camera.requestPermissions();
+          } catch(e) {}
+          
+          try {
+            const { VoiceRecorder } = await import('capacitor-voice-recorder');
+            const micPerm = await VoiceRecorder.hasAudioRecordingPermission();
+            if (!micPerm.value) await VoiceRecorder.requestAudioRecordingPermission();
+          } catch(e) {}
+
           const { PushNotifications } = await import('@capacitor/push-notifications');
           let permStatus = await PushNotifications.checkPermissions();
-          if (permStatus.receive === 'prompt') {
+          if (permStatus.receive !== 'granted') {
             permStatus = await PushNotifications.requestPermissions();
           }
           if (permStatus.receive === 'granted') {
