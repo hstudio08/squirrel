@@ -2171,10 +2171,10 @@ export default function ChatUI({ user }: ChatUIProps) {
             <button
               onClick={() => loadMore()}
               disabled={isFetchingMore}
-              className="w-11 h-11 flex items-center justify-center rounded-full bg-white/30 backdrop-blur-md border border-[#D4AF37] shadow-[0_4px_16px_rgba(212,175,55,0.25)] active:scale-95 transition-all duration-300 disabled:opacity-50"
+              className="w-11 h-11 flex items-center justify-center rounded-full bg-white border border-[#D4AF37] shadow-sm active:scale-95 transition-all duration-300 disabled:opacity-50"
             >
               {isFetchingMore ? (
-                <div className="w-4 h-4 rounded-full bg-[#D4AF37] animate-ping" />
+                <Loader2 className="w-5 h-5 text-[#D4AF37] animate-spin" />
               ) : (
                 <div className="w-3 h-3 rounded-full bg-[#D4AF37]" />
               )}
