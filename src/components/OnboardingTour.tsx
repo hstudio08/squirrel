@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { User } from 'firebase/auth';
@@ -38,7 +38,7 @@ const TOUR_STEPS = [
   {
     id: 'status',
     title: 'Current Status',
-    description: 'Update your status to let the other person know exactly what you are doing right now—whether you are busy, relaxing, or working.',
+    description: 'Update your status to let the other person know exactly what you are doing right nowâ€”whether you are busy, relaxing, or working.',
     icon: <Activity className="w-8 h-8 text-slate-700 mb-6 stroke-[1.5]" />,
   },
   {

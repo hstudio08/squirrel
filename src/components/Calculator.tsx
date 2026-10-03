@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -149,10 +149,10 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
       // Basic safe eval for calculator
       let safeExpr = expression
         .replace(/x/g, '*')
-        .replace(/÷/g, '/')
+        .replace(/Ã·/g, '/')
         .replace(/%/g, '/100')
         .replace(/\^/g, '**')
-        .replace(/√/g, 'Math.sqrt');
+        .replace(/âˆš/g, 'Math.sqrt');
       
       // Clean trailing operators if any
       safeExpr = safeExpr.replace(/[+\-*/]$/, '');
@@ -177,14 +177,14 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
   // Modern Android/Web aesthetic buttons
   const buttons = [
     { label: 'C', onClick: clearAll, type: 'action' },
-    { label: '⌫', onClick: backspace, type: 'action' },
+    { label: 'âŒ«', onClick: backspace, type: 'action' },
     { label: '(', onClick: () => handleInput('('), type: 'action' },
     { label: ')', onClick: () => handleInput(')'), type: 'action' },
 
-    { label: '√', onClick: () => handleInput('√('), type: 'operator' },
+    { label: 'âˆš', onClick: () => handleInput('âˆš('), type: 'operator' },
     { label: '^', onClick: () => handleInput('^'), type: 'operator' },
     { label: '%', onClick: () => handleInput('%'), type: 'operator' },
-    { label: '÷', onClick: () => handleInput('÷'), type: 'operator' },
+    { label: 'Ã·', onClick: () => handleInput('Ã·'), type: 'operator' },
     
     { label: '7', onClick: () => handleInput('7'), type: 'number' },
     { label: '8', onClick: () => handleInput('8'), type: 'number' },

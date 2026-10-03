@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+﻿import React, { useState, useRef, useEffect } from "react";
 import { X, Send, Plus, Trash2, Edit2 } from "lucide-react";
 import ImageEditor from "./ImageEditor";
 

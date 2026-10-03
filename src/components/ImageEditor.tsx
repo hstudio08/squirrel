@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+﻿import React, { useState, useRef, useEffect } from "react";
 import { X, Send, RotateCcw, Undo2, Crop, Check, Type, PenTool } from "lucide-react";
 import ReactCrop, { type Crop as CropType } from "react-image-crop";
 import Draggable from "react-draggable";

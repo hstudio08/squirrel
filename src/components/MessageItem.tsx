@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useRef, useState, FormEvent } from 'react';
 import { Message } from '@/types/chat';
@@ -349,7 +349,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
     const now = Date.now();
     
     // If the pointer landed on an interactive element inside the popup (button, a, etc.)
-    // do NOT close anything — let the button's own onClick handle it
+    // do NOT close anything â€” let the button's own onClick handle it
     const target = e.target as HTMLElement;
     const isInsidePopup = target.closest('[data-popup]') !== null;
     if (isInsidePopup) {
@@ -373,7 +373,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
       if (!isActiveReaction && !showOptions && !showDeleteConfirm) {
         // Selection handled by onClick on outer wrapper
       } else {
-        // Tapped outside popup — close everything
+        // Tapped outside popup â€” close everything
         if (onReactClose) onReactClose();
         setShowOptions(false); if (onReactClose) onReactClose();
         setShowDeleteConfirm(false);

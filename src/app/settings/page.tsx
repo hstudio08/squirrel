@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
 import { auth, db, storage } from '@/lib/firebase';
@@ -673,7 +673,7 @@ export default function SettingsPage() {
                   <p className="text-gray-500 text-[13px] mt-0.5">4-digit PIN for the calculator.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-500 font-medium text-[15px]">{appPin ? '••••' : ''}</span>
+                  <span className="text-gray-500 font-medium text-[15px]">{appPin ? 'â€¢â€¢â€¢â€¢' : ''}</span>
                   <span className="text-blue-500 font-medium text-[14px]">Set</span>
                 </div>
               </button>

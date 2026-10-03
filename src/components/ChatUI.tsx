@@ -816,7 +816,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
     const cacheKey = `sq_c_${chatId}_${user.uid}`;
 
-    // ΓöÇΓöÇ STEP 1: Paint cached messages INSTANTLY (zero Firestore reads) ΓöÇΓöÇ
+    // Î“Ã¶Ã‡Î“Ã¶Ã‡ STEP 1: Paint cached messages INSTANTLY (zero Firestore reads) Î“Ã¶Ã‡Î“Ã¶Ã‡
     if (!initialLoadDone.current) {
       const cached = secureCache.get(cacheKey, user.uid);
       if (cached && Array.isArray(cached) && cached.length > 0) {
@@ -827,7 +827,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       }
     }
 
-    // ΓöÇΓöÇ STEP 2: Live Firestore subscription (only last 10 messages) ΓöÇΓöÇ
+    // Î“Ã¶Ã‡Î“Ã¶Ã‡ STEP 2: Live Firestore subscription (only last 10 messages) Î“Ã¶Ã‡Î“Ã¶Ã‡
     const q = query(
       collection(db, `conversations/${chatId}/messages`),
       orderBy('createdAt', 'desc'),
@@ -904,7 +904,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
       const liveMessages = fetchedMessages.reverse();
 
-      // ΓöÇΓöÇ STEP 3: Merge live data with cached older messages ΓöÇΓöÇ
+      // Î“Ã¶Ã‡Î“Ã¶Ã‡ STEP 3: Merge live data with cached older messages Î“Ã¶Ã‡Î“Ã¶Ã‡
       setMessages(prev => {
         const mergedMap = new Map<string, Message>();
         // Put cached older messages in first
@@ -918,7 +918,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           return tA - tB;
         });
 
-        // ΓöÇΓöÇ STEP 4: Persist merged list to cache (serialise Timestamps ΓåÆ ms) ΓöÇΓöÇ
+        // Î“Ã¶Ã‡Î“Ã¶Ã‡ STEP 4: Persist merged list to cache (serialise Timestamps Î“Ã¥Ã† ms) Î“Ã¶Ã‡Î“Ã¶Ã‡
         setTimeout(() => {
           try {
             const toCache = merged.map(m => ({
@@ -2184,7 +2184,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             <button
               onClick={() => loadMore()}
               disabled={isFetchingMore}
-              className="px-4 py-2 flex items-center gap-2 rounded-full bg-white border border-[#D4AF37]/30 text-[#D4AF37] text-sm font-medium shadow-sm active:scale-95 transition-all duration-300 disabled:opacity-50"
+              className="px-4 py-1.5 flex items-center gap-2 rounded-full bg-gradient-to-b from-slate-700 to-slate-800 border border-slate-900 border-b-[3px] active:border-b-[1px] active:translate-y-[2px] text-white text-[13px] font-bold shadow-[0_4px_6px_rgba(0,0,0,0.2)] active:shadow-none transition-all duration-100 ease-out disabled:opacity-50 disabled:pointer-events-none select-none"
             >
               {isFetchingMore ? (
                 <>
