@@ -5,6 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Calculator',
   webDir: 'out',
   server: {
+    url: 'https://mysquirrel.vercel.app',
     cleartext: true,
     allowNavigation: [
       'accounts.google.com',
