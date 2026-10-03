@@ -1398,8 +1398,23 @@ export default function ChatUI({ user }: ChatUIProps) {
       if (!sigRes.ok) throw new Error('Failed to get upload signature');
       const { timestamp, signature, folder, public_id: resolvedPublicId } = await sigRes.json();
 
+      let uploadableFile: any = file;
+      
+      if (typeof file === 'string' && file.startsWith('data:')) {
+        const arr = file.split(',');
+        const mime = arr[0].match(/:(.*?);/)?.[1] || 'audio/aac';
+        const bstr = atob(arr[1].replace(/\s/g, ''));
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const ext = mime.includes('mp4') ? 'mp4' : mime.includes('webm') ? 'webm' : 'aac';
+        uploadableFile = new File([u8arr], `voice_note_${Date.now()}.${ext}`, { type: mime });
+      }
+
       const formData = new FormData();
-      formData.append('file', file as any);
+      formData.append('file', uploadableFile);
       formData.append('api_key', '296432316579334');
       formData.append('timestamp', timestamp.toString());
       formData.append('signature', signature);
