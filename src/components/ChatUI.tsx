@@ -2186,7 +2186,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             <button
               onClick={() => loadMore()}
               disabled={isFetchingMore}
-              className="px-4 py-1.5 flex items-center gap-2 rounded-full bg-gradient-to-b from-slate-700 to-slate-800 border border-slate-900 border-b-[3px] active:border-b-[1px] active:translate-y-[2px] text-white text-[13px] font-bold shadow-[0_4px_6px_rgba(0,0,0,0.2)] active:shadow-none transition-all duration-100 ease-out disabled:opacity-50 disabled:pointer-events-none select-none"
+              className="px-4 py-1.5 flex items-center gap-2 rounded-full bg-slate-800 border border-slate-700 text-white text-[13px] font-bold shadow-md active:scale-95 transition-transform duration-100 ease-out disabled:opacity-50 disabled:pointer-events-none select-none"
             >
               {isFetchingMore ? (
                 <>
