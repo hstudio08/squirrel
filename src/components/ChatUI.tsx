@@ -31,7 +31,7 @@ import { ref, onValue, set, onDisconnect, serverTimestamp as rtdbServerTimestamp
 import { Message } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { useAuth } from '@/hooks/useAuth';
-import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, ChevronUp, Search, Pin, Camera, MoreVertical, RotateCcw, Clock, CheckSquare, Lock, Plus, Settings } from 'lucide-react';
+import { Smile, Send, Info, X, Image as ImageIcon, Loader2, Ghost, ArrowLeft, Copy, Trash2, ChevronDown, ChevronUp, Search, Pin, Camera, MoreVertical, RotateCcw, Clock, CheckSquare, Lock, Plus, Settings, Power } from 'lucide-react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import ImageEditor from './ImageEditor';
 import MultiImagePreviewModal from './MultiImagePreviewModal';
@@ -1016,6 +1016,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       localStorage.setItem(`clearedAt_${user.uid}_${chatId}`, now.toString());
       setShowMenu(false);
       setShowClearConfirm(false);
+      localStorage.removeItem(`sq_c_${chatId}_${user.uid}`);
 
       // Process in chunks of 450 to avoid Firestore 500 batch limit
       const chunkSize = 450;
@@ -1173,7 +1174,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
         if (replyingTo) {
           newMessageData.replyToId = replyingTo.id;
-          newMessageData.replyToText = replyingTo.text || 'Photo';
+          newMessageData.replyToText = replyingTo.text || (replyingTo.audioUrl ? 'Voice Note' : 'Photo');
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
@@ -1508,7 +1509,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
             if (replyingTo) {
               newMessageData.replyToId = replyingTo.id;
-              newMessageData.replyToText = replyingTo.text || 'Photo';
+              newMessageData.replyToText = replyingTo.text || (replyingTo.audioUrl ? 'Voice Note' : 'Photo');
               newMessageData.replyToSenderId = replyingTo.senderId;
             }
 
@@ -1548,7 +1549,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
         if (replyingTo) {
           newMessageData.replyToId = replyingTo.id;
-          newMessageData.replyToText = replyingTo.text || 'Photo';
+          newMessageData.replyToText = replyingTo.text || (replyingTo.audioUrl ? 'Voice Note' : 'Photo');
           newMessageData.replyToSenderId = replyingTo.senderId;
         }
 
@@ -1565,7 +1566,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           delivered: false,
           ...(replyingTo ? {
             replyToId: replyingTo.id,
-            replyToText: replyingTo.text || 'Photo',
+            replyToText: replyingTo.text || (replyingTo.audioUrl ? 'Voice Note' : 'Photo'),
             replyToSenderId: replyingTo.senderId
           } : {})
         };
@@ -1934,9 +1935,10 @@ export default function ChatUI({ user }: ChatUIProps) {
                   </div>
                   <button
                     onClick={signOut}
-                    className={`px-4 py-1.5 text-[13px] font-bold text-white rounded-full shadow-sm transition-all whitespace-nowrap shrink-0 ${otherUserStatus?.state === 'online' ? 'bg-green-500/90 hover:bg-green-500' : 'bg-red-500/90 hover:bg-red-500'}`}
+                    className="p-2 text-white bg-red-500/90 hover:bg-red-500 rounded-full shadow-sm transition-all shrink-0 active:scale-95 flex items-center justify-center"
+                    aria-label="Sign Out"
                   >
-                    Sign Out
+                    <Power size={18} strokeWidth={2.5} />
                   </button>
                 </div>
               </>
@@ -2219,9 +2221,13 @@ export default function ChatUI({ user }: ChatUIProps) {
             <button
               onClick={() => loadMore()}
               disabled={isFetchingMore}
-              className="px-4 py-1.5 bg-white shadow-sm rounded-full text-[13px] font-medium text-slate-600 active:scale-95 transition-all disabled:opacity-50"
+              className="w-10 h-10 flex items-center justify-center bg-white/5 shadow-sm rounded-full text-slate-500 active:scale-90 hover:scale-105 hover:bg-white/10 transition-all duration-300 disabled:opacity-50 border border-black/5 dark:border-white/5"
             >
-              {isFetchingMore ? 'Loading...' : 'Load earlier messages'}
+              {isFetchingMore ? (
+                <div className="w-2.5 h-2.5 bg-slate-400 rounded-full animate-pulse" />
+              ) : (
+                <Plus size={18} />
+              )}
             </button>
           </div>
         )}

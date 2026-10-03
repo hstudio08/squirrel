@@ -6,8 +6,8 @@
 }
 
 :root {
-  --background: #efeae2;
-  --foreground: #111b21;
+  --background: #000000;
+  --foreground: #ffffff;
 }
 
 body {
@@ -59,7 +59,7 @@ body {
 
 /* Subtle floral vector background */
 .chat-bg {
-  background-color: #efeae2;
+  background-color: #000000;
   position: relative;
 }
 
@@ -118,3 +118,4 @@ body {
 .animate-pulse-slow {
   animation: pulseSlow 8s ease-in-out infinite;
 }
+
