@@ -679,7 +679,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             if (messaging) {
               const registration = await navigator.serviceWorker.register('/sw.js');
               const token = await getToken(messaging, {
-                vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+                vapidKey: "BDTGvzgVoIH_GlY0C5y5fHQ5UnQ_OggcwGAST3Vbu07-i-Y-F0pLiUIAhj_c0EnP2Z61xdGhTu3pjEIZBWVqz3c",
                 serviceWorkerRegistration: registration
               });
               if (token) {
@@ -895,11 +895,11 @@ export default function ChatUI({ user }: ChatUIProps) {
         if (time > newestMsgTimeRef.current) newestMsgTimeRef.current = time;
 
         if (data.senderId !== user.uid && !data.seen && document.visibilityState === 'visible') {
-          batch.update(doc(db, 'conversations', chatId, 'messages', msgDoc.id), { seen: true, seenAt: serverTimestamp(), delivered: true });
+          batch.update(doc(db, 'conversations', chatId, 'messages', msgDoc.id), { seen: true, seenAt: serverTimestamp(), delivered: true, deliveredAt: serverTimestamp() });
           hasUnseen = true;
         } else if (data.senderId !== user.uid && !data.delivered) {
           // Mark as delivered even if not yet seen (app is open but message not visible yet)
-          batch.update(doc(db, 'conversations', chatId, 'messages', msgDoc.id), { delivered: true });
+          batch.update(doc(db, 'conversations', chatId, 'messages', msgDoc.id), { delivered: true, deliveredAt: serverTimestamp() });
           hasUnseen = true;
         }
       });
@@ -1366,7 +1366,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || '');
+      formData.append('api_key', '296432316579334');
       formData.append('timestamp', timestamp.toString());
       formData.append('signature', signature);
       formData.append('folder', folder);
@@ -1379,6 +1379,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       });
 
       const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
 
       if (data.secure_url) {
         const newMessageData: any = {
@@ -1386,6 +1387,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           audioUrl: data.secure_url,
           createdAt: serverTimestamp(),
           seen: false,
+          delivered: false,
           isDeletedForEveryone: false,
           isEdited: false
         };
@@ -1477,7 +1479,7 @@ export default function ChatUI({ user }: ChatUIProps) {
 
             const formData = new FormData();
             formData.append('file', compressedFile);
-            formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || '');
+            formData.append('api_key', '296432316579334');
             formData.append('timestamp', timestamp.toString());
             formData.append('upload_preset', 'Squirrel');
             formData.append('signature', signature);
@@ -1489,6 +1491,7 @@ export default function ChatUI({ user }: ChatUIProps) {
             });
 
             const data = await res.json();
+            if (data.error) throw new Error(data.error.message);
             return data.secure_url as string;
           });
 

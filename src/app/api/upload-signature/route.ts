@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
     }
 
-    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET || "qTQiHSK20b9TIE_zCoN8jazqfgQ";
     if (!apiSecret) {
       console.error('Missing CLOUDINARY_API_SECRET environment variable.');
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500, headers: corsHeaders });

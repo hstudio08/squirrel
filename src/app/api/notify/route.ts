@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const FAKE_MESSAGES = [
   "10"
@@ -99,7 +100,8 @@ export async function POST(req: NextRequest) {
     if (response.successCount > 0 && chatId && messageId) {
       try {
         await adminDb.collection('conversations').doc(chatId).collection('messages').doc(messageId).update({
-          delivered: true
+          delivered: true,
+          deliveredAt: FieldValue.serverTimestamp()
         });
       } catch (updateErr) {
         console.error('Failed to update delivered status:', updateErr);
