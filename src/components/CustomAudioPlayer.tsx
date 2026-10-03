@@ -93,11 +93,23 @@ export default function CustomAudioPlayer({ src, autoPreload = false }: CustomAu
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  // Ensure we request an MP3 from Cloudinary for universal browser/webview support
+  const getPlayableSrc = (url: string) => {
+    if (!url) return url;
+    if (url.includes('cloudinary.com') && url.includes('/upload/')) {
+      // Replace the extension with .mp3 to trigger Cloudinary on-the-fly transcoding
+      return url.replace(/\.[^/.]+$/, '.mp3');
+    }
+    return url;
+  };
+
+  const playableSrc = getPlayableSrc(src);
+
   return (
     <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 p-2 rounded-2xl w-[240px]">
       <audio
         ref={audioRef}
-        src={src}
+        src={playableSrc}
         preload={autoPreload ? 'auto' : 'none'}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}

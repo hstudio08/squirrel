@@ -140,6 +140,15 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
         const { Capacitor } = await import('@capacitor/core');
         if (Capacitor.isNativePlatform()) {
           const { VoiceRecorder } = await import('capacitor-voice-recorder');
+          
+          // Check if already recording to avoid ALREADY_RECORDING error
+          const status = await VoiceRecorder.getCurrentStatus();
+          if (status.status !== 'NONE') {
+            try {
+              await VoiceRecorder.stopRecording();
+            } catch(e) {}
+          }
+
           const hasPerm = await VoiceRecorder.hasAudioRecordingPermission();
           if (!hasPerm.value) {
             const req = await VoiceRecorder.requestAudioRecordingPermission();

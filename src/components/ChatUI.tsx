@@ -894,11 +894,8 @@ export default function ChatUI({ user }: ChatUIProps) {
         }
         if (time > newestMsgTimeRef.current) newestMsgTimeRef.current = time;
 
-        if (data.senderId !== user.uid && !data.seen && document.visibilityState === 'visible') {
-          batch.update(doc(db, 'conversations', chatId, 'messages', msgDoc.id), { seen: true, seenAt: serverTimestamp(), delivered: true, deliveredAt: serverTimestamp() });
-          hasUnseen = true;
-        } else if (data.senderId !== user.uid && !data.delivered) {
-          // Mark as delivered even if not yet seen (app is open but message not visible yet)
+        if (data.senderId !== user.uid && !data.delivered) {
+          // Mark as delivered since it reached the device
           batch.update(doc(db, 'conversations', chatId, 'messages', msgDoc.id), { delivered: true, deliveredAt: serverTimestamp() });
           hasUnseen = true;
         }
