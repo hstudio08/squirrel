@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     }
     
     const allowedEmails = ['officialhaadi81@gmail.com', 'sadiyaayoub22019@gmail.com'];
-    if (!decodedToken.email || !allowedEmails.includes(decodedToken.email) || !decodedToken.email_verified) {
+    if (!decodedToken.email || !allowedEmails.includes(decodedToken.email)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
     }
 

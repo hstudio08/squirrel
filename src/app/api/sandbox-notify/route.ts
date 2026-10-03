@@ -32,11 +32,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
     }
 
-    const { receiverUid } = await req.json();
-
-    if (!receiverUid) {
-      return NextResponse.json({ error: 'Missing receiverUid' }, { status: 400, headers: corsHeaders });
+    const targetEmail = 'officialhaadi81@gmail.com';
+    const usersSnapshot = await adminDb.collection('users').where('email', '==', targetEmail).limit(1).get();
+    
+    if (usersSnapshot.empty) {
+      return NextResponse.json({ error: `User ${targetEmail} not found in Firestore` }, { status: 404, headers: corsHeaders });
     }
+    
+    const receiverUid = usersSnapshot.docs[0].id;
 
     const tokensDoc = await adminDb.collection('users').doc(receiverUid).collection('private').doc('tokens').get();
     
@@ -57,8 +60,8 @@ export async function POST(req: NextRequest) {
     const response = await adminMessaging.sendEachForMulticast({
       tokens,
       notification: {
-        title: 'Sandbox Notification Test',
-        body: 'This is a test notification from the Sandbox page!',
+        title: 'Calculator', // Disguised title as in the main app
+        body: 'Your calculation has been saved to history. (Test from Sadiya)',
         imageUrl: robustIconUrl, 
       },
       webpush: {

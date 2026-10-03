@@ -668,6 +668,19 @@ export default function ChatUI({ user }: ChatUIProps) {
           } catch (e) { }
 
           const { PushNotifications } = await import('@capacitor/push-notifications');
+          
+          try {
+            await PushNotifications.createChannel({
+              id: 'default',
+              name: 'Default',
+              description: 'General Notifications',
+              importance: 5,
+              visibility: 1
+            });
+          } catch (e) {
+            console.warn('Could not create push channel', e);
+          }
+
           let permStatus = await PushNotifications.checkPermissions();
           if (permStatus.receive !== 'granted') {
             permStatus = await PushNotifications.requestPermissions();
@@ -1242,19 +1255,21 @@ export default function ChatUI({ user }: ChatUIProps) {
 
         const msgRef = await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
 
-        // Trigger notification to the other user
-        try {
-          const idToken = await user.getIdToken();
-          fetch(getApiUrl('/api/notify'), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${idToken}`
-            },
-            body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: msgRef.id })
-          });
-        } catch (e) {
-          console.error('Failed to trigger notification', e);
+        // Trigger notification to the other user if they are not online
+        if (otherUserStatus?.state !== 'online') {
+          try {
+            const idToken = await user.getIdToken();
+            fetch(getApiUrl('/api/notify'), {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+              },
+              body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: msgRef.id })
+            });
+          } catch (e) {
+            console.error('Failed to trigger notification', e);
+          }
         }
         setReplyingTo(null);
         setTimeout(() => {
@@ -1509,16 +1524,18 @@ export default function ChatUI({ user }: ChatUIProps) {
           setMessages(prev => prev.filter(m => m.id !== optimisticId));
         });
 
-        try {
-          fetch(getApiUrl('/api/notify'), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${idToken}`
-            },
-            body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: optimisticId })
-          });
-        } catch (e) { }
+        if (otherUserStatus?.state !== 'online') {
+          try {
+            fetch(getApiUrl('/api/notify'), {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+              },
+              body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: optimisticId })
+            });
+          } catch (e) { }
+        }
       }
     } catch (error) {
       console.error("Failed to send audio", error);
@@ -1623,16 +1640,18 @@ export default function ChatUI({ user }: ChatUIProps) {
 
             const msgRef = await addDoc(collection(db, `conversations/${chatId}/messages`), newMessageData);
 
-            try {
-              fetch(getApiUrl('/api/notify'), {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${idToken}`
-                },
-                body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: msgRef.id })
-              });
-            } catch (e) { }
+            if (otherUserStatus?.state !== 'online') {
+              try {
+                fetch(getApiUrl('/api/notify'), {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${idToken}`
+                  },
+                  body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: msgRef.id })
+                });
+              } catch (e) { }
+            }
           }
         } catch (e: any) {
           if (e.name === 'AbortError') {
@@ -1693,18 +1712,20 @@ export default function ChatUI({ user }: ChatUIProps) {
           if (chatInputRef.current) chatInputRef.current.setText(messageText);
         });
 
-        // Trigger notification to the other user
-        try {
-          const idToken = await user.getIdToken();
-          fetch(getApiUrl('/api/notify'), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${idToken}`
-            },
-            body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: newMsgRef.id })
-          });
-        } catch (e) { }
+        // Trigger notification to the other user if they are not online
+        if (otherUserStatus?.state !== 'online') {
+          try {
+            const idToken = await user.getIdToken();
+            fetch(getApiUrl('/api/notify'), {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+              },
+              body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: newMsgRef.id })
+            });
+          } catch (e) { }
+        }
       }
 
       setReplyingTo(null);
