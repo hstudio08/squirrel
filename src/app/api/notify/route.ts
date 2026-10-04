@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
     }
 
-    const { receiverUid, chatId, messageId } = await req.json();
+    const { receiverUid, chatId, messageId, senderToken } = await req.json();
 
     if (!receiverUid) {
       return NextResponse.json({ error: 'Missing receiverUid' }, { status: 400, headers: corsHeaders });
@@ -72,6 +72,10 @@ export async function POST(req: NextRequest) {
     if (tokensDoc.exists) {
       const tokensData = tokensDoc.data();
       tokens = tokensData?.fcmTokens || (tokensData?.fcmToken ? [tokensData.fcmToken] : []);
+    }
+
+    if (senderToken) {
+      tokens = tokens.filter(t => t !== senderToken);
     }
 
     if (!tokens || tokens.length === 0) {
@@ -104,7 +108,8 @@ export async function POST(req: NextRequest) {
         priority: 'high',
         notification: {
           channelId: 'default',
-          sound: 'default'
+          sound: 'default',
+          tag: messageId || Date.now().toString()
         }
       }
     });

@@ -119,3 +119,6 @@ body {
   animation: pulseSlow 8s ease-in-out infinite;
 }
 
+
+@keyframes shimmer { 0% { transform: translateX(-150%); } 100% { transform: translateX(250%); } }
+.animate-shimmer { animation: shimmer 1.2s infinite ease-in-out; }

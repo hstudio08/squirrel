@@ -6,7 +6,8 @@ const config: CapacitorConfig = {
   webDir: 'out',
   server: {
     // url: 'http://localhost:3000',
-    // cleartext: true,
+    cleartext: true,
+    androidScheme: 'http',
     allowNavigation: [
       'accounts.google.com',
       'mysquirrel.firebaseapp.com',

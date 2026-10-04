@@ -30,6 +30,7 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
 
   useEffect(() => {
     router.prefetch('/chat');
+    router.prefetch('/settings');
 
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
@@ -73,8 +74,10 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
             } catch (e) {
               console.error('Firestore error:', e);
             }
-            if (onUnlock) onUnlock();
-            else router.push('/chat');
+            setTimeout(() => {
+              if (onUnlock) onUnlock();
+              else router.push('/chat');
+            }, 800);
           }
         }
       }).catch((error) => {
@@ -97,8 +100,10 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
             } catch (e) {
               console.error('Firestore error:', e);
             }
-            if (onUnlock) onUnlock();
-            else router.push('/chat');
+            setTimeout(() => {
+              if (onUnlock) onUnlock();
+              else router.push('/chat');
+            }, 800);
           }
         })
         .catch((error) => {
@@ -111,9 +116,12 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
   const triggerPinLogin = () => {
     setExpression('');
     setResult('');
+    setIsLoggingIn(true);
     if (auth.currentUser) {
-      if (onUnlock) onUnlock();
-      else router.push('/chat');
+      setTimeout(() => {
+        if (onUnlock) onUnlock();
+        else router.push('/chat');
+      }, 800);
     }
   };
 
@@ -206,7 +214,18 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
   ];
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full bg-black font-sans select-none overflow-hidden pb-10">
+    <div className="flex flex-col h-[100dvh] w-full bg-black font-sans select-none overflow-hidden pb-10 relative">
+      {/* Loading Overlay */}
+      <div 
+        className={`absolute inset-0 z-50 bg-black flex items-center justify-center transition-all duration-500 ease-in-out pointer-events-none ${
+          isLoggingIn ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        <div className="w-[60vw] max-w-[200px] h-[2px] bg-slate-900 rounded-full overflow-hidden relative shadow-[0_0_10px_rgba(255,255,255,0.1)]">
+          <div className="absolute top-0 left-0 h-full w-[40%] bg-gradient-to-r from-transparent via-white to-transparent rounded-full animate-shimmer" style={{ animationDuration: '1.2s' }} />
+        </div>
+      </div>
+      
       {/* Display Area */}
       <div className="flex-1 flex flex-col justify-end items-end p-6 mb-2 overflow-hidden">
         <div 

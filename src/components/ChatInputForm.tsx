@@ -490,7 +490,7 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
               type="submit"
               disabled={true}
               onPointerDown={(e) => e.preventDefault()}
-              className="group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-all duration-300 ease-out outline-none bg-blue-500/80   border border-blue-400/50 text-white shadow-[0_4px_16px_rgba(59,130,246,0.25)] opacity-50"
+              className="group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-all duration-300 ease-out outline-none bg-slate-200 border border-slate-300 text-slate-400 shadow-sm opacity-80"
             >
               <Send size={20} strokeWidth={2.5} className="ml-0.5" />
             </button>
@@ -499,12 +499,13 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
               type="submit"
               disabled={isSending}
               onPointerDown={(e) => e.preventDefault()}
-              className="group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-all duration-300 ease-out outline-none bg-blue-500/80   border border-blue-400/50 text-white shadow-[0_4px_16px_rgba(59,130,246,0.25)] hover:bg-blue-500/90 hover:scale-105 active:scale-95"
+              className="group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full outline-none text-white overflow-hidden transition-all duration-[400ms] cubic-bezier(0.175,0.885,0.32,1.275) active:scale-90 hover:scale-[1.05] bg-gradient-to-br from-emerald-400 to-teal-600 shadow-[0_6px_20px_rgba(16,185,129,0.35)] hover:shadow-[0_8px_25px_rgba(16,185,129,0.5)] border border-emerald-400/30"
             >
+              <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/30 to-white/0 translate-x-[-150%] skew-x-[-20deg] group-hover:translate-x-[150%] transition-transform duration-700 ease-in-out" />
               {isSending ? (
-                <Loader2 size={20} className="animate-spin" strokeWidth={2.5} />
+                <Loader2 size={20} className="animate-spin relative z-10" strokeWidth={2.5} />
               ) : (
-                <Send size={20} strokeWidth={2.5} className="ml-0.5 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-transform duration-300" />
+                <Send size={20} strokeWidth={2.5} className="ml-0.5 relative z-10 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-active:scale-95 transition-transform duration-300" />
               )}
             </button>
           )}

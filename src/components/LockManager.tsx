@@ -21,7 +21,7 @@ export default function LockManager() {
       if (snap.val() === true) {
         onDisconnect(myStatusRef).set({ state: 'offline', last_changed: rtdbServerTimestamp() }).then(() => {
           if (document.visibilityState !== 'hidden') {
-            set(myStatusRef, { state: isLocked ? 'logging_in' : 'online', last_changed: rtdbServerTimestamp() });
+            set(myStatusRef, { state: (isLocked || pathname === '/') ? 'logging_in' : 'online', last_changed: rtdbServerTimestamp() });
           } else {
             set(myStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
           }
@@ -33,7 +33,7 @@ export default function LockManager() {
       if (document.visibilityState === 'hidden') {
         set(myStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
       } else {
-        set(myStatusRef, { state: isLocked ? 'logging_in' : 'online', last_changed: rtdbServerTimestamp() });
+        set(myStatusRef, { state: (isLocked || pathname === '/') ? 'logging_in' : 'online', last_changed: rtdbServerTimestamp() });
       }
     };
     document.addEventListener("visibilitychange", handleVis);
@@ -43,7 +43,7 @@ export default function LockManager() {
       document.removeEventListener("visibilitychange", handleVis);
       set(myStatusRef, { state: 'offline', last_changed: rtdbServerTimestamp() });
     };
-  }, [user, isLocked]);
+  }, [user, isLocked, pathname]);
 
   useEffect(() => {
     let appListener: any;

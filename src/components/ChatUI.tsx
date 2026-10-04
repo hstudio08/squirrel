@@ -209,10 +209,11 @@ const PurePrivacyCurtain = ({ onClose }: { onClose: () => void }) => {
 };
 
 const getApiUrl = (path: string) => {
-  if (typeof window !== 'undefined' && window.origin && (window.origin === 'http://localhost' || window.origin === 'capacitor://localhost') && window.location.port !== '3000') {
-    return `https://mysquirrel.vercel.app${path}`;
+  const resolvedPath = path.endsWith('/') ? path : `${path}/`;
+  if (typeof window !== 'undefined' && window.origin && (window.origin === 'https://localhost' || window.origin === 'http://localhost' || window.origin === 'capacitor://localhost') && window.location.port !== '3000') {
+    return `http://10.153.85.8:3000${resolvedPath}`;
   }
-  return path;
+  return resolvedPath;
 };
 
 const getReplyText = (msg: Message) => {
@@ -250,8 +251,8 @@ export default function ChatUI({ user }: ChatUIProps) {
   const [uploadController, setUploadController] = useState<AbortController | null>(null);
 
   const chatId = 'private-chat';
-  const isPartner = user.email === 'sadiyaayoub22019@gmail.com';
-  const otherEmail = isPartner ? 'officialhaadi81@gmail.com' : 'sadiyaayoub22019@gmail.com';
+  const isPartner = user.email === 'sadiyaayoub22019@gmail.com' || user.email === 'officialhaadi81@gmail.com';
+  const otherEmail = user.email === 'sadiyaayoub22019@gmail.com' ? 'officialhaadi81@gmail.com' : 'sadiyaayoub22019@gmail.com';
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<any>(null);
@@ -275,6 +276,8 @@ export default function ChatUI({ user }: ChatUIProps) {
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ title: string; description: string; confirmText?: string; onConfirm: () => void; isDestructive?: boolean } | null>(null);
   const [otherUserAbout, setOtherUserAbout] = useState<string>('');
+  const [unreadDividerMsgId, setUnreadDividerMsgId] = useState<string | null>(null);
+  const [unreadDividerCount, setUnreadDividerCount] = useState<number>(0);
 
 
   const showToast = (message: string) => {
@@ -688,6 +691,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           if (permStatus.receive === 'granted') {
             await PushNotifications.register();
             PushNotifications.addListener('registration', async (token) => {
+              localStorage.setItem('fcmToken', token.value);
               await setDoc(doc(db, "users", user.uid, "private", "tokens"), {
                 fcmTokens: arrayUnion(token.value)
               }, { merge: true });
@@ -704,6 +708,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                 serviceWorkerRegistration: registration
               });
               if (token) {
+                localStorage.setItem('fcmToken', token);
                 await setDoc(doc(db, "users", user.uid, "private", "tokens"), {
                   fcmTokens: arrayUnion(token)
                 }, { merge: true });
@@ -1265,7 +1270,12 @@ export default function ChatUI({ user }: ChatUIProps) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${idToken}`
               },
-              body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: msgRef.id })
+              body: JSON.stringify({ 
+                receiverUid: otherUid, 
+                chatId, 
+                messageId: msgRef.id,
+                senderToken: localStorage.getItem('fcmToken')
+              })
             });
           } catch (e) {
             console.error('Failed to trigger notification', e);
@@ -1532,7 +1542,12 @@ export default function ChatUI({ user }: ChatUIProps) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${idToken}`
               },
-              body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: optimisticId })
+              body: JSON.stringify({ 
+                receiverUid: otherUid, 
+                chatId, 
+                messageId: optimisticId,
+                senderToken: localStorage.getItem('fcmToken')
+              })
             });
           } catch (e) { }
         }
@@ -1648,7 +1663,12 @@ export default function ChatUI({ user }: ChatUIProps) {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${idToken}`
                   },
-                  body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: msgRef.id })
+                  body: JSON.stringify({ 
+                    receiverUid: otherUid, 
+                    chatId, 
+                    messageId: msgRef.id,
+                    senderToken: localStorage.getItem('fcmToken')
+                  })
                 });
               } catch (e) { }
             }
@@ -1722,7 +1742,12 @@ export default function ChatUI({ user }: ChatUIProps) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${idToken}`
               },
-              body: JSON.stringify({ receiverUid: otherUid, chatId, messageId: newMsgRef.id })
+              body: JSON.stringify({ 
+                receiverUid: otherUid, 
+                chatId, 
+                messageId: newMsgRef.id,
+                senderToken: localStorage.getItem('fcmToken')
+              })
             });
           } catch (e) { }
         }
@@ -1772,6 +1797,28 @@ export default function ChatUI({ user }: ChatUIProps) {
     }
   }, [showScrollBottom, visibleMessages]);
 
+  useEffect(() => {
+    if (unreadDividerMsgId === null && !isLoadingMessages) {
+      if (visibleMessages.length > 0) {
+        const firstUnreadIndex = visibleMessages.findIndex(m => !m.seen && m.senderId !== user?.uid);
+        if (firstUnreadIndex !== -1) {
+          setUnreadDividerMsgId(visibleMessages[firstUnreadIndex].id);
+          let count = 0;
+          for (let i = firstUnreadIndex; i < visibleMessages.length; i++) {
+            if (!visibleMessages[i].seen && visibleMessages[i].senderId !== user?.uid) {
+              count++;
+            }
+          }
+          setUnreadDividerCount(count);
+        } else {
+          setUnreadDividerMsgId('none');
+        }
+      } else {
+        setUnreadDividerMsgId('none');
+      }
+    }
+  }, [visibleMessages, user?.uid, unreadDividerMsgId, isLoadingMessages]);
+
   const unreadCountWhileScrolled = useMemo(() => {
     if (!showScrollBottom || !bottomReadMessageId || visibleMessages.length === 0) return 0;
     const readIndex = visibleMessages.findIndex(m => m.id === bottomReadMessageId);
@@ -1818,6 +1865,14 @@ export default function ChatUI({ user }: ChatUIProps) {
               </div>
             </div>
           )}
+          {msg.id === unreadDividerMsgId && (
+            <div className="flex justify-center mb-3 mt-1 z-10 relative pointer-events-none w-full animate-pop-in">
+              <div className="bg-white/90 text-emerald-500 font-bold text-[11px] px-3 py-1.5 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.06)] tracking-wide flex items-center gap-1.5 border border-black/5">
+                <span className="w-4 h-4 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[10px] leading-none">{unreadDividerCount}</span>
+                UNREAD MESSAGE{unreadDividerCount > 1 ? 'S' : ''}
+              </div>
+            </div>
+          )}
           <div className={isNewSenderGroup ? "mt-2" : ""}>
             <div id={`msg-${msg.id}`} className={`transition-all duration-300 ${searchResults.includes(msg.id) ? (searchResults[currentSearchIndex] === msg.id ? 'bg-amber-200/40 ring-2 ring-amber-400 rounded-lg shadow-sm px-1 py-1' : 'bg-amber-100/20 rounded-lg px-1 py-1') : ''}`}>
               <MessageItem searchQuery={searchQuery}
@@ -1849,7 +1904,7 @@ export default function ChatUI({ user }: ChatUIProps) {
         </React.Fragment>
       );
     });
-  }, [visibleMessages, loadedCount, user, chatId, searchQuery, searchResults, currentSearchIndex, privacyMode, revealedMessages, activeReactionMessageId, selectionMode, selectedMessages, expandedMessageId, pinnedMessage, otherEmail, formatDateSeparator, handlePinToggle]);
+  }, [visibleMessages, loadedCount, user, chatId, searchQuery, searchResults, currentSearchIndex, privacyMode, revealedMessages, activeReactionMessageId, selectionMode, selectedMessages, expandedMessageId, pinnedMessage, otherEmail, formatDateSeparator, handlePinToggle, unreadDividerMsgId, unreadDividerCount]);
 
   return (
     <div 
@@ -2009,7 +2064,7 @@ export default function ChatUI({ user }: ChatUIProps) {
               <Settings size={22} className="group-hover:rotate-45 transition-transform" />
             </button>
 
-            {user.email === 'officialhaadi81@gmail.com' && (
+            {(user.email === 'officialhaadi81@gmail.com') && (
               <button onClick={() => {
                 setConfirmAction({
                   title: 'Copy Messages?',
@@ -2238,12 +2293,10 @@ export default function ChatUI({ user }: ChatUIProps) {
         {/* Memoized rendered messages */}
 
         {isLoadingMessages ? (
-          <div className="flex flex-col space-y-4 w-full h-full justify-end pb-4 px-2 mt-auto">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className={`flex w-full ${i % 2 !== 0 ? 'justify-end' : 'justify-start'}`}>
-                <div className={`skeleton-blue h-[45px] ${i % 2 !== 0 ? 'w-2/3 rounded-2xl rounded-tr-sm' : 'w-1/2 rounded-2xl rounded-tl-sm'}`}></div>
-              </div>
-            ))}
+          <div className="absolute inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-pulse-slow">
+            <div className="w-[60vw] max-w-[200px] h-[2px] bg-slate-900 rounded-full overflow-hidden relative shadow-[0_0_10px_rgba(255,255,255,0.05)]">
+              <div className="absolute top-0 left-0 h-full w-[40%] bg-gradient-to-r from-transparent via-white to-transparent rounded-full animate-shimmer" style={{ animationDuration: '1.2s' }} />
+            </div>
           </div>
         ) : renderedMessages}
 
