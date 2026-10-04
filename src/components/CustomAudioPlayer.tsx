@@ -141,7 +141,9 @@ export default function CustomAudioPlayer({ src, autoPreload = false, onPlay }: 
         className="shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-blue-500 hover:bg-blue-600 text-white transition-colors"
       >
         {isLoading && !isPlaying ? (
-          <Loader2 size={20} className="animate-spin" />
+          <div className="w-5 h-[2px] bg-white/30 rounded overflow-hidden relative">
+            <div className="w-1/2 h-full bg-white rounded absolute" style={{ animation: 'chatInputLoad 1.5s infinite ease-in-out' }} />
+          </div>
         ) : isPlaying ? (
           <Pause size={20} fill="currentColor" />
         ) : (

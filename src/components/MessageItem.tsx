@@ -84,6 +84,8 @@ interface MessageItemProps {
   isPinned?: boolean;
   onPinToggle?: () => void;
   autoPreloadAudio?: boolean;
+  isFirstInGroup?: boolean;
+  isLastInGroup?: boolean;
 }
 
 const formatTime = (timestamp: Timestamp | number | Date | any) => {
@@ -99,7 +101,9 @@ const formatTime = (timestamp: Timestamp | number | Date | any) => {
 export const MessageItemComponent = function MessageItem({ message, isMine, user, chatId, isFirstUnreplied, onReply, isAnonymousMode = false, isLastMessage = false, isRevealed = false, onReveal, isActiveReaction = false, onReactOpen, onReactClose, otherEmail, selectionMode = false, isSelected = false, onToggleSelect,
     isPinned = false,
     onPinToggle,
-    autoPreloadAudio = false
+    autoPreloadAudio = false,
+    isFirstInGroup = true,
+    isLastInGroup = true
   }: MessageItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -331,7 +335,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
       if (diffX > 0 && onReply) {
         const visualX = diffX < 60 ? diffX : 60 + (diffX - 60) * 0.2;
         setTranslateX(Math.min(visualX, 80));
-      } else if (diffX < 0 && isAnonymousMode && !isLastMessage) {
+      } else if (diffX < 0 && isAnonymousMode) {
         const visualX = diffX > -60 ? diffX : -60 + (diffX + 60) * 0.2;
         setTranslateX(Math.max(visualX, -80));
       }
@@ -374,14 +378,16 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
       if (window.navigator.vibrate) {
         window.navigator.vibrate(50);
       }
-    } else if (translateX < -50 && isAnonymousMode && !isLastMessage && onReveal && !message.isDeletedForEveryone && !isEditing) {
+    } else if (translateX < -50 && isAnonymousMode && onReveal && !message.isDeletedForEveryone && !isEditing) {
       onReveal();
       if (window.navigator.vibrate) {
         window.navigator.vibrate(50);
       }
     } else if (Math.abs(translateX) < 10) {
       // Single tap on the bubble itself (not on a popup)
-      if (!isActiveReaction && !showOptions && !showDeleteConfirm) {
+      if (shouldMask && onReveal) {
+        onReveal();
+      } else if (!isActiveReaction && !showOptions && !showDeleteConfirm) {
         // Selection handled by onClick on outer wrapper
       } else {
         // Tapped outside popup â€” close everything
@@ -474,7 +480,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
     <div
       ref={itemRef}
       id={`message-${message.id}`}
-      className={`flex w-full ${isMine ? 'justify-end animate-message-sent' : 'justify-start animate-message-received'} mb-2.5 relative cursor-pointer`}
+      className={`flex w-full ${isMine ? 'justify-end animate-message-sent' : 'justify-start animate-message-received'} ${isLastInGroup ? 'mb-2.5' : 'mb-[2px]'} relative cursor-pointer`}
       onPointerDown={handleOuterPointerDown}
       onPointerUp={handleOuterPointerUp}
       onPointerLeave={handleOuterPointerUp}
@@ -516,13 +522,6 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
           transition: translateX === 0 ? 'transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28)' : 'none',
           touchAction: 'pan-y'
         }}
-        onClick={(e) => {
-          if (shouldMask && onReveal) {
-            e.stopPropagation();
-            onReveal();
-            return;
-          }
-        }}
         onDoubleClick={(e) => {
               e.stopPropagation();
               if (selectionMode) { if (onToggleSelect) onToggleSelect(); return; }
@@ -532,10 +531,10 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
           }}
           className={`relative max-w-[85%] sm:max-w-[70%] rounded-[22px] px-2.5 pt-1.5 pb-1 shadow-sm border transition-colors ${Math.abs(translateX) > 0 ? 'select-none' : ''} ${showOptions || showDeleteConfirm ? 'scale-[0.98] brightness-95' : ''} ${
           isSelected 
-            ? 'bg-blue-500/10 text-[#111b21] border-blue-500/30 ring-2 ring-blue-500/20 ' + (isMine ? 'rounded-tr-[4px]' : 'rounded-tl-[4px]')
+            ? `bg-blue-500/10 text-[#111b21] border-blue-500/30 ring-2 ring-blue-500/20 ${isMine ? `rounded-tr-[4px] ${!isLastInGroup ? 'rounded-br-[4px]' : ''}` : `rounded-tl-[4px] ${!isLastInGroup ? 'rounded-bl-[4px]' : ''}`}`
             : isMine
-              ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-[4px] border-[#c8eed4] cursor-pointer'
-              : 'bg-white text-[#111b21] rounded-tl-[4px] border-white cursor-pointer'
+              ? `bg-[#d9fdd3] text-[#111b21] border-[#c8eed4] cursor-pointer rounded-tr-[4px] ${!isLastInGroup ? 'rounded-br-[4px]' : ''}`
+              : `bg-white text-[#111b21] border-white cursor-pointer rounded-tl-[4px] ${!isLastInGroup ? 'rounded-bl-[4px]' : ''}`
         } ${isFirstUnreplied ? 'border-t-[3px] border-t-blue-400 shadow-sm mt-1' : ''} `}
       >
         {selectionMode && (
@@ -704,7 +703,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
 
 
         {message.replyToId && !message.isDeletedForEveryone && (
-          <div onClick={(e) => { e.stopPropagation(); scrollToMessage(message.replyToId!); }} className={`mb-1.5 p-1.5 bg-black/5 rounded flex flex-col border-l-[3px] border-l-teal-500 overflow-hidden text-left relative before:absolute before:inset-0 before:bg-white/40 before:-z-10 cursor-pointer hover:bg-black/10 transition-all duration-300 ${shouldMask ? ' blur-sm text-transparent bg-slate-300 opacity-80 select-none pointer-events-none' : ''}`}>
+          <div onClick={(e) => { e.stopPropagation(); scrollToMessage(message.replyToId!); }} className={`mb-1.5 p-1.5 bg-black/5 rounded flex flex-col border-l-[3px] border-l-teal-500 overflow-hidden text-left relative before:absolute before:inset-0 before:bg-white/40 before:-z-10 cursor-pointer hover:bg-black/10 transition-all duration-300 ${shouldMask ? ' blur-[4px] opacity-70 select-none pointer-events-none' : ''}`}>
             <span className="text-[11px] font-semibold text-teal-600 truncate leading-tight">
               {message.replyToSenderId === user.uid ? 'You' : 'They'}
             </span>
@@ -757,7 +756,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
               const remainingCount = urls.length > 4 ? urls.length - 4 : 0;
               
               return (
-                <div className={`mb-1.5 pointer-events-auto transition-all duration-300 ${isGrid ? 'grid grid-cols-2 gap-[2px] rounded-xl overflow-hidden bg-black/10' : 'rounded-xl overflow-hidden bg-black/5 relative'} animate-pop-in ${shouldMask ? ' blur-sm text-transparent bg-slate-300 opacity-80 select-none pointer-events-none' : ''}`} style={!isGrid ? { maxWidth: '200px', maxHeight: '240px' } : { width: '100%', maxWidth: '240px' }}>
+                <div className={`mb-1.5 pointer-events-auto transition-all duration-300 ${isGrid ? 'grid grid-cols-2 gap-[2px] rounded-xl overflow-hidden bg-black/10' : 'rounded-xl overflow-hidden bg-black/5 relative'} animate-pop-in ${shouldMask ? ' blur-[4px] opacity-70 select-none pointer-events-none' : ''}`} style={!isGrid ? { maxWidth: '200px', maxHeight: '240px' } : { width: '100%', maxWidth: '240px' }}>
                   {displayUrls.map((url, idx) => {
                     const isLastDisplay = idx === 3;
                     const isThirdOfThree = urls.length === 3 && idx === 2;
@@ -883,7 +882,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
             })()}
             
             {message.audioUrl && !message.isDeletedForEveryone && (
-              <div className={`mt-1 mb-1 relative z-10 w-[240px] transition-all duration-300 ${shouldMask ? ' blur-sm text-transparent bg-slate-300 opacity-80 select-none pointer-events-none' : ''}`}>
+              <div className={`mt-1 mb-1 relative z-10 w-[240px] transition-all duration-300 ${shouldMask ? ' blur-[4px] opacity-70 select-none pointer-events-none' : ''}`}>
                 <CustomAudioPlayer 
                   src={message.audioUrl}
                   autoPreload={autoPreloadAudio}
@@ -892,7 +891,7 @@ export const MessageItemComponent = function MessageItem({ message, isMine, user
               </div>
             )}
 
-            <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 transition-all duration-300 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''} ${shouldMask ? ' blur-sm text-transparent bg-slate-300 opacity-80 select-none pointer-events-none' : ''}`}>
+            <p className={`text-[15px] whitespace-pre-wrap break-words leading-snug pr-2 transition-all duration-300 ${message.isDeletedForEveryone ? 'italic text-black/50 flex items-center' : ''} ${shouldMask ? ' blur-[4px] opacity-70 select-none pointer-events-none' : ''}`}>
               {message.isDeletedForEveryone ? (
                 <>
                   <span className="italic font-light text-[14px] text-black/50 tracking-wide">This message was deleted</span>

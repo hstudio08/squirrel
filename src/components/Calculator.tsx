@@ -17,6 +17,7 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
   const [expression, setExpression] = useState('');
   const [result, setResult] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -38,7 +39,11 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
         if (!savedPin) {
           if (onUnlock) onUnlock();
           else router.push('/chat');
+        } else {
+          setIsInitializing(false);
         }
+      } else {
+        setIsInitializing(false);
       }
     });
     return () => unsubscribe();
@@ -214,52 +219,65 @@ export default function Calculator({ onUnlock }: CalculatorProps = {}) {
   ];
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full bg-black font-sans select-none overflow-hidden pb-10 relative">
+    <div className="relative h-[100dvh] w-full bg-black overflow-hidden select-none font-sans">
       {/* Loading Overlay */}
       <div 
-        className={`absolute inset-0 z-50 bg-black flex items-center justify-center transition-all duration-500 ease-in-out pointer-events-none ${
-          isLoggingIn ? 'opacity-100' : 'opacity-0'
+        className={`absolute inset-0 z-50 flex items-center justify-center transition-all duration-[800ms] cubic-bezier(0.16,1,0.3,1) pointer-events-none ${
+          (isLoggingIn || isInitializing) ? 'opacity-100 backdrop-blur-3xl bg-black/60 scale-100' : 'opacity-0 backdrop-blur-none bg-black/0 scale-110'
         }`}
       >
-        <div className="w-[60vw] max-w-[200px] h-[2px] bg-slate-900 rounded-full overflow-hidden relative shadow-[0_0_10px_rgba(255,255,255,0.1)]">
-          <div className="absolute top-0 left-0 h-full w-[40%] bg-gradient-to-r from-transparent via-white to-transparent rounded-full animate-shimmer" style={{ animationDuration: '1.2s' }} />
+        <div className={`w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_0_40px_rgba(255,255,255,0.1)] transition-transform duration-[800ms] cubic-bezier(0.16,1,0.3,1) delay-100 ${(isLoggingIn || isInitializing) ? 'scale-100' : 'scale-50'}`}>
+          <div className="w-8 h-[2px] bg-white/20 relative overflow-hidden rounded-full">
+            <div className="w-1/2 h-full bg-white absolute rounded-full" style={{ animation: 'calcLoad 1.5s infinite ease-in-out' }} />
+            <style dangerouslySetInnerHTML={{__html: `
+              @keyframes calcLoad {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(250%); }
+              }
+            `}} />
+          </div>
         </div>
       </div>
       
-      {/* Display Area */}
-      <div className="flex-1 flex flex-col justify-end items-end p-6 mb-2 overflow-hidden">
-        <div 
-          className="text-white text-right w-full break-all font-light tracking-tight"
-          style={{
-            fontSize: (result || expression).length > 8 ? '2.5rem' : ((result || expression).length > 5 ? '4rem' : '5.5rem'),
-            lineHeight: 1.1,
-            transition: 'font-size 0.1s ease-in-out'
-          }}
-        >
-          {result || expression || '0'}
+      {/* Main Content */}
+      <div className={`flex flex-col h-full w-full pb-10 transition-all duration-[800ms] cubic-bezier(0.16,1,0.3,1) ${
+          (isLoggingIn || isInitializing) ? 'scale-[0.95] opacity-0 blur-[10px]' : 'scale-100 opacity-100 blur-0'
+        }`}>
+        {/* Display Area */}
+        <div className="flex-1 flex flex-col justify-end items-end p-6 mb-2 overflow-hidden">
+          <div 
+            className="text-white text-right w-full break-all font-light tracking-tight"
+            style={{
+              fontSize: (result || expression).length > 8 ? '2.5rem' : ((result || expression).length > 5 ? '4rem' : '5.5rem'),
+              lineHeight: 1.1,
+              transition: 'font-size 0.1s ease-in-out'
+            }}
+          >
+            {result || expression || '0'}
+          </div>
         </div>
-      </div>
-      
-      {/* Keypad */}
-      <div className="grid grid-cols-4 gap-[min(4vw,14px)] max-w-[450px] w-full mx-auto px-[min(6vw,20px)]">
-        {buttons.map((btn, i) => {
-          const isZero = btn.label === '0';
-          return (
-            <button
-              key={i}
-              onClick={btn.onClick}
-              className={`
-                aspect-square rounded-full text-3xl sm:text-4xl font-normal flex items-center transition-colors active:opacity-70
-                ${isZero ? 'col-span-2 !aspect-auto justify-start pl-[min(8vw,1.75rem)]' : 'justify-center'}
-                ${btn.type === 'action' ? 'bg-[#a5a5a5] text-black active:bg-[#d4d4d2]' : ''}
-                ${btn.type === 'operator' ? 'bg-[#ffcc00] text-black active:bg-[#ffe6a7]' : ''}
-                ${btn.type === 'number' ? 'bg-[#333333] text-white active:bg-[#737373]' : ''}
-              `}
-            >
-              {btn.label}
-            </button>
-          );
-        })}
+        
+        {/* Keypad */}
+        <div className="grid grid-cols-4 gap-[min(4vw,14px)] max-w-[450px] w-full mx-auto px-[min(6vw,20px)]">
+          {buttons.map((btn, i) => {
+            const isZero = btn.label === '0';
+            return (
+              <button
+                key={i}
+                onClick={btn.onClick}
+                className={`
+                  aspect-square rounded-full text-3xl sm:text-4xl font-normal flex items-center transition-all duration-200 active:scale-95
+                  ${isZero ? 'col-span-2 !aspect-auto justify-start pl-[min(8vw,1.75rem)]' : 'justify-center'}
+                  ${btn.type === 'action' ? 'bg-[#a5a5a5] text-black active:bg-[#d4d4d2]' : ''}
+                  ${btn.type === 'operator' ? 'bg-[#ffcc00] text-black active:bg-[#ffe6a7]' : ''}
+                  ${btn.type === 'number' ? 'bg-[#333333] text-white active:bg-[#737373]' : ''}
+                `}
+              >
+                {btn.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

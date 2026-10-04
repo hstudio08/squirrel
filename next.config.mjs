@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
+  output: 'export',
   trailingSlash: true,
   serverExternalPackages: ['firebase-admin', 'jwks-rsa', 'jose'],
   images: {

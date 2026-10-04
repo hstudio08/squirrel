@@ -59,10 +59,21 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
     }));
 
     useEffect(() => {
+      if (showEmojiPicker && emojiPickerRef.current) {
+        setTimeout(() => {
+          const scrollable = emojiPickerRef.current?.querySelector('.epr-body');
+          if (scrollable) {
+            scrollable.scrollTop = 0;
+          }
+        }, 10);
+      }
+    }, [showEmojiPicker]);
+
+    useEffect(() => {
       const handleClickOutside = (event: MouseEvent | TouchEvent) => {
         const target = event.target as Element;
         if (emojiPickerRef.current && !emojiPickerRef.current.contains(target as Node)) {
-          if (!target.closest('#emoji-toggle-btn')) {
+          if (!target.closest('#chat-input-form')) {
             setShowEmojiPicker(false);
           }
         }
@@ -304,47 +315,61 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
     const isInputEmpty = !text.trim() && pastedImagesLength === 0;
 
     return (
-      <>
-        {showEmojiPicker && !isRecording && (
-          <div ref={emojiPickerRef} className="absolute bottom-[70px] left-2 sm:left-4 z-30 animate-pop-in">
-            <EmojiPicker emojiStyle={"native" as any}
-              onEmojiClick={onEmojiClick}
-              theme={Theme.LIGHT}
-              lazyLoadEmojis
-              searchDisabled
-              skinTonesDisabled
-              width={280}
-              height={350}
-            />
-          </div>
-        )}
-        <form onSubmit={handleSubmit} className="flex items-end space-x-2 max-w-4xl mx-auto relative z-20 pointer-events-auto w-full">
+      <div className="w-full flex flex-col relative z-20 pointer-events-auto">
+        {/* Sleek Horizontal Loader */}
+        <div className={`absolute -top-1 left-0 w-full h-[2px] bg-transparent overflow-hidden transition-opacity duration-300 z-50 ${isSending ? 'opacity-100' : 'opacity-0'}`}>
+          <div className="w-1/2 h-full bg-emerald-500 rounded-full absolute" style={{ animation: 'chatInputLoad 1.5s infinite ease-in-out' }} />
+          <style dangerouslySetInnerHTML={{__html: `
+            @keyframes chatInputLoad {
+              0% { transform: translateX(-100%); }
+              100% { transform: translateX(250%); }
+            }
+          `}} />
+        </div>
+        <form id="chat-input-form" onSubmit={handleSubmit} className="flex items-end space-x-1.5 sm:space-x-2 max-w-4xl mx-auto w-full mb-1 pl-2 pr-3 sm:px-4">
           {isRecording ? (
-            <div className="flex-1 flex items-center bg-white rounded-[24px] overflow-hidden px-4 h-[44px] justify-between shadow-sm animate-fade-in border border-red-100 relative">
+            <div className="flex-1 flex items-center bg-white rounded-full overflow-hidden px-4 h-[44px] justify-between shadow-sm border border-red-400/50 relative">
               <div className="flex items-center space-x-3 text-red-500 animate-pulse">
                 <Mic size={20} className="fill-red-500" />
                 <span className="font-medium text-[15px]">{formatTime(recordingTime)}</span>
               </div>
-              <div className="text-slate-400 font-medium text-sm flex items-center animate-pulse gap-2"
+              <div className="text-slate-400 font-medium text-[13px] flex items-center animate-pulse gap-2"
                    style={{ opacity: Math.max(0, 1 - Math.abs(slideOffset) / 80 - Math.abs(slideOffsetY) / 80) }}>
                 {isLockedRecording ? (
                   <span className="text-emerald-500">Locked</span>
                 ) : (
                   <>
                     <span>&lt; Cancel</span>
-                    <span className="text-xs">|</span>
+                    <span className="text-[10px]">|</span>
                     <span>Lock ^</span>
                   </>
                 )}
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-end bg-white rounded-[24px] overflow-hidden px-2 shadow-sm border border-slate-200">
+            <div 
+              className="flex-1 flex items-end bg-white rounded-3xl pl-1 pr-1.5 shadow-sm border border-slate-200 transition-all focus-within:shadow-md focus-within:border-emerald-300"
+              onClick={(e) => {
+                const target = e.target as HTMLElement;
+                if (!target.closest('button') && !target.closest('label') && target !== textareaRef.current) {
+                  textareaRef.current?.focus();
+                }
+              }}
+            >
               <button
                 id="emoji-toggle-btn"
                 type="button"
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="shrink-0 p-3 text-slate-500 hover:text-slate-700 transition-colors self-end"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (showEmojiPicker) {
+                    setShowEmojiPicker(false);
+                    textareaRef.current?.focus();
+                  } else {
+                    setShowEmojiPicker(true);
+                    textareaRef.current?.blur();
+                  }
+                }}
+                className="shrink-0 p-2.5 sm:p-3 text-slate-500 hover:text-emerald-500 transition-colors self-end mb-0.5"
               >
                 <Smile size={24} strokeWidth={1.5} />
               </button>
@@ -367,11 +392,17 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
                   }
                   if (foundImage) e.preventDefault();
                 }}
-                placeholder="Type a message"
-                className="flex-1 bg-transparent text-[#111b21] placeholder-[#8696a0] py-[10px] px-2 text-[14.5px] focus:outline-none resize-none leading-snug max-h-[100px] min-h-[40px]"
+                placeholder="Message"
+                className="flex-1 bg-transparent text-black placeholder-slate-400 py-[12px] px-1 text-[16px] focus:outline-none resize-none leading-snug max-h-[120px] min-h-[44px] custom-scrollbar"
                 rows={1}
                 readOnly={isSending}
+                onClick={() => {
+                  if (showEmojiPicker) {
+                    setShowEmojiPicker(false);
+                  }
+                }}
                 onFocus={() => {
+                  setShowEmojiPicker(false);
                   const isMobile = window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent);
                   if (isMobile && scrollContainerRef.current) {
                     const target = scrollContainerRef.current;
@@ -405,112 +436,57 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
                 onClick={() => localStorage.setItem('squirrel_bypass_lock', Date.now().toString())}
                 disabled={isSending}
               />
-              <label
-                htmlFor="image-upload"
-                onClick={() => localStorage.setItem('squirrel_bypass_lock', Date.now().toString())}
-                className={`shrink-0 p-2 sm:p-3 transition-colors self-end cursor-pointer ${isSending ? 'text-slate-300 pointer-events-none' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                {isSending ? <Loader2 size={24} className="animate-spin" strokeWidth={1.5} /> : <ImageIcon size={24} strokeWidth={1.5} />}
-              </label>
-              <button
-                type="button"
-                onClick={() => { localStorage.setItem('squirrel_bypass_lock', Date.now().toString()); onCameraClick(); }}
-                disabled={isSending}
-                className={`shrink-0 p-2 sm:p-3 transition-colors self-end ${isSending ? 'text-slate-300 pointer-events-none' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                <Camera size={24} strokeWidth={1.5} />
-              </button>
+              {!text.trim() && (
+                <>
+                  <label
+                    htmlFor="image-upload"
+                    onClick={() => localStorage.setItem('squirrel_bypass_lock', Date.now().toString())}
+                    className={`shrink-0 p-2 sm:p-2.5 transition-colors self-end mb-0.5 cursor-pointer ${isSending ? 'text-slate-300 pointer-events-none' : 'text-slate-500 hover:text-emerald-500'}`}
+                  >
+                    <ImageIcon size={22} strokeWidth={1.5} />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => { localStorage.setItem('squirrel_bypass_lock', Date.now().toString()); onCameraClick(); }}
+                    disabled={isSending}
+                    className={`shrink-0 p-2 sm:p-2.5 transition-colors self-end mb-0.5 mr-0.5 ${isSending ? 'text-slate-300 pointer-events-none' : 'text-slate-500 hover:text-emerald-500'}`}
+                  >
+                    <Camera size={22} strokeWidth={1.5} />
+                  </button>
+                </>
+              )}
             </div>
           )}
 
-          {isInputEmpty ? (
-            /* VOICE RECORDING TEMPORARILY DISABLED
-            isLockedRecording ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => stopRecording(true)}
-                  className="w-11 h-11 flex items-center justify-center rounded-full bg-red-100 text-red-500 hover:bg-red-200 transition-colors"
-                >
-                  <Trash2 size={20} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => stopRecording(false)}
-                  className="w-11 h-11 flex items-center justify-center rounded-full bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-md"
-                >
-                  <Send size={20} className="ml-0.5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                disabled={isSending}
-                style={{ transform: slideOffset < 0 ? `translateX(${slideOffset}px)` : slideOffsetY < 0 ? `translateY(${slideOffsetY}px)` : (isRecording ? 'scale(1.25) translateY(-8px)' : 'none') }}
-                onPointerDown={(e) => {
-                  if (isSending) return;
-                  e.preventDefault();
-                  e.currentTarget.setPointerCapture(e.pointerId);
-                  touchStartX.current = e.clientX;
-                  touchStartY.current = e.clientY;
-                  setSlideOffset(0);
-                  setSlideOffsetY(0);
-                  startRecording();
-                }}
-                onPointerMove={(e) => {
-                  if (!isHoldingRef.current) return;
-                  const distanceX = touchStartX.current - e.clientX;
-                  const distanceY = touchStartY.current - e.clientY;
-                  
-                  if (distanceX > 0) setSlideOffset(-distanceX);
-                  if (distanceY > 0) setSlideOffsetY(-distanceY);
-
-                  if (distanceX > 100) {
-                    stopRecording(true);
-                    e.currentTarget.releasePointerCapture(e.pointerId);
-                  } else if (distanceY > 80) {
-                    setIsLockedRecording(true);
-                    setSlideOffsetY(0);
-                    isHoldingRef.current = false;
-                    e.currentTarget.releasePointerCapture(e.pointerId);
-                  }
-                }}
-                onPointerUp={(e) => {
-                  if (!isHoldingRef.current) return;
-                  e.currentTarget.releasePointerCapture(e.pointerId);
-                  stopRecording(false);
-                }}
-                className={`group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-colors duration-300 ease-out outline-none shadow-md touch-none ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
-              >
-                <Mic size={22} strokeWidth={2.5} className="text-white" />
-              </button>
-            )
-            */
-            <button
-              type="submit"
-              disabled={true}
-              onPointerDown={(e) => e.preventDefault()}
-              className="group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full transition-all duration-300 ease-out outline-none bg-slate-200 border border-slate-300 text-slate-400 shadow-sm opacity-80"
-            >
-              <Send size={20} strokeWidth={2.5} className="ml-0.5" />
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={isSending}
-              onPointerDown={(e) => e.preventDefault()}
-              className="group relative shrink-0 w-12 h-12 flex items-center justify-center rounded-full outline-none text-white overflow-hidden transition-all duration-[400ms] cubic-bezier(0.175,0.885,0.32,1.275) active:scale-90 hover:scale-[1.05] bg-gradient-to-br from-emerald-400 to-teal-600 shadow-[0_6px_20px_rgba(16,185,129,0.35)] hover:shadow-[0_8px_25px_rgba(16,185,129,0.5)] border border-emerald-400/30"
-            >
-              <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/30 to-white/0 translate-x-[-150%] skew-x-[-20deg] group-hover:translate-x-[150%] transition-transform duration-700 ease-in-out" />
-              {isSending ? (
-                <Loader2 size={20} className="animate-spin relative z-10" strokeWidth={2.5} />
-              ) : (
-                <Send size={20} strokeWidth={2.5} className="ml-0.5 relative z-10 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-active:scale-95 transition-transform duration-300" />
-              )}
-            </button>
-          )}
+          <button
+            type="submit"
+            disabled={isSending || (isInputEmpty && pastedImagesLength === 0)}
+            onPointerDown={(e) => e.preventDefault()}
+            className={`mr-1 shrink-0 w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center rounded-full outline-none text-white transition-all duration-300 shadow-sm self-end mb-0.5 ${isSending || (isInputEmpty && pastedImagesLength === 0) ? 'opacity-50 cursor-default bg-emerald-400' : 'active:scale-90 hover:scale-[1.05] bg-emerald-500 cursor-pointer'}`}
+          >
+            <Send size={20} strokeWidth={2.5} className="ml-1 pr-0.5" />
+          </button>
         </form>
-      </>
+        <div 
+          className={`w-full overflow-hidden transition-[height] duration-200 ease-out flex justify-center bg-transparent ${
+            showEmojiPicker && !isRecording ? 'h-[350px]' : 'h-0'
+          }`}
+        >
+          <div ref={emojiPickerRef} className="w-full max-w-4xl h-[350px]">
+            <EmojiPicker 
+              emojiStyle={"native" as any}
+              onEmojiClick={onEmojiClick}
+              theme={Theme.LIGHT}
+              lazyLoadEmojis={false}
+              searchDisabled
+              skinTonesDisabled
+              previewConfig={{ showPreview: false }}
+              width="100%"
+              height={350}
+            />
+          </div>
+        </div>
+      </div>
     );
   }
 );

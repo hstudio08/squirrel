@@ -8,14 +8,19 @@ import ChatUI from '@/components/ChatUI';
 export default function ChatPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && !loading && !user) {
       router.push('/');
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, mounted]);
 
-  if (loading || !user) {
+  if (!mounted || loading || !user) {
     return <main className="flex min-h-[100dvh] flex-col items-center justify-center bg-zinc-950" />;
   }
 

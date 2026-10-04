@@ -39,7 +39,6 @@ import ImageEditor from './ImageEditor';
 import MultiImagePreviewModal from './MultiImagePreviewModal';
 import CameraCapture from './CameraCapture';
 import { ChatInputForm } from './ChatInputForm';
-import OnboardingTour from './OnboardingTour';
 
 interface ChatUIProps {
   user: User;
@@ -126,92 +125,12 @@ const secureCache = {
   }
 };
 
-const PurePrivacyCurtain = ({ onClose }: { onClose: () => void }) => {
-  const [curHeight, setCurHeight] = useState<number | null>(null);
-  const [swipeX, setSwipeX] = useState(0);
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    e.preventDefault();
-    const startY = e.clientY;
-    const startHeight = curHeight || (window.innerHeight - 150);
-
-    const onMove = (moveEvent: PointerEvent) => {
-      moveEvent.preventDefault();
-      const deltaY = moveEvent.clientY - startY;
-      const newHeight = Math.min(window.innerHeight, Math.max(100, startHeight + deltaY));
-      setCurHeight(newHeight);
-    };
-
-    const onUp = () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-  };
-
-  const handleTextPointerDown = (e: React.PointerEvent) => {
-    if (!e.isPrimary) return;
-    const startX = e.clientX;
-
-    const onMove = (moveEvent: PointerEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      if (deltaX > 0) {
-        setSwipeX(deltaX);
-      }
-    };
-
-    const onUp = (upEvent: PointerEvent) => {
-      const finalDeltaX = upEvent.clientX - startX;
-      if (finalDeltaX > 100) {
-        onClose();
-      }
-      setSwipeX(0);
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-  };
-
-  return (
-    <div
-      className="fixed top-0 left-0 right-0 bg-black z-[100] flex flex-col shadow-2xl transition-none"
-      style={{ height: curHeight !== null ? `${curHeight}px` : 'calc(100vh - 150px)', touchAction: 'none' }}
-    >
-      {/* Gesture Overlay for Revealing Messages */}
-      <div
-        className="absolute inset-0 z-20 cursor-grab active:cursor-grabbing"
-        onPointerDown={handleTextPointerDown}
-        style={{
-          transform: `translateX(${swipeX}px)`,
-          opacity: Math.max(0, 1 - swipeX / 200)
-        }}
-      />
-
-      <div className="flex-1 pointer-events-none" />
-
-      {/* Bottom Handle */}
-      <div
-        className="w-full h-20 cursor-ns-resize flex items-center justify-center bg-zinc-900/50 backdrop-blur-xl border-t border-zinc-700/30 relative z-10 hover:bg-zinc-800/50 transition-colors shadow-[0_-4px_20px_rgba(0,0,0,0.3)] shrink-0"
-        onPointerDown={handlePointerDown}
-      >
-        <div className="flex gap-2 items-center justify-center pointer-events-none">
-          <div className="w-2 h-2 rounded-full bg-zinc-400" />
-          <div className="w-12 h-2 rounded-full bg-zinc-400" />
-          <div className="w-2 h-2 rounded-full bg-zinc-400" />
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const getApiUrl = (path: string) => {
   const resolvedPath = path.endsWith('/') ? path : `${path}/`;
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.153.85.8:3000';
   if (typeof window !== 'undefined' && window.origin && (window.origin === 'https://localhost' || window.origin === 'http://localhost' || window.origin === 'capacitor://localhost') && window.location.port !== '3000') {
-    return `http://10.153.85.8:3000${resolvedPath}`;
+    return `${baseUrl}${resolvedPath}`;
   }
   return resolvedPath;
 };
@@ -225,6 +144,10 @@ const getReplyText = (msg: Message) => {
 
 export default function ChatUI({ user }: ChatUIProps) {
   const router = useRouter();
+
+  useEffect(() => {
+    router.prefetch('/settings');
+  }, [router]);
   const [wallpaperSettings, setWallpaperSettings] = useState<WallpaperSettings>(defaultSettings);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
@@ -304,6 +227,12 @@ export default function ChatUI({ user }: ChatUIProps) {
   }, [messages, loadedCount]);
 
   const [otherUserName, setOtherUserName] = useState<string>('');
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('squirrel_partnerNickname');
+      if (stored) setOtherUserName(stored);
+    }
+  }, []);
   const [otherUserStatus, setOtherUserStatus] = useState<{ state: string, last_changed: number } | null>(null);
   const [otherUid, setOtherUid] = useState<string | null>(null);
   const [partnerData, setPartnerData] = useState<any>(null);
@@ -334,7 +263,7 @@ export default function ChatUI({ user }: ChatUIProps) {
     }
     return () => unsubMe();
   }, [otherUid, user.uid]);
-  const [privacyMode, setPrivacyMode] = useState<'none' | 'blur' | 'pure'>('none');
+  const [isAnonymousMode, setIsAnonymousMode] = useState(false);
   const [revealedMessages, setRevealedMessages] = useState<string[]>([]);
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -612,15 +541,32 @@ export default function ChatUI({ user }: ChatUIProps) {
   useEffect(() => {
     if (!user) return;
     const fetchOtherUser = async () => {
+      const storedName = localStorage.getItem('squirrel_partnerNickname');
+      const storedUid = localStorage.getItem('squirrel_partnerUid');
+      
+      if (storedName) {
+        setOtherUserName(storedName);
+      }
+      if (storedUid) {
+        setOtherUid(storedUid);
+      }
+      
+      if (storedName && storedUid) return;
+
       try {
         const q = query(collection(db, 'users'), where('email', '==', otherEmail));
         const snapshot = await getDocs(q);
         if (!snapshot.empty) {
           const data = snapshot.docs[0].data();
-          setOtherUserName(data.displayName || otherEmail.split('@')[0]);
+          const nameToSet = data.displayName || otherEmail.split('@')[0];
+          setOtherUserName(nameToSet);
           setOtherUid(data.uid);
+          localStorage.setItem('squirrel_partnerNickname', nameToSet);
+          localStorage.setItem('squirrel_partnerUid', data.uid);
         } else {
-          setOtherUserName(otherEmail.split('@')[0]);
+          const defaultName = otherEmail.split('@')[0];
+          setOtherUserName(defaultName);
+          localStorage.setItem('squirrel_partnerNickname', defaultName);
         }
       } catch (err) {
         console.error(err);
@@ -671,7 +617,7 @@ export default function ChatUI({ user }: ChatUIProps) {
           } catch (e) { }
 
           const { PushNotifications } = await import('@capacitor/push-notifications');
-          
+
           try {
             await PushNotifications.createChannel({
               id: 'default',
@@ -1270,9 +1216,9 @@ export default function ChatUI({ user }: ChatUIProps) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${idToken}`
               },
-              body: JSON.stringify({ 
-                receiverUid: otherUid, 
-                chatId, 
+              body: JSON.stringify({
+                receiverUid: otherUid,
+                chatId,
                 messageId: msgRef.id,
                 senderToken: localStorage.getItem('fcmToken')
               })
@@ -1542,9 +1488,9 @@ export default function ChatUI({ user }: ChatUIProps) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${idToken}`
               },
-              body: JSON.stringify({ 
-                receiverUid: otherUid, 
-                chatId, 
+              body: JSON.stringify({
+                receiverUid: otherUid,
+                chatId,
                 messageId: optimisticId,
                 senderToken: localStorage.getItem('fcmToken')
               })
@@ -1663,9 +1609,9 @@ export default function ChatUI({ user }: ChatUIProps) {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${idToken}`
                   },
-                  body: JSON.stringify({ 
-                    receiverUid: otherUid, 
-                    chatId, 
+                  body: JSON.stringify({
+                    receiverUid: otherUid,
+                    chatId,
                     messageId: msgRef.id,
                     senderToken: localStorage.getItem('fcmToken')
                   })
@@ -1742,9 +1688,9 @@ export default function ChatUI({ user }: ChatUIProps) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${idToken}`
               },
-              body: JSON.stringify({ 
-                receiverUid: otherUid, 
-                chatId, 
+              body: JSON.stringify({
+                receiverUid: otherUid,
+                chatId,
                 messageId: newMsgRef.id,
                 senderToken: localStorage.getItem('fcmToken')
               })
@@ -1856,6 +1802,11 @@ export default function ChatUI({ user }: ChatUIProps) {
       const showDate = index === 0 || !isSameDay(displayMessages[index - 1].createdAt, msg.createdAt);
       const isNewSenderGroup = index > 0 && !showDate && displayMessages[index - 1].senderId !== msg.senderId;
 
+      const isFirstInGroup = index === 0 || showDate || displayMessages[index - 1].senderId !== msg.senderId;
+      const nextMsg = displayMessages[index + 1];
+      const nextShowDate = nextMsg && !isSameDay(msg.createdAt, nextMsg.createdAt);
+      const isLastInGroup = index === displayMessages.length - 1 || nextShowDate || nextMsg.senderId !== msg.senderId;
+
       return (
         <React.Fragment key={msg.id}>
           {showDate && (
@@ -1881,8 +1832,10 @@ export default function ChatUI({ user }: ChatUIProps) {
                 user={user}
                 chatId={chatId}
                 isFirstUnreplied={msg.id === firstUnrepliedId}
+                isFirstInGroup={isFirstInGroup}
+                isLastInGroup={isLastInGroup}
                 onReply={() => setReplyingTo(msg)}
-                isAnonymousMode={privacyMode === 'blur'}
+                isAnonymousMode={isAnonymousMode}
                 isLastMessage={index === displayMessages.length - 1}
                 isRevealed={revealedMessages.includes(msg.id)}
                 onReveal={() => handleRevealMessage(msg.id)}
@@ -1904,10 +1857,10 @@ export default function ChatUI({ user }: ChatUIProps) {
         </React.Fragment>
       );
     });
-  }, [visibleMessages, loadedCount, user, chatId, searchQuery, searchResults, currentSearchIndex, privacyMode, revealedMessages, activeReactionMessageId, selectionMode, selectedMessages, expandedMessageId, pinnedMessage, otherEmail, formatDateSeparator, handlePinToggle, unreadDividerMsgId, unreadDividerCount]);
+  }, [visibleMessages, loadedCount, user, chatId, searchQuery, searchResults, currentSearchIndex, isAnonymousMode, revealedMessages, activeReactionMessageId, selectionMode, selectedMessages, expandedMessageId, pinnedMessage, otherEmail, formatDateSeparator, handlePinToggle, unreadDividerMsgId, unreadDividerCount]);
 
   return (
-    <div 
+    <div
       className="chat-bg flex flex-col h-[100dvh] text-black relative overflow-hidden"
       style={viewportHeight ? { height: `${viewportHeight}px` } : {}}
     >
@@ -1920,8 +1873,6 @@ export default function ChatUI({ user }: ChatUIProps) {
           filter: `blur(${wallpaperSettings.blur}px)`
         }}
       />
-      <OnboardingTour user={user} />
-      {privacyMode === 'pure' && <PurePrivacyCurtain onClose={() => setPrivacyMode('none')} />}
 
       {showPartnerModal && (
         <div
@@ -1985,7 +1936,7 @@ export default function ChatUI({ user }: ChatUIProps) {
       {/* Attached Top Section */}
       <div className="relative top-0 left-0 right-0 z-40 flex flex-col w-full items-center shrink-0">
         {/* Header */}
-        <div className={`flex flex-col px-4 py-3 bg-[#fcfcfc]/95 backdrop-blur-md shadow-[0_2px_10px_rgba(0,0,0,0.05)] border-b border-slate-200 shrink-0 relative w-full pt-[max(env(safe-area-inset-top),0.75rem)] transition-all duration-300 ease-in-out z-40`}>
+        <div className={`flex flex-col px-4 py-3 bg-[#fcfcfc]/95 backdrop-blur-md shadow-[0_2px_10px_rgba(0,0,0,0.05)] border-b border-slate-200 shrink-0 relative w-full rounded-b-[24px] pt-[max(env(safe-area-inset-top),0.75rem)] transition-all duration-300 ease-in-out z-40`}>
           <div className="flex items-center justify-between w-full relative z-10">
             {selectionMode ? (
               <div className="flex items-center justify-between w-full h-10">
@@ -2029,8 +1980,8 @@ export default function ChatUI({ user }: ChatUIProps) {
                 {/* Right Side: Profile & SignOut */}
                 <div className="flex items-center justify-end flex-1 min-w-0 ml-3 space-x-3">
                   <div className="flex flex-col items-end overflow-hidden justify-center">
-                    <h1 className="text-[15px] font-bold text-slate-900 truncate w-full text-right tracking-tight leading-none">
-                      {typeof window !== 'undefined' && localStorage.getItem('squirrel_partnerNickname') ? localStorage.getItem('squirrel_partnerNickname') : (otherUserName || 'Partner')}
+                    <h1 className={`text-[15px] font-bold text-slate-900 truncate w-full text-right tracking-tight leading-none transition-all duration-300 ${isAnonymousMode ? 'blur-[4px] opacity-70 select-none' : ''}`}>
+                      {otherUserName || (typeof window !== 'undefined' ? localStorage.getItem('squirrel_partnerNickname') : null) || otherEmail.split('@')[0]}
                     </h1>
                     <StatusIndicator
                       state={otherUserStatus?.state}
@@ -2040,7 +1991,7 @@ export default function ChatUI({ user }: ChatUIProps) {
                   </div>
                   <button
                     onClick={signOut}
-                    className="w-10 h-10 text-red-50 bg-gradient-to-br from-red-600 to-rose-700 border border-red-800 hover:from-red-700 hover:to-rose-800 rounded-xl transition-all shadow-[0_2px_8px_rgba(225,29,72,0.3)] shrink-0 active:scale-95 flex items-center justify-center relative overflow-hidden group"
+                    className="w-10 h-10 text-red-50 bg-gradient-to-br from-red-600 to-rose-700 border border-red-800 hover:from-red-700 hover:to-rose-800 rounded-full transition-all shadow-[0_2px_8px_rgba(225,29,72,0.3)] shrink-0 active:scale-95 flex items-center justify-center relative overflow-hidden group"
                     aria-label="Sign Out"
                   >
                     <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -2057,90 +2008,79 @@ export default function ChatUI({ user }: ChatUIProps) {
 
         {/* Expanded Menu Options Floating Below Navbar */}
         <div className={`absolute top-full left-0 right-0 w-full flex flex-col items-center transition-all duration-300 origin-top z-30 pt-3 will-change-transform ${showMenu ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
-          <div className="flex flex-row items-center justify-center gap-3 px-4 py-1.5 bg-white border border-orange-500/50 shadow-[0_2px_12px_rgba(0,0,0,0.08)] rounded-full">
+          <div className="flex flex-row items-center justify-center gap-3 p-[2px] shadow-[0_2px_12px_rgba(0,0,0,0.12)] rounded-full" style={{ background: 'linear-gradient(to right, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C)' }}>
+            <div className="flex flex-row items-center justify-center gap-3 px-4 py-1.5 bg-white rounded-full">
 
-            <button onClick={() => router.push('/settings')} title="Settings"
-              className="w-10 h-10 rounded-full border border-orange-400/40 hover:border-orange-500/70 bg-[#ffe6a7] flex items-center justify-center text-blue-600 hover:bg-[#ffe6a7]/80 hover:text-blue-700 transition-all active:scale-95 group">
-              <Settings size={22} className="group-hover:rotate-45 transition-transform" />
-            </button>
+              <button onClick={() => router.push('/settings')} title="Settings"
+                className="w-10 h-10 rounded-full bg-[#00674f] flex items-center justify-center text-white hover:bg-[#005540] hover:scale-105 transition-all active:scale-95 group shadow-sm">
+                <Settings size={22} className="group-hover:rotate-45 transition-transform" />
+              </button>
 
-            {(user.email === 'officialhaadi81@gmail.com') && (
+              {(user.email === 'officialhaadi81@gmail.com') && (
+                <button onClick={() => {
+                  setConfirmAction({
+                    title: 'Copy Messages?',
+                    description: 'Copy all currently loaded messages to your clipboard?',
+                    confirmText: 'Copy',
+                    onConfirm: () => {
+                      const texts = visibleMessages.map(m => m.text).join('\n\n');
+                      navigator.clipboard.writeText(texts);
+                      setShowMenu(false);
+                      showToast('All loaded messages copied!');
+                      setConfirmAction(null);
+                    }
+                  });
+                }} title="Copy all messages"
+                  className="w-10 h-10 rounded-full bg-[#00674f] flex items-center justify-center text-white hover:bg-[#005540] hover:scale-105 transition-all active:scale-95 group shadow-sm">
+                  <Copy size={22} className="group-hover:scale-110 transition-transform" />
+                </button>
+              )}
+
+              <button onClick={() => {
+                setShowSearch(!showSearch);
+                if (!showSearch) setTimeout(() => searchInputRef.current?.focus(), 100);
+                else setSearchQuery('');
+                setShowMenu(false);
+              }} title={showSearch ? 'Close Search' : 'Search Messages'}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 group shadow-sm hover:scale-105 ${showSearch ? 'bg-[#004d3b] text-yellow-300' : 'bg-[#00674f] text-white hover:bg-[#005540]'}`}>
+                {showSearch ? <X size={22} /> : <Search size={22} className="group-hover:scale-110 transition-transform" />}
+              </button>
+
+              <button onClick={(e) => {
+                setConfirmAction({
+                  title: 'Enable Blur Privacy?',
+                  description: 'Are you sure you want to toggle blur privacy mode?',
+                  confirmText: 'Toggle',
+                  onConfirm: () => { setIsAnonymousMode(!isAnonymousMode); setRevealedMessages([]); setShowMenu(false); setConfirmAction(null); }
+                });
+              }} title="Privacy (Blur)"
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 group shadow-sm hover:scale-105 ${isAnonymousMode ? 'bg-[#004d3b] text-yellow-300' : 'bg-[#00674f] text-white hover:bg-[#005540]'}`}>
+                <Ghost size={22} className={`${!isAnonymousMode ? 'group-hover:-translate-y-1' : ''} transition-transform`} />
+              </button>
+
               <button onClick={() => {
                 setConfirmAction({
-                  title: 'Copy Messages?',
-                  description: 'Copy all currently loaded messages to your clipboard?',
-                  confirmText: 'Copy',
-                  onConfirm: () => {
-                    const texts = visibleMessages.map(m => m.text).join('\n\n');
-                    navigator.clipboard.writeText(texts);
-                    setShowMenu(false);
-                    showToast('All loaded messages copied!');
-                    setConfirmAction(null);
-                  }
+                  title: 'Clear Chat?',
+                  description: 'Are you sure you want to clear all messages? This action cannot be undone.',
+                  confirmText: 'Clear',
+                  isDestructive: true,
+                  onConfirm: () => { handleClearChat(); setConfirmAction(null); }
                 });
-              }} title="Copy all messages"
-                className="w-10 h-10 rounded-full border border-orange-400/40 hover:border-orange-500/70 bg-[#ffe6a7] flex items-center justify-center text-blue-600 hover:bg-[#ffe6a7]/80 hover:text-blue-700 transition-all active:scale-95 group">
-                <Copy size={22} className="group-hover:scale-110 transition-transform" />
+              }} title="Clear Chat"
+                className="w-10 h-10 rounded-full bg-[#00674f] flex items-center justify-center text-red-300 hover:text-red-400 hover:bg-[#005540] hover:scale-105 transition-all active:scale-95 group shadow-sm">
+                <Trash2 size={22} className="group-hover:scale-110 transition-transform" />
               </button>
-            )}
-
-            <button onClick={() => {
-              setShowSearch(!showSearch);
-              if (!showSearch) setTimeout(() => searchInputRef.current?.focus(), 100);
-              else setSearchQuery('');
-              setShowMenu(false);
-            }} title={showSearch ? 'Close Search' : 'Search Messages'}
-              className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all active:scale-95 group ${showSearch ? 'border-orange-500/70 bg-[#ffe6a7]/90 text-blue-700 shadow-md' : 'border-orange-400/40 hover:border-orange-500/70 bg-[#ffe6a7] text-blue-600 hover:bg-[#ffe6a7]/80 hover:text-blue-700'}`}>
-              {showSearch ? <X size={22} /> : <Search size={22} className="group-hover:scale-110 transition-transform" />}
-            </button>
-
-            <button onClick={(e) => {
-              const now = Date.now();
-              const DOUBLE_PRESS_DELAY = 300;
-              if (privacyTapTimeout.current) { clearTimeout(privacyTapTimeout.current); privacyTapTimeout.current = null; }
-              if (now - lastTapRef.current < DOUBLE_PRESS_DELAY) {
-                setConfirmAction({
-                  title: 'Enable Pure Privacy?',
-                  description: 'Are you sure you want to toggle pure privacy mode?',
-                  confirmText: 'Toggle',
-                  onConfirm: () => { setPrivacyMode(privacyMode === 'pure' ? 'none' : 'pure'); setRevealedMessages([]); setShowMenu(false); setConfirmAction(null); }
-                });
-              } else {
-                privacyTapTimeout.current = setTimeout(() => {
-                  setConfirmAction({
-                    title: 'Enable Blur Privacy?',
-                    description: 'Are you sure you want to toggle blur privacy mode?',
-                    confirmText: 'Toggle',
-                    onConfirm: () => { setPrivacyMode(privacyMode === 'blur' ? 'none' : 'blur'); setRevealedMessages([]); setShowMenu(false); setConfirmAction(null); }
-                  });
-                }, DOUBLE_PRESS_DELAY);
-              }
-              lastTapRef.current = now;
-            }} title="Privacy (Tap: Blur, Double: Pure)"
-              className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all active:scale-95 group ${privacyMode !== 'none' ? 'border-orange-500/70 bg-[#ffe6a7]/90 text-blue-700 shadow-md' : 'border-orange-400/40 hover:border-orange-500/70 bg-[#ffe6a7] text-blue-600 hover:bg-[#ffe6a7]/80 hover:text-blue-700'}`}>
-              <Ghost size={22} className={`${privacyMode === 'none' ? 'group-hover:-translate-y-1' : ''} transition-transform`} />
-            </button>
-
-            <button onClick={() => {
-              setConfirmAction({
-                title: 'Clear Chat?',
-                description: 'Are you sure you want to clear all messages? This action cannot be undone.',
-                confirmText: 'Clear',
-                isDestructive: true,
-                onConfirm: () => { handleClearChat(); setConfirmAction(null); }
-              });
-            }} title="Clear Chat"
-              className="w-10 h-10 rounded-full border border-orange-400/40 hover:border-orange-500/70 bg-[#ffe6a7] flex items-center justify-center text-red-500 hover:bg-[#ffe6a7]/80 hover:text-red-600 transition-all active:scale-95 group">
-              <Trash2 size={22} className="group-hover:scale-110 transition-transform" />
-            </button>
+            </div>
           </div>
 
           {/* Status Field */}
           <div className="mt-2 mb-1 w-full px-4 flex justify-center">
-            <div className="inline-flex bg-white border border-orange-500/50 rounded-full py-1.5 px-5 shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
-              <p className="text-[12.5px] text-slate-700 text-center font-medium leading-snug italic text-wrap break-words drop-shadow-sm">
-                "{otherUserAbout || "Hey there! I am using Squirrel."}"
-              </p>
+            <div className="inline-flex p-[2px] rounded-full shadow-[0_2px_12px_rgba(0,0,0,0.08)]" style={{ background: 'linear-gradient(to right, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C)' }}>
+              <div className="bg-white rounded-full py-1.5 px-5">
+                <p className="text-[12.5px] text-[#00674f] text-center font-medium leading-snug italic text-wrap break-words drop-shadow-sm">
+                  "{otherUserAbout || "Hey there! I am using Squirrel."}"
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -2250,17 +2190,27 @@ export default function ChatUI({ user }: ChatUIProps) {
       {/* Messages */}
       <div
         ref={scrollContainerRef}
-        style={{ overflowAnchor: 'none' }}
+        style={{ overflowAnchor: 'none', WebkitOverflowScrolling: 'touch' }}
         onScroll={(e) => {
           setActiveReactionMessageId(null);
           const target = e.target as HTMLDivElement;
           const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 150;
           setShowScrollBottom(!isNearBottom);
         }}
-        className={`flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative w-full max-w-4xl mx-auto transition-all duration-500 ${privacyMode === 'pure' ? 'opacity-30 saturate-0 brightness-75' : 'opacity-100 saturate-100 brightness-100'}`}
+        onMouseDown={(e) => {
+          // Prevent the input from losing focus (and thus closing the keyboard)
+          // when clicking on the messages background area, without breaking touch scroll.
+          if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+            // Allow buttons and links to be clicked normally (e.g. play audio, delete)
+            if (!(e.target instanceof HTMLElement && (e.target.closest('button') || e.target.closest('a')))) {
+              e.preventDefault();
+            }
+          }
+        }}
+        className={`flex-1 overflow-y-auto px-2 sm:px-4 py-4 flex flex-col relative w-full max-w-4xl mx-auto transition-all duration-500 overscroll-behavior-y-none opacity-100 saturate-100 brightness-100`}
       >
         {/* Removed h-[120px] spacer because navbar is now relative */}
-        {messages.length >= 10 && hasMoreMessages && (
+        {hasMoreMessages && (
           <div className="flex justify-center w-full mt-4 mb-8 shrink-0 relative z-[50]">
             <div
               onClick={(e) => {
@@ -2276,8 +2226,16 @@ export default function ChatUI({ user }: ChatUIProps) {
             >
               {isFetchingMore ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-slate-300" />
+                  <div className="w-4 h-[2px] bg-slate-500 overflow-hidden relative rounded-full">
+                     <div className="w-1/2 h-full bg-slate-300 absolute rounded-full" style={{ animation: 'chatLoad 1.5s infinite ease-in-out' }} />
+                  </div>
                   <span className="text-slate-200">Loading...</span>
+                  <style dangerouslySetInnerHTML={{__html: `
+                    @keyframes chatLoad {
+                      0% { transform: translateX(-100%); }
+                      100% { transform: translateX(250%); }
+                    }
+                  `}} />
                 </>
               ) : (
                 <>
@@ -2369,23 +2327,23 @@ export default function ChatUI({ user }: ChatUIProps) {
           onClick={() => {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
           }}
-          className={`fixed right-6 sm:right-10 z-[100] p-3 rounded-full cursor-pointer animate-pop-in transition-all duration-300 ease-out bg-white/40   border border-white/60 shadow-[0_4px_12px_rgba(0,0,0,0.08)] text-slate-700 hover:text-blue-600 hover:bg-white/60 hover:scale-105 active:scale-95 ${replyingTo ? 'bottom-[145px]' : 'bottom-[90px]'}`}
+          className={`fixed right-6 sm:right-10 z-[100] p-3 rounded-full cursor-pointer animate-pop-in transition-transform duration-200 ease-out bg-[#FFFFFF] border border-[#9ec6d1] shadow-md hover:bg-[#a2c8d4] hover:scale-105 active:scale-95 will-change-transform transform-gpu ${replyingTo ? 'bottom-[145px]' : 'bottom-[90px]'}`}
         >
           {unreadCountWhileScrolled > 0 && (
-            <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[11px] font-bold px-1.5 py-0.5 min-w-[20px] h-[20px] flex items-center justify-center rounded-full shadow-sm animate-pop-in border border-white/50">
+            <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[11px] font-bold px-1.5 py-0.5 min-w-[20px] h-[20px] flex items-center justify-center rounded-full shadow-sm animate-pop-in border border-white">
               {unreadCountWhileScrolled}
             </span>
           )}
-          <ChevronDown size={22} strokeWidth={2.5} />
+          <ChevronDown size={24} strokeWidth={3} className="text-black" />
         </button>
       )}
 
       {/* Floating Composer */}
-      <div className="absolute bottom-[env(safe-area-inset-bottom,0px)] pb-3 pt-2 left-0 right-0 z-40 pointer-events-none flex justify-center px-2 sm:px-4 w-full will-change-transform transform-gpu">
+      <div className="absolute bottom-[env(safe-area-inset-bottom,0px)] pt-2 pb-0 left-0 right-0 z-40 pointer-events-none flex justify-center w-full will-change-transform transform-gpu">
         <div className="w-full max-w-4xl relative pointer-events-auto flex flex-col">
 
           {replyingTo && (
-            <div className="max-w-4xl w-full mx-auto mb-2 flex items-center justify-between bg-[#e2e8f0] rounded-lg p-2 shadow-sm border-l-4 border-teal-500 animate-slide-up relative z-10 pointer-events-auto overflow-hidden">
+            <div className="max-w-4xl w-full mx-auto mb-2 flex items-center justify-between bg-[#e2e8f0] rounded-lg p-2 shadow-sm border-l-4 border-teal-500 animate-slide-up relative z-10 pointer-events-auto overflow-hidden mx-2 sm:mx-4" style={{ width: 'calc(100% - 16px)' }}>
               <div className="flex-1 overflow-hidden pr-2 min-w-0 w-0">
                 <p className="text-[12px] font-semibold text-teal-600 mb-0.5 truncate">
                   {replyingTo.senderId === user?.uid ? 'You' : otherEmail}
