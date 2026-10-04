@@ -130,15 +130,21 @@ const getApiUrl = (path: string) => {
   // Use the env var, or fallback to the actual backend domain, NOT the vite app domain
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://ai.qurevo.in'; 
   
+  // Next.js with trailingSlash: true will issue 308 redirects if the trailing slash is missing.
+  // Browsers block 308 redirects on CORS preflight OPTIONS requests.
+  const pathWithSlash = path.includes('?') 
+    ? path // Skip if it has query params just to be safe
+    : (path.endsWith('/') ? path : `${path}/`);
+
   if (typeof window !== 'undefined' && window.origin) {
     // If running inside Capacitor (mobile app) which serves from capacitor:// or http://localhost without port 3000
     if (window.origin.includes('capacitor://') || (window.origin.includes('http://localhost') && window.location.port !== '3000')) {
-      return `${baseUrl}${path}`;
+      return `${baseUrl}${pathWithSlash}`;
     }
   }
   // For normal web browsers (including localhost:3000 and ai.qurevo.in), use relative path
   // so that Vercel routes the request to its own API.
-  return path;
+  return pathWithSlash;
 };
 
 const getReplyText = (msg: Message) => {
