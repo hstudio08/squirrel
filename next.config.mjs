@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
-  output: 'export',
+  // output is dynamically set below
   trailingSlash: true,
   serverExternalPackages: ['firebase-admin', 'jwks-rsa', 'jose'],
   images: {
@@ -22,5 +22,12 @@ const nextConfig = {
     ],
   },
 };
+
+// For Capacitor Android builds we need static export.
+// Vercel automatically sets process.env.VERCEL = "1" so it will skip this
+// and correctly deploy the /api/notify serverless function!
+if (!process.env.VERCEL) {
+  nextConfig.output = 'export';
+}
 
 export default nextConfig;

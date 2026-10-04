@@ -128,10 +128,13 @@ const secureCache = {
 
 const getApiUrl = (path: string) => {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://whyitworks.vercel.app'; // Fallback for production if needed
-  if (typeof window !== 'undefined' && window.origin && (window.origin.includes('capacitor://') || (window.origin.includes('http://localhost') && window.location.port !== '3000'))) {
+  if (typeof window !== 'undefined' && window.origin) {
+    if (window.origin === 'http://localhost:3000') {
+      return path; // Use relative path for local Next.js API
+    }
     return `${baseUrl}${path}`;
   }
-  return path;
+  return `${baseUrl}${path}`;
 };
 
 const getReplyText = (msg: Message) => {
@@ -504,11 +507,16 @@ export default function ChatUI({ user }: ChatUIProps) {
   const { signOut } = useAuth();
 
 
+  const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const playNotificationSound = () => {
     try {
       if (document.visibilityState === 'visible') {
-        const audio = new Audio('/notification.mp3');
-        const playPromise = audio.play();
+        if (!notificationAudioRef.current) {
+          notificationAudioRef.current = new Audio('/notification.mp3');
+        }
+        notificationAudioRef.current.currentTime = 0;
+        const playPromise = notificationAudioRef.current.play();
         if (playPromise !== undefined) {
           playPromise.catch(e => {
             // Silently catch NotAllowedError (user didn't interact yet)
