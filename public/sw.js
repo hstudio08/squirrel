@@ -1,4 +1,4 @@
-const CACHE_NAME = 'squirrel-shell-v7';
+const CACHE_NAME = 'squirrel-shell-v8';
 const ASSETS_TO_CACHE = [
   '/',
   '/notification.mp3',
@@ -47,7 +47,8 @@ self.addEventListener('fetch', (event) => {
     url.hostname.includes('securetoken.googleapis.com') ||
     url.hostname.includes('googleapis.com') ||
     url.hostname.includes('apis.google.com') ||
-    url.hostname.includes('cloudinary.com')
+    url.hostname.includes('cloudinary.com') ||
+    url.hostname.includes('qurevo.in')
   ) {
     return;
   }
