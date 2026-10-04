@@ -195,7 +195,7 @@ export default function SettingsPage() {
 
   if (!isMounted || !user) {
     return (
-      <div className="h-dvh bg-[#F5F5F7] text-slate-900 flex flex-col font-sans overflow-hidden page-transition">
+      <div className="h-dvh bg-black text-white flex flex-col font-sans overflow-hidden page-transition">
         <style dangerouslySetInnerHTML={{__html: `
           @keyframes slideIn {
             from { opacity: 0; transform: translateX(20px); }
@@ -210,7 +210,7 @@ export default function SettingsPage() {
           }
         `}} />
         <div className="w-full h-[2px] bg-transparent overflow-hidden relative">
-          <div className="w-1/2 h-full bg-slate-400/50 rounded-full absolute" style={{ animation: 'sleekLoad 1.5s infinite ease-in-out' }} />
+          <div className="w-1/2 h-full bg-white rounded-full absolute" style={{ animation: 'sleekLoad 1.5s infinite ease-in-out' }} />
         </div>
       </div>
     );

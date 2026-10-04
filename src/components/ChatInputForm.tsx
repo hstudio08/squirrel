@@ -349,7 +349,7 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
             }
           `}} />
         </div>
-        <form id="chat-input-form" onSubmit={handleSubmit} className="flex items-end space-x-2 max-w-4xl mx-auto w-full mb-2 pl-3 pr-10 sm:px-8 pointer-events-auto">
+        <form id="chat-input-form" onSubmit={handleSubmit} className="flex items-end space-x-2 max-w-4xl mx-auto w-full mb-2 px-4 sm:px-8 pointer-events-auto">
           {isRecording ? (
             <div className="flex-1 flex items-center bg-white rounded-full overflow-hidden px-4 h-[44px] justify-between shadow-sm border border-red-400/50 relative">
               <div className="flex items-center space-x-3 text-red-500 animate-pulse">

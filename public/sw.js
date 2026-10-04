@@ -1,4 +1,4 @@
-const CACHE_NAME = 'squirrel-shell-v6';
+const CACHE_NAME = 'squirrel-shell-v7';
 const ASSETS_TO_CACHE = [
   '/',
   '/notification.mp3',
