@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Smile, Send, Loader2, Image as ImageIcon, Camera, Mic, Trash2, StopCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { EmojiClickData, Theme } from 'emoji-picker-react';
-
+import { App as CapacitorApp } from '@capacitor/app';
 const EmojiPicker = dynamic(
   () => import('emoji-picker-react'),
   { ssr: false }
@@ -67,6 +67,29 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
           }
         }, 10);
       }
+    }, [showEmojiPicker]);
+    
+    useEffect(() => {
+      let backButtonListener: any = null;
+      const initBackButton = async () => {
+        try {
+          backButtonListener = await CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+            if (showEmojiPicker) {
+              setShowEmojiPicker(false);
+            } else if (canGoBack) {
+              window.history.back();
+            }
+          });
+        } catch (e) {
+          console.warn("Capacitor App plugin not available");
+        }
+      };
+      initBackButton();
+      return () => {
+        if (backButtonListener) {
+          backButtonListener.remove();
+        }
+      };
     }, [showEmojiPicker]);
 
     useEffect(() => {
@@ -326,7 +349,7 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
             }
           `}} />
         </div>
-        <form id="chat-input-form" onSubmit={handleSubmit} className="flex items-end space-x-1.5 sm:space-x-2 max-w-4xl mx-auto w-full mb-1 pl-2 pr-3 sm:px-4">
+        <form id="chat-input-form" onSubmit={handleSubmit} className="flex items-end space-x-2 max-w-4xl mx-auto w-full mb-2 pl-3 pr-10 sm:px-8 pointer-events-auto">
           {isRecording ? (
             <div className="flex-1 flex items-center bg-white rounded-full overflow-hidden px-4 h-[44px] justify-between shadow-sm border border-red-400/50 relative">
               <div className="flex items-center space-x-3 text-red-500 animate-pulse">
@@ -352,7 +375,14 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
               onClick={(e) => {
                 const target = e.target as HTMLElement;
                 if (!target.closest('button') && !target.closest('label') && target !== textareaRef.current) {
-                  textareaRef.current?.focus();
+                  if (showEmojiPicker) {
+                    setShowEmojiPicker(false);
+                    setTimeout(() => {
+                      textareaRef.current?.focus();
+                    }, 50);
+                  } else {
+                    textareaRef.current?.focus();
+                  }
                 }
               }}
             >
@@ -399,6 +429,9 @@ export const ChatInputForm = React.forwardRef<any, ChatInputFormProps>(
                 onClick={() => {
                   if (showEmojiPicker) {
                     setShowEmojiPicker(false);
+                    setTimeout(() => {
+                      textareaRef.current?.focus();
+                    }, 50);
                   }
                 }}
                 onFocus={() => {

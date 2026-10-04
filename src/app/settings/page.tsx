@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { ArrowLeft, Lock, Bell, Zap, UserRound, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Lock, Bell, Zap, UserRound, MessageCircle, Edit2, CheckCircle2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {
@@ -101,12 +101,24 @@ export default function SettingsPage() {
     }
   }, [user, loading, router]);
 
+  const [toastMessage, setToastMessage] = useState('');
+  const [showToast, setShowToast] = useState(false);
+
+  const showToastWithMessage = (msg: string) => {
+    setToastMessage(msg);
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+    }, 2500);
+  };
+
   // Handlers
   const handleSaveStatus = async () => {
     if (!user || status.length > 35) return;
     try {
       await updateDoc(doc(db, 'users', user.uid), { status });
       localStorage.setItem('squirrel_status', status);
+      showToastWithMessage('Status saved');
     } catch (error) {
       console.error("Failed to save status", error);
     }
@@ -117,6 +129,7 @@ export default function SettingsPage() {
     try {
       await updateDoc(doc(db, 'users', user.uid), { partnerNickname: friendName });
       localStorage.setItem('squirrel_partnerNickname', friendName);
+      showToastWithMessage('Name saved');
     } catch (error) {
       console.error("Failed to save friend name", error);
     }
@@ -127,9 +140,11 @@ export default function SettingsPage() {
     if (finalPin.length === 0) {
       localStorage.removeItem('squirrel_pin');
       setAppPin('');
+      showToastWithMessage('PIN removed');
     } else if (/^\d{4}$/.test(finalPin)) {
       localStorage.setItem('squirrel_pin', finalPin);
       setAppPin(finalPin);
+      showToastWithMessage('PIN saved');
     } else {
       setAppPin(localStorage.getItem('squirrel_pin') || '');
     }
@@ -234,15 +249,18 @@ export default function SettingsPage() {
             </div>
             <div className="flex-1">
               <span className="text-[12px] font-medium text-slate-500 block mb-0.5">Friend's Name</span>
-              <input 
-                type="text" 
-                placeholder="Name"
-                maxLength={30}
-                value={friendName}
-                onChange={(e) => setFriendName(e.target.value)}
-                onBlur={handleSaveFriendName}
-                className="w-full bg-transparent outline-none text-slate-900 text-[16px] placeholder:text-slate-400 font-medium"
-              />
+              <div className="flex items-center group relative">
+                <input 
+                  type="text" 
+                  placeholder="Name"
+                  maxLength={30}
+                  value={friendName}
+                  onChange={(e) => setFriendName(e.target.value)}
+                  onBlur={handleSaveFriendName}
+                  className="w-full bg-transparent outline-none text-slate-900 text-[16px] placeholder:text-slate-400 font-medium py-1 pr-8 border-b border-transparent focus:border-blue-400/30 transition-colors"
+                />
+                <Edit2 size={14} className="text-slate-300 absolute right-1 pointer-events-none" />
+              </div>
             </div>
           </div>
           
@@ -258,15 +276,18 @@ export default function SettingsPage() {
                 <span className="text-[12px] font-medium text-slate-500 block mb-0.5">About</span>
                 <span className="text-[10px] text-slate-400">{status.length}/35</span>
               </div>
-              <input 
-                type="text" 
-                placeholder="What's up?"
-                maxLength={35}
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                onBlur={handleSaveStatus}
-                className="w-full bg-transparent outline-none text-slate-900 text-[16px] placeholder:text-slate-400 font-medium"
-              />
+              <div className="flex items-center relative">
+                <input 
+                  type="text" 
+                  placeholder="What's up?"
+                  maxLength={35}
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  onBlur={handleSaveStatus}
+                  className="w-full bg-transparent outline-none text-slate-900 text-[16px] placeholder:text-slate-400 font-medium py-1 pr-8 border-b border-transparent focus:border-purple-400/30 transition-colors"
+                />
+                <Edit2 size={14} className="text-slate-300 absolute right-1 pointer-events-none" />
+              </div>
             </div>
           </div>
         </div>
@@ -296,7 +317,7 @@ export default function SettingsPage() {
                 setAppPin(val);
               }}
               onBlur={handleSavePin}
-              className="w-20 bg-[#F2F2F7] rounded-xl px-3 py-2 text-center text-slate-900 font-bold text-[16px] tracking-widest outline-none border border-transparent focus:border-orange-400/50 transition-colors placeholder:tracking-normal placeholder:text-slate-400 placeholder:font-normal"
+              className="w-28 h-12 bg-[#F2F2F7] rounded-xl px-2 py-3 text-center text-slate-900 font-bold text-[22px] tracking-[0.2em] outline-none border border-transparent focus:border-orange-400/50 transition-colors placeholder:tracking-normal placeholder:text-slate-400 placeholder:font-normal placeholder:text-[15px]"
             />
           </div>
 
@@ -352,6 +373,16 @@ export default function SettingsPage() {
             </label>
           </div>
         </div>
+      </div>
+
+      {/* Toast Notification */}
+      <div 
+        className={`fixed top-[env(safe-area-inset-top,1rem)] left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-slate-900/95 text-white px-4 py-2.5 rounded-full shadow-lg shadow-black/10 transition-all duration-300 ease-out ${
+          showToast ? 'translate-y-4 opacity-100' : '-translate-y-8 opacity-0 pointer-events-none'
+        }`}
+      >
+        <CheckCircle2 size={16} className="text-emerald-400" />
+        <span className="text-[14px] font-medium tracking-tight whitespace-nowrap">{toastMessage}</span>
       </div>
     </div>
   );

@@ -21,7 +21,19 @@ export default function ChatPage() {
   }, [user, loading, router, mounted]);
 
   if (!mounted || loading || !user) {
-    return <main className="flex min-h-[100dvh] flex-col items-center justify-center bg-zinc-950" />;
+    return (
+      <main className="h-[100dvh] bg-[#F2F2F7] text-slate-900 flex flex-col font-sans overflow-hidden">
+        <style dangerouslySetInnerHTML={{__html: `
+          @keyframes sleekLoad {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(250%); }
+          }
+        `}} />
+        <div className="w-full h-[2px] bg-transparent overflow-hidden relative mt-[20dvh]">
+          <div className="w-1/2 h-full bg-slate-400/50 rounded-full absolute" style={{ animation: 'sleekLoad 1.5s infinite ease-in-out' }} />
+        </div>
+      </main>
+    );
   }
 
   return <ChatUI user={user} />;

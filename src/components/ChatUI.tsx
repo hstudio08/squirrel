@@ -127,12 +127,11 @@ const secureCache = {
 
 
 const getApiUrl = (path: string) => {
-  const resolvedPath = path.endsWith('/') ? path : `${path}/`;
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.153.85.8:3000';
-  if (typeof window !== 'undefined' && window.origin && (window.origin === 'https://localhost' || window.origin === 'http://localhost' || window.origin === 'capacitor://localhost') && window.location.port !== '3000') {
-    return `${baseUrl}${resolvedPath}`;
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://whyitworks.vercel.app'; // Fallback for production if needed
+  if (typeof window !== 'undefined' && window.origin && (window.origin.includes('capacitor://') || (window.origin.includes('http://localhost') && window.location.port !== '3000'))) {
+    return `${baseUrl}${path}`;
   }
-  return resolvedPath;
+  return path;
 };
 
 const getReplyText = (msg: Message) => {
@@ -226,7 +225,12 @@ export default function ChatUI({ user }: ChatUIProps) {
     }
   }, [messages, loadedCount]);
 
-  const [otherUserName, setOtherUserName] = useState<string>('');
+  const [otherUserName, setOtherUserName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('squirrel_partnerNickname') || '';
+    }
+    return '';
+  });
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('squirrel_partnerNickname');
@@ -2198,12 +2202,18 @@ export default function ChatUI({ user }: ChatUIProps) {
           setShowScrollBottom(!isNearBottom);
         }}
         onMouseDown={(e) => {
-          // Prevent the input from losing focus (and thus closing the keyboard)
-          // when clicking on the messages background area, without breaking touch scroll.
-          if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
-            // Allow buttons and links to be clicked normally (e.g. play audio, delete)
+          if (isKeyboardOpen && document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
             if (!(e.target instanceof HTMLElement && (e.target.closest('button') || e.target.closest('a')))) {
               e.preventDefault();
+            }
+          }
+        }}
+        onClick={(e) => {
+          // Clear ghost focus if the keyboard is closed but the input is still focused
+          if (!isKeyboardOpen && document.activeElement instanceof HTMLElement && 
+              (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+            if (!(e.target instanceof HTMLElement && (e.target.closest('button') || e.target.closest('a')))) {
+              document.activeElement.blur();
             }
           }
         }}
