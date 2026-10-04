@@ -127,14 +127,18 @@ const secureCache = {
 
 
 const getApiUrl = (path: string) => {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://whyitworks.vercel.app'; // Fallback for production if needed
+  // Use the env var, or fallback to the actual backend domain, NOT the vite app domain
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://ai.qurevo.in'; 
+  
   if (typeof window !== 'undefined' && window.origin) {
-    if (window.origin === 'http://localhost:3000') {
-      return path; // Use relative path for local Next.js API
+    // If running inside Capacitor (mobile app) which serves from capacitor:// or http://localhost without port 3000
+    if (window.origin.includes('capacitor://') || (window.origin.includes('http://localhost') && window.location.port !== '3000')) {
+      return `${baseUrl}${path}`;
     }
-    return `${baseUrl}${path}`;
   }
-  return `${baseUrl}${path}`;
+  // For normal web browsers (including localhost:3000 and ai.qurevo.in), use relative path
+  // so that Vercel routes the request to its own API.
+  return path;
 };
 
 const getReplyText = (msg: Message) => {
